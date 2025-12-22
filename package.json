@@ -1,7 +1,7 @@
 {
   "name": "extract",
   "productName": "ExtrAct",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "PDF Article Extraction and Editor",
   "main": "main.js",
   "scripts": {
@@ -77,14 +77,14 @@
   },
   "devDependencies": {
     "electron": "^28.0.0",
-    "electron-builder": "^26.0.12",
-    "electron-updater": "^6.6.2"
+    "electron-builder": "^26.0.12"
   },
   "dependencies": {
     "adm-zip": "^0.5.16",
     "axios": "^1.13.2",
     "canvas": "^3.2.0",
     "docx": "^9.5.1",
+    "electron-updater": "^6.6.2",
     "html-to-text": "^9.0.5",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^5.4.449",
