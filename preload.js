@@ -17,7 +17,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
 contextBridge.exposeInMainWorld('settingsAPI', {
   loadSettings: () => ipcRenderer.invoke('load-settings'),
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
-  closeWindow: () => ipcRenderer.invoke('close-settings-window')
+  closeWindow: () => ipcRenderer.invoke('close-settings-window'),
+
+  // Auto-update
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  downloadUpdate: () => ipcRenderer.invoke('download-update'),
+  installUpdate: () => ipcRenderer.invoke('install-update'),
+  onUpdateAvailable: (callback) => ipcRenderer.on('update-available', (event, info) => callback(info)),
+  onUpdateNotAvailable: (callback) => ipcRenderer.on('update-not-available', (event, info) => callback(info)),
+  onUpdateDownloadProgress: (callback) => ipcRenderer.on('update-download-progress', (event, progress) => callback(progress)),
+  onUpdateDownloaded: (callback) => ipcRenderer.on('update-downloaded', (event, info) => callback(info)),
+  onUpdateError: (callback) => ipcRenderer.on('update-error', (event, error) => callback(error))
 });
 
 // Projects API

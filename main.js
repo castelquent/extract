@@ -1,11 +1,69 @@
 const { app, BrowserWindow, ipcMain, dialog, Menu, protocol } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
 
+// Configuration du logger pour auto-updater
+autoUpdater.autoDownload = false; // Ne pas télécharger automatiquement
+autoUpdater.autoInstallOnAppQuit = true;
+
+// Events auto-updater
+autoUpdater.on('update-available', (info) => {
+  if (mainWindow) {
+    mainWindow.webContents.send('update-available', info);
+  }
+});
+
+autoUpdater.on('update-not-available', (info) => {
+  if (mainWindow) {
+    mainWindow.webContents.send('update-not-available', info);
+  }
+});
+
+autoUpdater.on('download-progress', (progressObj) => {
+  if (mainWindow) {
+    mainWindow.webContents.send('update-download-progress', progressObj);
+  }
+});
+
+autoUpdater.on('update-downloaded', (info) => {
+  if (mainWindow) {
+    mainWindow.webContents.send('update-downloaded', info);
+  }
+});
+
+autoUpdater.on('error', (err) => {
+  if (mainWindow) {
+    mainWindow.webContents.send('update-error', err.message);
+  }
+});
+
 let mainWindow;
 let settingsWindow = null;
 let extractionWindow = null;
+
+// Fonction pour obtenir le chemin Python
+function getPythonPath() {
+  if (app.isPackaged) {
+    // En production: utiliser Python bundlé
+    return path.join(process.resourcesPath, 'python-portable', 'python.exe');
+  } else {
+    // En dev: utiliser Python portable local
+    return path.join(__dirname, 'python-portable', 'python.exe');
+  }
+}
+
+// Fonction pour obtenir le chemin d'un script Python
+function getPythonScriptPath(scriptName) {
+  if (app.isPackaged) {
+    // En production: les scripts Python sont dans extraResources
+    return path.join(process.resourcesPath, scriptName);
+  } else {
+    // En dev: les scripts sont dans __dirname
+    return path.join(__dirname, scriptName);
+  }
+}
 
 // Menu pour la page Projects
 function setProjectsMenu() {
@@ -341,6 +399,12 @@ app.whenReady().then(() => {
   createWindow();
   mainWindow.maximize();
 
+  // Vérifier les mises à jour au démarrage (après 3 secondes)
+  if (app.isPackaged) {
+    setTimeout(() => {
+      autoUpdater.checkForUpdates();
+    }, 3000);
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -426,6 +490,29 @@ ipcMain.handle('close-settings-window', () => {
   if (settingsWindow) {
     settingsWindow.close();
   }
+});
+
+// ==================== AUTO-UPDATE ====================
+
+ipcMain.handle('get-app-version', () => {
+  return app.getVersion();
+});
+
+ipcMain.handle('check-for-updates', async () => {
+  try {
+    const result = await autoUpdater.checkForUpdates();
+    return { success: true, updateInfo: result.updateInfo };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('download-update', () => {
+  autoUpdater.downloadUpdate();
+});
+
+ipcMain.handle('install-update', () => {
+  autoUpdater.quitAndInstall();
 });
 
 // ==================== PROJECT MANAGEMENT ====================
@@ -694,9 +781,10 @@ ipcMain.handle('create-project', async (event, pdfPath, customName) => {
 
     try {
       const { execSync } = require('child_process');
-      const pythonScript = path.join(__dirname, 'generate_thumbnail.py');
+      const pythonScript = getPythonScriptPath('generate_thumbnail.py');
+      const pythonExe = getPythonPath();
 
-      execSync(`python "${pythonScript}" "${tempConfigPath}"`, {
+      execSync(`"${pythonExe}" "${pythonScript}" "${tempConfigPath}"`, {
         stdio: 'inherit',
         windowsHide: true
       });
@@ -1107,9 +1195,10 @@ ipcMain.handle('extract-pdf', async (event, params) => {
     // Tu devras adapter cette partie selon ton setup Python
     const { spawn } = require('child_process');
     const pythonScript = path.join(__dirname, '..', 'app.py');
+    const pythonExe = getPythonPath();
 
     return new Promise((resolve, reject) => {
-      const python = spawn('python', [
+      const python = spawn(pythonExe, [
         pythonScript,
         pdfPath,
         '--confidence', confidenceThreshold.toString(),
@@ -1274,7 +1363,7 @@ ipcMain.handle('export-pdf-with-images', async (event, params) => {
 
       // Pour chaque article, on doit combiner les zones
       // Utiliser le script Python pour convertir les pages en images
-      const pythonScript = path.join(__dirname, 'pdf_to_image.py');
+      const pythonScript = getPythonScriptPath('pdf_to_image.py');
 
       // Créer un JSON temporaire avec les zones
       const tempData = {
@@ -1288,8 +1377,9 @@ ipcMain.handle('export-pdf-with-images', async (event, params) => {
       fs.writeFileSync(tempFile, JSON.stringify(tempData), 'utf-8');
 
       // Appeler Python pour faire le rendu
+      const pythonExe = getPythonPath();
       await new Promise((resolve, reject) => {
-        const python = spawn('python', [pythonScript, tempFile]);
+        const python = spawn(pythonExe, [pythonScript, tempFile]);
 
         let stdout = '';
         let stderr = '';

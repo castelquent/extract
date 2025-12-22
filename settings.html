@@ -20,6 +20,9 @@
         <li class="is-active" data-tab="ia">
           <a><span>IA</span></a>
         </li>
+        <li data-tab="about">
+          <a><span>À propos</span></a>
+        </li>
       </ul>
     </div>
 
@@ -101,6 +104,41 @@
         </div>
         <div class="control">
           <button id="save-btn" class="button is-primary">Sauvegarder</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab Content: About -->
+    <div id="tab-about" class="tab-content p-4" style="display: none;">
+      <div class="box has-background-dark">
+        <h1 class="title has-text-light">ExtrAct</h1>
+        <p class="subtitle has-text-grey">PDF Article Extraction and Editor</p>
+        <p class="has-text-light">Version: <span id="app-version">...</span></p>
+      </div>
+
+      <div class="box has-background-dark mt-4">
+        <h2 class="title is-5 has-text-light">Mises à jour</h2>
+        <div class="field">
+          <div class="control">
+            <button id="check-updates-btn" class="button is-info">Vérifier les mises à jour</button>
+          </div>
+        </div>
+
+        <div id="update-status" class="notification is-hidden mt-3">
+          <p id="update-message"></p>
+        </div>
+
+        <div id="update-download-progress" class="is-hidden mt-3">
+          <p class="has-text-light mb-2">Téléchargement en cours...</p>
+          <progress id="download-progress-bar" class="progress is-info" value="0" max="100">0%</progress>
+          <p class="has-text-grey is-size-7" id="download-speed"></p>
+        </div>
+
+        <div id="update-ready" class="is-hidden mt-3">
+          <div class="notification is-success">
+            <p>Mise à jour téléchargée et prête à être installée!</p>
+          </div>
+          <button id="install-update-btn" class="button is-success">Redémarrer et installer</button>
         </div>
       </div>
     </div>

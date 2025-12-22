@@ -5,13 +5,80 @@
   "description": "PDF Article Extraction and Editor",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "build": "electron-builder build --win --publish never",
+    "build:publish": "electron-builder build --win --publish always",
+    "postinstall": "electron-builder install-app-deps"
   },
-  "keywords": ["pdf", "extraction", "articles", "editor"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/castelquent/extract.git"
+  },
+  "keywords": [
+    "pdf",
+    "extraction",
+    "articles",
+    "editor"
+  ],
   "author": "",
   "license": "ISC",
+  "build": {
+    "appId": "com.extract.app",
+    "productName": "ExtrAct",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "**/*",
+      "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
+      "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
+      "!**/node_modules/*.d.ts",
+      "!**/node_modules/.bin",
+      "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}",
+      "!.editorconfig",
+      "!**/._*",
+      "!**/{.DS_Store,.git,.hg,.svn,CVS,RCS,SCCS,.gitignore,.gitattributes}",
+      "!**/{__pycache__,thumbs.db,.flowconfig,.idea,.vs,.nyc_output}",
+      "!**/{appveyor.yml,.travis.yml,circle.yml}",
+      "!**/{npm-debug.log,yarn.lock,.yarn-integrity,.yarn-metadata.json}",
+      "python-portable/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "python-portable",
+        "to": "python-portable"
+      },
+      {
+        "from": "pdf_to_image.py",
+        "to": "pdf_to_image.py"
+      },
+      {
+        "from": "generate_thumbnail.py",
+        "to": "generate_thumbnail.py"
+      }
+    ],
+    "win": {
+      "target": ["nsis"],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "ExtrAct"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "castelquent",
+      "repo": "extract"
+    }
+  },
   "devDependencies": {
-    "electron": "^28.0.0"
+    "electron": "^28.0.0",
+    "electron-builder": "^26.0.12",
+    "electron-updater": "^6.6.2"
   },
   "dependencies": {
     "adm-zip": "^0.5.16",
