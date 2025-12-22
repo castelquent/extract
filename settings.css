@@ -1,0 +1,94 @@
+html, body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background-color: #1e1e1e;
+  height: 100vh;
+}
+
+#settings-container {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.tabs {
+  flex-shrink: 0;
+  margin-bottom: 0 !important;
+}
+
+.tab-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: none;
+}
+
+.tab-content.is-active {
+  display: block;
+}
+
+.provider-section {
+  transition: opacity 0.2s;
+}
+
+/* Scrollbar discrète */
+.tab-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.tab-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tab-content::-webkit-scrollbar-thumb {
+  background: #4a4a4a;
+  border-radius: 3px;
+}
+
+.tab-content::-webkit-scrollbar-thumb:hover {
+  background: #5a5a5a;
+}
+
+/* Dark theme pour inputs, selects et textarea */
+.input, .textarea, .select select {
+  background-color: #363636;
+  border-color: #4a4a4a;
+  color: #f5f5f5;
+}
+
+.input:focus, .textarea:focus, .select select:focus {
+  border-color: #3273dc;
+}
+
+.input::placeholder, .textarea::placeholder {
+  color: #7a7a7a;
+}
+
+.select:not(.is-multiple):not(.is-loading)::after {
+  border-color: #f5f5f5;
+}
+
+/* Buttons */
+.button {
+  background-color: #363636;
+  border-color: #4a4a4a;
+  color: #f5f5f5;
+}
+
+.button:hover {
+  background-color: #4a4a4a;
+  border-color: #5a5a5a;
+}
+
+.button.is-primary {
+  background-color: #3273dc;
+  border-color: #3273dc;
+  color: #fff;
+}
+
+.button.is-primary:hover {
+  background-color: #2366d1;
+  border-color: #2366d1;
+}

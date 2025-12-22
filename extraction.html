@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="fr" class="theme-dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ExtrAct - Extraction PDF</title>
+
+  <!-- Bulma CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="visualisateur.css">
+
+  <!-- PDF.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .main-container {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+      padding: 10px;
+      gap: 10px;
+    }
+
+    .left-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .right-panel {
+      width: 380px;
+      display: flex;
+      flex-direction: column;
+      background-color: #2b2b2b;
+      border-radius: 8px;
+      padding: 15px;
+    }
+
+    .selection-toolbar {
+      background-color: #2b2b2b;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .canvas-container {
+      flex: 1;
+      background-color: #1e1e1e;
+      border-radius: 8px;
+      overflow: hidden;
+      position: relative;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #pdf-canvas {
+      display: block;
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+
+    #selection-canvas {
+      position: absolute;
+      cursor: crosshair;
+      pointer-events: all;
+    }
+
+    .articles-list {
+      flex: 1;
+      overflow-y: auto;
+      margin-bottom: 15px;
+    }
+
+    .article-card {
+      border-radius: 6px;
+      padding: 12px;
+      margin-bottom: 10px;
+      border: 2px solid #444;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .article-card:hover {
+      border-color: #22c55e;
+    }
+
+    .article-card .article-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .article-card .article-title {
+      font-weight: bold;
+      color: black;
+      font-size: 14px;
+    }
+
+    .article-card .zone-info {
+      font-size: 12px;
+      color: black;
+      margin-top: 4px;
+    }
+
+    .selection-status {
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: bold;
+    }
+
+    .selection-status.empty {
+      background-color: #dc2626;
+      color: white;
+    }
+
+    .selection-status.active {
+      background-color: #ef4444;
+      color: white;
+    }
+
+    .nav-buttons {
+      display: flex;
+      gap: 5px;
+      align-items: center;
+    }
+
+    .page-label {
+      font-weight: bold;
+      font-size: 14px;
+      color: #e0e0e0;
+      margin: 0 10px;
+      min-width: 120px;
+      text-align: center;
+    }
+
+    /* Scrollbar pour la liste d'articles */
+    .articles-list::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .articles-list::-webkit-scrollbar-track {
+      background: #2b2b2b;
+      border-radius: 4px;
+    }
+
+    .articles-list::-webkit-scrollbar-thumb {
+      background: #555;
+      border-radius: 4px;
+    }
+
+    .articles-list::-webkit-scrollbar-thumb:hover {
+      background: #666;
+    }
+  </style>
+</head>
+<body>
+  <div class="main-container">
+    <!-- Left Panel: Canvas -->
+    <div class="left-panel">
+      <!-- Selection Toolbar -->
+      <div class="selection-toolbar is-flex is-align-content-center is-justify-content-space-between">
+        <div class="nav-buttons">
+          <button class="button is-small" id="prev-page">←</button>
+          <button class="button is-small" id="next-page">→</button>
+          <span class="page-label" id="page-label">Aucun PDF</span>
+        </div>
+        <div>
+          <button class="button is-small is-white" id="select-full-page">Page entière</button>
+          <button class="button is-small is-white" id="new-article-btn">Nouvel article</button>
+          <button class="button is-small is-warning" id="cancel-selection">Annuler</button>
+        </div>
+        
+      </div>
+
+      <!-- Canvas Container -->
+      <div class="canvas-container" id="canvas-container">
+        <canvas id="pdf-canvas"></canvas>
+        <canvas id="selection-canvas"></canvas>
+      </div>
+    </div>
+
+    <!-- Right Panel: Articles List -->
+    <div class="right-panel">
+      <h2 class="title is-4 has-text-light has-text-centered mb-4">Articles</h2>
+
+      <div class="articles-list" id="articles-list">
+        <p class="has-text-grey has-text-centered">Aucun article</p>
+      </div>
+
+      <button class="button is-success is-fullwidth" id="export-with-images">Extraire les articles</button>
+    </div>
+  </div>
+
+  <!-- Modal de choix après extraction -->
+  <div class="modal" id="extraction-complete-modal">
+    <div class="modal-background"></div>
+    <div class="modal-card">
+      <header class="modal-card-head">
+        <p class="modal-card-title">✅ Extraction terminée !</p>
+      </header>
+      <section class="modal-card-body">
+        <p class="mb-4" id="extraction-message">Les articles ont été extraits avec succès.</p>
+        <p class="has-text-weight-bold">Que voulez-vous faire ?</p>
+      </section>
+      <footer class="modal-card-foot" style="justify-content: space-between;">
+        <button class="button is-primary" id="goto-transcription">
+          <span class="icon"><span>📝</span></span>
+          <span>Passer à la transcription</span>
+        </button>
+        <button class="button is-light" id="goto-projects">
+          <span class="icon"><span>📂</span></span>
+          <span>Retour aux projets</span>
+        </button>
+      </footer>
+    </div>
+  </div>
+
+  <script src="extraction-renderer.js"></script>
+</body>
+</html>

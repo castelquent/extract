@@ -1,0 +1,126 @@
+/* Projects page specific styles */
+body{
+    background-color: #1e1e1e;
+    min-height: 100vh;
+
+}
+#projects-list{
+  gap:2%
+}
+.project-card-container {
+  margin-bottom: 1rem;
+  transition: all 0.2s ease;
+  width: 23.5%;
+}
+
+.project-card-container:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.project-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.project-thumbnail {
+  width: 100%;
+  margin-bottom: 1rem;
+  border-radius: 6px;
+  overflow: hidden;
+  background-color: #f5f5f5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.project-thumbnail img {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: cover;
+  aspect-ratio: 1/1.294;
+}
+
+.project-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.project-info {
+  flex: 1;
+}
+
+.project-title {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+  text-wrap: wrap;
+  word-break: break-all;
+}
+
+.project-meta {
+  font-size: 0.75em;
+  color: #7a7a7a;
+}
+
+.project-status {
+  position: absolute;
+  z-index: 2;
+  right:0.5em;
+  bottom: 0.5em;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem;
+  border-radius: 4px;
+  font-weight: 500;
+  margin-bottom: 0.75rem;
+  font-size: 0.85em;
+}
+
+.project-status.status-new {
+  background-color: #f5f5f5;
+  color: #363636;
+}
+
+.project-status.status-in_progress {
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+.project-status.status-extracted {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.project-status.status-completed {
+  background-color: #cfe2ff;
+  color: #084298;
+}
+
+.project-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.status-icon {
+  font-size: 1.5rem;
+}
+
+/* Modal overrides */
+.modal-card {
+  width: 90%;
+  max-width: 500px;
+}
+
+/* Empty state */
+#empty-state {
+  margin-top: 3rem;
+}

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ExtrAct - Projets</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+  <link rel="stylesheet" href="visualisateur.css">
+  <link rel="stylesheet" href="projects.css">
+</head>
+<body>
+  <section class="section pt-2">
+    <div class="container">
+      <div class="select is-small mb-2">
+              <select id="sort-select">
+                <option value="dateModified">Dernière modification</option>
+                <option value="dateAdded">Date d'ajout</option>
+                <option value="name">Nom</option>
+              </select>
+            </div>
+
+      <!-- Projects List -->
+      <div id="projects-list" class="is-flex is-flex-wrap-wrap">
+        <!-- Sera rempli dynamiquement -->
+      </div>
+
+      <!-- Empty State -->
+      <div id="empty-state" class="has-text-centered p-6" style="display: none;">
+        <p class="has-text-color-light">Aucun projet. Ouvrez un pdf avec Fichier > Nouveau projet (Ctrl + O).</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Modal de renommage -->
+  <div class="modal" id="rename-modal">
+    <div class="modal-background"></div>
+    <div class="modal-card">
+      <header class="modal-card-head">
+        <p class="modal-card-title">Renommer le projet</p>
+        <button class="delete" aria-label="close" id="rename-modal-close"></button>
+      </header>
+      <section class="modal-card-body">
+        <div class="field">
+          <label class="label">Nouveau nom</label>
+          <div class="control">
+            <input class="input" type="text" id="rename-input" placeholder="Nom du projet">
+          </div>
+        </div>
+      </section>
+      <footer class="modal-card-foot">
+        <button class="button is-primary" id="rename-confirm">Renommer</button>
+        <button class="button" id="rename-cancel">Annuler</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Modal de confirmation de suppression -->
+  <div class="modal" id="delete-modal">
+    <div class="modal-background"></div>
+    <div class="modal-card">
+      <header class="modal-card-head">
+        <p class="modal-card-title">Confirmer la suppression</p>
+        <button class="delete" aria-label="close" id="delete-modal-close"></button>
+      </header>
+      <section class="modal-card-body">
+        <p>Êtes-vous sûr de vouloir supprimer ce projet ?</p>
+        <p class="has-text-weight-bold mt-2" id="delete-project-name"></p>
+        <p class="has-text-danger mt-3">Cette action est irréversible.</p>
+      </section>
+      <footer class="modal-card-foot">
+        <button class="button is-danger" id="delete-confirm">Supprimer</button>
+        <button class="button" id="delete-cancel">Annuler</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Modal de création de projet -->
+  <div class="modal" id="new-project-modal">
+    <div class="modal-background"></div>
+    <div class="modal-card">
+      <header class="modal-card-head">
+        <p class="modal-card-title">Nouveau Projet</p>
+        <button class="delete" aria-label="close" id="new-project-modal-close"></button>
+      </header>
+      <section class="modal-card-body">
+        <div class="field">
+          <label class="label">Nom du projet</label>
+          <div class="control">
+            <input class="input" type="text" id="new-project-name" placeholder="Mon projet">
+          </div>
+        </div>
+        <div class="field">
+          <label class="label">Fichier PDF</label>
+          <div class="control">
+            <button class="button is-fullwidth" id="select-pdf-btn">
+              <span class="icon">
+                <span>📄</span>
+              </span>
+              <span id="selected-pdf-name">Sélectionner un PDF...</span>
+            </button>
+          </div>
+        </div>
+      </section>
+      <footer class="modal-card-foot">
+        <button class="button is-primary" id="new-project-confirm">Créer</button>
+        <button class="button" id="new-project-cancel">Annuler</button>
+      </footer>
+    </div>
+  </div>
+
+  <script src="projects-renderer.js"></script>
+</body>
+</html>

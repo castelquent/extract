@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="fr" class="theme-dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ExtrAct - Paramètres</title>
+
+  <!-- Bulma CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="settings.css">
+</head>
+<body>
+
+  <div id="settings-container" class="has-background-dark">
+    <!-- Tabs -->
+    <div class="tabs is-centered is-boxed mt-2">
+      <ul>
+        <li class="is-active" data-tab="ia">
+          <a><span>IA</span></a>
+        </li>
+      </ul>
+    </div>
+
+    <!-- Tab Content: IA -->
+    <div id="tab-ia" class="tab-content is-active p-4">
+      <div class="field">
+        <label class="label has-text-light">Provider</label>
+        <div class="control">
+          <div class="select is-fullwidth">
+            <select id="ai-provider">
+              <option value="openai">OpenAI</option>
+              <option value="anthropic">Anthropic</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- OpenAI Section -->
+      <div id="openai-section" class="provider-section">
+        <div class="field">
+          <label class="label has-text-light">Clé API OpenAI</label>
+          <div class="control">
+            <input id="openai-api-key" class="input" type="password" placeholder="sk-...">
+          </div>
+        </div>
+        <div class="field">
+          <label class="label has-text-light">Modèle OpenAI</label>
+          <div class="control">
+            <div class="select is-fullwidth">
+              <select id="openai-model">
+                <option value="gpt-4o">GPT-4o</option>
+                <option value="gpt-4o-mini">GPT-4o Mini</option>
+                <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                <option value="gpt-4">GPT-4</option>
+                <option value="o1">O1 (GPT-5 Preview)</option>
+                <option value="o1-mini">O1 Mini</option>
+                <option value="o3-mini">O3 Mini</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Anthropic Section -->
+      <div id="anthropic-section" class="provider-section" style="display: none;">
+        <div class="field">
+          <label class="label has-text-light">Clé API Anthropic</label>
+          <div class="control">
+            <input id="anthropic-api-key" class="input" type="password" placeholder="sk-ant-...">
+          </div>
+        </div>
+        <div class="field">
+          <label class="label has-text-light">Modèle Claude</label>
+          <div class="control">
+            <div class="select is-fullwidth">
+              <select id="anthropic-model">
+                <option value="claude-opus-4-20250514">Claude Opus 4</option>
+                <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
+                <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</option>
+                <option value="claude-3-opus-20240229">Claude 3 Opus</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Prompt -->
+      <div class="field mt-4">
+        <label class="label has-text-light">Prompt système</label>
+        <div class="control">
+          <textarea id="ai-prompt" class="textarea" rows="6" placeholder="Entrez votre prompt système..."></textarea>
+        </div>
+      </div>
+
+      <!-- Boutons -->
+      <div class="field is-grouped is-grouped-right mt-4">
+        <div class="control">
+          <button id="cancel-btn" class="button">Annuler</button>
+        </div>
+        <div class="control">
+          <button id="save-btn" class="button is-primary">Sauvegarder</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Renderer -->
+  <script src="settings-renderer.js"></script>
+</body>
+</html>

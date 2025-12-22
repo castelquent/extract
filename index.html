@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="fr" class="theme-dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ExtrAct - Éditeur</title>
+
+  <!-- Bulma CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+
+  <!-- Quill CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="visualisateur.css">
+</head>
+<body>
+
+  <div id="container" class="has-background-black">
+    <!-- Tabs -->
+    <div class="tabs is-centered is-toggle mt-2 mb-2">
+      <ul>
+        <li class="is-active" data-tab="preview">
+          <a>
+            <span>Aperçu</span>
+          </a>
+        </li>
+        <li data-tab="sommaire">
+          <a>
+            <span>Sommaire</span>
+          </a>
+        </li>
+      </ul>
+    </div>
+
+    <!-- Tab Content: Preview -->
+    <div id="tab-preview" class="tab-content is-active">
+      <div class="split">
+        <div id="column-left" class="column-left is-flex is-flex-direction-column">
+          <div id="preview-box-container">
+          </div>
+          <div id="preview-controls" class="mt-1 mb-1 is-flex is-flex-direction-column is-align-content-center">
+            <div class="is-flex is-align-content-center is-justify-content-center mb-1">
+              <button id='previous-page' class="button is-small is-white mr-1">&#8592;</button>
+              <button id='next-page' class="button is-small is-white">&#8594;</button>
+            </div>
+             <p class="has-text-centered"><span id='current-page'>1</span> / <span id='total-page'>1</span></p>
+          </div>
+        </div>
+
+        <div id="column-right" class="column-right">
+          <div id='edit-article-container' class="panel is-dark">
+            <div class="has-background-dark p-2 is-size-4 has-text-weight-bold is-flex is-justify-content-space-between">
+              <div>Article <span id='content-edit-index'>1</span></div>
+              <button id='send-to-ai' class="button is-small is-primary">Transcrire</button>
+            </div>
+            <div id='edit-article-content' class="p-2">
+              <div class="field">
+                <label class="label has-text-light has-text-weight-normal">Titre</label>
+                <div class="control">
+                  <input id="article-titre" class="input" type="text" placeholder="">
+                </div>
+              </div>
+              <div class="field">
+                <label class="label has-text-light has-text-weight-normal">Auteurice</label>
+                <div class="control">
+                  <input id="article-auteur" class="input" type="text" placeholder="">
+                </div>
+              </div>
+              <div class="field">
+                <label class="label has-text-light has-text-weight-normal">Contenu</label>
+                <div id="editor-container"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab Content: Sommaire -->
+    <div id="tab-sommaire" class="tab-content">
+      <div class="window-container">
+        <h2 class="window-title p-2 m-0 title is-4 has-text-light">Liste des articles</h2>
+        <div class="window-body">
+        <table class="table is-fullwidth is-striped">
+          <thead>
+            <tr>
+              <th><input type="checkbox" id="select-all-checkbox"></th>
+              <th>ID</th>
+              <th>PAGE DEBUT</th>
+              <th>TITRE</th>
+              <th>AUTEUR</th>
+              <th>CONTENU</th>
+              <th>ACTION</th>
+            </tr>
+          </thead>
+          <tbody id="sommaire-table-body">
+            <!-- Contenu généré dynamiquement -->
+          </tbody>
+        </table>
+        </div>
+      </div>
+
+      <div id="sommaire-controls" class="is-flex is-justify-content-center mb-2" style="gap: 0.5rem;">
+          <button class="button is-small is-white">Transcrire</button>
+          <button class="button is-small is-primary" id="export-selection-btn">Exporter la sélection</button>
+          <button class="button is-small is-danger">Supprimer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de confirmation de suppression -->
+  <div id="delete-modal" class="modal">
+    <div class="modal-background"></div>
+    <div class="modal-content">
+      <div class="box">
+        <p class="mb-4">Êtes-vous sûr de vouloir supprimer cet article ?</p>
+        <div class="buttons is-centered" style="gap: 0.5rem;">
+          <button class="button is-danger is-small" id="confirm-delete">Supprimer</button>
+          <button class="button is-small" id="cancel-delete">Annuler</button>
+        </div>
+      </div>
+    </div>
+    <button class="modal-close is-large" aria-label="close" id="delete-modal-close"></button>
+  </div>
+
+  <!-- Modal de transcription -->
+  <div id="transcription-modal" class="modal">
+    <div class="modal-background"></div>
+    <div class="modal-content">
+      <div class="box">
+        <h3 class="title is-5 mb-4">Transcription en cours...</h3>
+        <div id="transcription-log" style="max-height: 400px; overflow-y: auto; font-family: monospace; font-size: 0.9em;">
+          <!-- Les logs apparaîtront ici -->
+        </div>
+        <div class="mt-4">
+          <button class="button is-small" id="close-transcription-modal" disabled>Fermer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal d'export -->
+  <div id="export-modal" class="modal">
+    <div class="modal-background"></div>
+    <div class="modal-card">
+      <header class="modal-card-head">
+        <p class="modal-card-title">Exporter les articles</p>
+        <button class="delete" aria-label="close" id="export-modal-close"></button>
+      </header>
+      <section class="modal-card-body">
+        <div class="field">
+          <label class="label">Format d'export</label>
+          <div class="control">
+            <div class="select is-fullwidth">
+              <select id="export-format-select">
+                <option value="pdf">PDF</option>
+                <option value="docx">Word (.docx)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label">Destination</label>
+          <div class="control">
+            <button class="button is-fullwidth" id="select-export-destination">
+              <span class="icon">
+                <span>📁</span>
+              </span>
+              <span id="export-destination-name">Parcourir...</span>
+            </button>
+          </div>
+        </div>
+      </section>
+      <footer class="modal-card-foot">
+        <button class="button is-primary" id="confirm-export">Exporter</button>
+        <button class="button" id="cancel-export">Annuler</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Split.js -->
+  <script src="https://cdn.jsdelivr.net/npm/split.js@1.6.5/dist/split.min.js"></script>
+
+  <!-- Panzoom -->
+  <script src="https://cdn.jsdelivr.net/npm/@panzoom/panzoom@4.5.1/dist/panzoom.min.js"></script>
+
+  <!-- Quill -->
+  <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
+
+  <!-- Renderer -->
+  <script src="renderer.js"></script>
+</body>
+</html>
