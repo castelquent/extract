@@ -8,6 +8,19 @@ const axios = require('axios');
 autoUpdater.autoDownload = false; // Ne pas télécharger automatiquement
 autoUpdater.autoInstallOnAppQuit = true;
 
+// Force request options pour éviter les erreurs HTTP/2
+autoUpdater.requestHeaders = {
+  "User-Agent": "ExtrAct-Updater"
+};
+
+// Désactiver HTTP/2 pour éviter ERR_HTTP2_SERVER_REFUSED_STREAM
+const { net } = require('electron');
+autoUpdater.httpExecutor = {
+  download(url, destination, options) {
+    return net.download(url, destination, { ...options, useSessionCookies: false });
+  }
+};
+
 // Events auto-updater
 autoUpdater.on('update-available', (info) => {
   if (mainWindow) {
