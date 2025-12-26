@@ -89,7 +89,8 @@ function displayArticle(index) {
     panzoomInstance = Panzoom(img, {
       maxScale: 5,
       minScale: 1,
-      startScale: 1
+      startScale: 1,
+      contain:'outside'
     });
 
     previewContainer.addEventListener('wheel', panzoomInstance.zoomWithWheel);
