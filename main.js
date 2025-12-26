@@ -8,32 +8,47 @@ const axios = require('axios');
 autoUpdater.autoDownload = false; // Ne pas télécharger automatiquement
 autoUpdater.autoInstallOnAppQuit = true;
 
-// Events auto-updater
+// Events auto-updater - envoyer aux bonnes fenêtres
 autoUpdater.on('update-available', (info) => {
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    settingsWindow.webContents.send('update-available', info);
+  }
   if (mainWindow) {
     mainWindow.webContents.send('update-available', info);
   }
 });
 
 autoUpdater.on('update-not-available', (info) => {
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    settingsWindow.webContents.send('update-not-available', info);
+  }
   if (mainWindow) {
     mainWindow.webContents.send('update-not-available', info);
   }
 });
 
 autoUpdater.on('download-progress', (progressObj) => {
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    settingsWindow.webContents.send('update-download-progress', progressObj);
+  }
   if (mainWindow) {
     mainWindow.webContents.send('update-download-progress', progressObj);
   }
 });
 
 autoUpdater.on('update-downloaded', (info) => {
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    settingsWindow.webContents.send('update-downloaded', info);
+  }
   if (mainWindow) {
     mainWindow.webContents.send('update-downloaded', info);
   }
 });
 
 autoUpdater.on('error', (err) => {
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    settingsWindow.webContents.send('update-error', err.message);
+  }
   if (mainWindow) {
     mainWindow.webContents.send('update-error', err.message);
   }

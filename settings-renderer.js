@@ -96,89 +96,89 @@ tabs.forEach(tab => {
 
 // ==================== AUTO-UPDATE ====================
 
-const checkUpdatesBtn = document.getElementById('check-updates-btn');
-const installUpdateBtn = document.getElementById('install-update-btn');
-const updateStatus = document.getElementById('update-status');
-const updateMessage = document.getElementById('update-message');
-const updateDownloadProgress = document.getElementById('update-download-progress');
-const updateReady = document.getElementById('update-ready');
-const downloadProgressBar = document.getElementById('download-progress-bar');
-const downloadSpeed = document.getElementById('download-speed');
-const appVersion = document.getElementById('app-version');
-
-// Load app version
 window.addEventListener('DOMContentLoaded', async () => {
+  const checkUpdatesBtn = document.getElementById('check-updates-btn');
+  const installUpdateBtn = document.getElementById('install-update-btn');
+  const updateStatus = document.getElementById('update-status');
+  const updateMessage = document.getElementById('update-message');
+  const updateDownloadProgress = document.getElementById('update-download-progress');
+  const updateReady = document.getElementById('update-ready');
+  const downloadProgressBar = document.getElementById('download-progress-bar');
+  const downloadSpeed = document.getElementById('download-speed');
+  const appVersion = document.getElementById('app-version');
+
+  // Helper functions
+  function showUpdateStatus(message, className) {
+    updateMessage.textContent = message;
+    updateStatus.className = `notification mt-3 ${className}`;
+    updateStatus.classList.remove('is-hidden');
+  }
+
+  function hideAllUpdateUI() {
+    updateStatus.classList.add('is-hidden');
+    updateDownloadProgress.classList.add('is-hidden');
+    updateReady.classList.add('is-hidden');
+  }
+
+  // Load app version
   const version = await window.settingsAPI.getAppVersion();
   appVersion.textContent = version;
+
+  // Check for updates
+  checkUpdatesBtn.addEventListener('click', async () => {
+    checkUpdatesBtn.classList.add('is-loading');
+    hideAllUpdateUI();
+
+    const result = await window.settingsAPI.checkForUpdates();
+    checkUpdatesBtn.classList.remove('is-loading');
+
+    if (!result.success) {
+      showUpdateStatus('Erreur lors de la vérification: ' + result.error, 'is-danger');
+    }
+  });
+
+  // Update available
+  window.settingsAPI.onUpdateAvailable((info) => {
+    showUpdateStatus(`Nouvelle version disponible: ${info.version}`, 'is-info');
+
+    // Auto-download
+    setTimeout(() => {
+      window.settingsAPI.downloadUpdate();
+      updateDownloadProgress.classList.remove('is-hidden');
+      updateStatus.classList.add('is-hidden');
+    }, 1000);
+  });
+
+  // Update not available
+  window.settingsAPI.onUpdateNotAvailable(() => {
+    showUpdateStatus('Vous avez la dernière version!', 'is-success');
+  });
+
+  // Download progress
+  window.settingsAPI.onUpdateDownloadProgress((progress) => {
+    downloadProgressBar.value = progress.percent;
+
+    const speed = (progress.bytesPerSecond / 1024 / 1024).toFixed(2);
+    const transferred = (progress.transferred / 1024 / 1024).toFixed(2);
+    const total = (progress.total / 1024 / 1024).toFixed(2);
+
+    downloadSpeed.textContent = `${transferred} MB / ${total} MB (${speed} MB/s)`;
+  });
+
+  // Update downloaded
+  window.settingsAPI.onUpdateDownloaded(() => {
+    updateDownloadProgress.classList.add('is-hidden');
+    updateReady.classList.remove('is-hidden');
+  });
+
+  // Update error
+  window.settingsAPI.onUpdateError((error) => {
+    showUpdateStatus('Erreur: ' + error, 'is-danger');
+    updateDownloadProgress.classList.add('is-hidden');
+  });
+
+  // Install update
+  installUpdateBtn.addEventListener('click', () => {
+    window.settingsAPI.installUpdate();
+  });
 });
-
-// Check for updates
-checkUpdatesBtn.addEventListener('click', async () => {
-  checkUpdatesBtn.classList.add('is-loading');
-  hideAllUpdateUI();
-
-  const result = await window.settingsAPI.checkForUpdates();
-  checkUpdatesBtn.classList.remove('is-loading');
-
-  if (!result.success) {
-    showUpdateStatus('Erreur lors de la vérification: ' + result.error, 'is-danger');
-  }
-});
-
-// Update available
-window.settingsAPI.onUpdateAvailable((info) => {
-  showUpdateStatus(`Nouvelle version disponible: ${info.version}`, 'is-info');
-
-  // Auto-download
-  setTimeout(() => {
-    window.settingsAPI.downloadUpdate();
-    updateDownloadProgress.classList.remove('is-hidden');
-    updateStatus.classList.add('is-hidden');
-  }, 1000);
-});
-
-// Update not available
-window.settingsAPI.onUpdateNotAvailable(() => {
-  showUpdateStatus('Vous avez la dernière version!', 'is-success');
-});
-
-// Download progress
-window.settingsAPI.onUpdateDownloadProgress((progress) => {
-  downloadProgressBar.value = progress.percent;
-
-  const speed = (progress.bytesPerSecond / 1024 / 1024).toFixed(2);
-  const transferred = (progress.transferred / 1024 / 1024).toFixed(2);
-  const total = (progress.total / 1024 / 1024).toFixed(2);
-
-  downloadSpeed.textContent = `${transferred} MB / ${total} MB (${speed} MB/s)`;
-});
-
-// Update downloaded
-window.settingsAPI.onUpdateDownloaded(() => {
-  updateDownloadProgress.classList.add('is-hidden');
-  updateReady.classList.remove('is-hidden');
-});
-
-// Update error
-window.settingsAPI.onUpdateError((error) => {
-  showUpdateStatus('Erreur: ' + error, 'is-danger');
-  updateDownloadProgress.classList.add('is-hidden');
-});
-
-// Install update
-installUpdateBtn.addEventListener('click', () => {
-  window.settingsAPI.installUpdate();
-});
-
-// Helper functions
-function showUpdateStatus(message, className) {
-  updateMessage.textContent = message;
-  updateStatus.className = `notification mt-3 ${className}`;
-  updateStatus.classList.remove('is-hidden');
-}
-
-function hideAllUpdateUI() {
-  updateStatus.classList.add('is-hidden');
-  updateDownloadProgress.classList.add('is-hidden');
-  updateReady.classList.add('is-hidden');
-}
