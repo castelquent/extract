@@ -319,6 +319,9 @@ function createSettingsWindow() {
   settingsWindow.loadFile('settings.html');
   settingsWindow.setMenu(null);
 
+  // Ouvrir DevTools pour debug
+  settingsWindow.webContents.openDevTools();
+
   settingsWindow.on('closed', () => {
     settingsWindow = null;
   });
@@ -500,9 +503,12 @@ ipcMain.handle('get-app-version', () => {
 
 ipcMain.handle('check-for-updates', async () => {
   try {
+    console.log('Checking for updates...');
     const result = await autoUpdater.checkForUpdates();
-    return { success: true, updateInfo: result.updateInfo };
+    console.log('Update check result:', result);
+    return { success: true, updateInfo: result ? result.updateInfo : null };
   } catch (error) {
+    console.error('Update check error:', error);
     return { success: false, error: error.message };
   }
 });
