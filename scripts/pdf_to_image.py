@@ -48,11 +48,14 @@ def main():
 
     pdf_path = sys.argv[1]
     output_path = sys.argv[2]
-    articles_json = sys.argv[3]
+    articles_json_path = sys.argv[3]
 
     try:
-        articles = json.loads(articles_json)
-    except json.JSONDecodeError:
+        # Lire le fichier JSON au lieu du JSON en argument
+        with open(articles_json_path, 'r', encoding='utf-8') as f:
+            articles = json.load(f)
+    except (json.JSONDecodeError, FileNotFoundError) as e:
+        print(f"Error loading articles: {e}")
         sys.exit(1)
 
     os.makedirs(output_path, exist_ok=True)

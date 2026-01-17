@@ -14,6 +14,7 @@ interface ProjectsState {
   loadProject: (projectId: string) => Promise<Project | null>
   createProject: (name: string) => Promise<Project | null>
   deleteProject: (id: string) => Promise<boolean>
+  duplicateProject: (id: string) => Promise<Project | null>
   updateProject: (id: string, updates: Partial<ProjectMetadata>) => Promise<boolean>
   clearError: () => void
 }
@@ -86,6 +87,22 @@ export const useProjectsStore = create<ProjectsState>((set) => ({
       toast.error('Erreur lors de la suppression du projet')
       set({ error: 'Erreur lors de la suppression du projet' })
       return false
+    }
+  },
+
+  duplicateProject: async (id) => {
+    set({ error: null })
+    try {
+      const project = await window.api.duplicateProject(id)
+      if (project) {
+        set((state) => ({ projects: [project, ...state.projects] }))
+        toast.success('Projet dupliqué')
+      }
+      return project
+    } catch (err) {
+      toast.error('Erreur lors de la duplication du projet')
+      set({ error: 'Erreur lors de la duplication du projet' })
+      return null
     }
   },
 

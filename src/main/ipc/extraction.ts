@@ -61,17 +61,28 @@ export function setupExtractionHandlers(): void {
     const pythonPath = getPythonPath()
     const scriptPath = join(getScriptsPath(), 'pdf_to_image.py')
 
-    return new Promise((resolve) => {
-      const articlesJson = JSON.stringify(articles)
+    // Écrire les articles dans un fichier temporaire pour éviter ENAMETOOLONG
+    const articlesJsonPath = join(projectPath, 'articles_export.json')
+    writeFileSync(articlesJsonPath, JSON.stringify(articles))
 
-      const process = spawn(pythonPath, [
+    return new Promise((resolve) => {
+      const proc = spawn(pythonPath, [
         scriptPath,
         pdfPath,
         imagesPath,
-        articlesJson
+        articlesJsonPath
       ])
 
-      process.on('close', (code) => {
+      proc.on('close', (code) => {
+        // Nettoyer le fichier temporaire
+        try {
+          if (existsSync(articlesJsonPath)) {
+            require('fs').unlinkSync(articlesJsonPath)
+          }
+        } catch (e) {
+          // Ignorer les erreurs de nettoyage
+        }
+
         if (code === 0) {
           // Save export data with relative paths (like V1)
           const exportData: ExtractionData = {
@@ -93,7 +104,7 @@ export function setupExtractionHandlers(): void {
         }
       })
 
-      process.on('error', (error) => {
+      proc.on('error', (error) => {
         console.error('Failed to start Python process:', error)
         resolve(false)
       })

@@ -1,8 +1,9 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { setupIpcHandlers } from './ipc'
 
 let mainWindow: BrowserWindow | null = null
+let forceQuit = false
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
 
@@ -36,10 +37,32 @@ function createWindow(): void {
   mainWindow.on('closed', () => {
     mainWindow = null
   })
+
+  // Intercepter la fermeture pour vérifier les changements non sauvegardés
+  mainWindow.on('close', (e) => {
+    if (forceQuit) {
+      return // Laisser fermer
+    }
+
+    e.preventDefault()
+    // Demander au renderer s'il y a des changements non sauvegardés
+    mainWindow?.webContents.send('check-unsaved-changes')
+  })
 }
 
 // Setup all IPC handlers
 setupIpcHandlers()
+
+// Handler pour fermer la fenêtre (appelé par le renderer après confirmation)
+ipcMain.on('confirm-close', () => {
+  forceQuit = true
+  mainWindow?.close()
+})
+
+// Handler pour annuler la fermeture
+ipcMain.on('cancel-close', () => {
+  // Ne rien faire, la fenêtre reste ouverte
+})
 
 app.whenReady().then(() => {
   createWindow()

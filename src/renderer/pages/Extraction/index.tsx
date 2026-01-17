@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useBlocker } from 'react-router-dom'
 import type { Zone } from '@shared/types'
 import {
   useExtractionStore,
+  selectHasUnsavedChanges,
   useProjectsStore,
+  useUIStore,
 } from '@/stores'
 import {
   Button,
@@ -25,6 +27,7 @@ import { PdfViewer } from './PdfViewer'
 import { ZonesOverlay } from './ZonesOverlay'
 import { ArticleItem } from './ArticleItem'
 import { ZoneItem } from './ZoneItem'
+import { UnsavedChangesModal } from '../Editor/UnsavedChangesModal'
 
 export function ExtractionPage() {
   const { projectId } = useParams<{ projectId: string }>()
@@ -64,6 +67,19 @@ export function ExtractionPage() {
   const [pdfLoaded, setPdfLoaded] = useState(false)
   const [pdfCanvas, setPdfCanvas] = useState<HTMLCanvasElement | null>(null)
 
+  // Dirty state tracking
+  const hasUnsavedChanges = useExtractionStore(selectHasUnsavedChanges)
+  const blocker = useBlocker(hasUnsavedChanges && !loading)
+
+  // UI Store pour la fermeture de fenêtre
+  const { setHasUnsavedChanges, setOnSaveCallback } = useUIStore()
+
+  // Synchroniser le dirty state avec le uiStore pour la fermeture de fenêtre
+  useEffect(() => {
+    setHasUnsavedChanges(hasUnsavedChanges)
+    return () => setHasUnsavedChanges(false)
+  }, [hasUnsavedChanges, setHasUnsavedChanges])
+
   useEffect(() => {
     if (projectId) {
       loadProjectData()
@@ -95,6 +111,12 @@ export function ExtractionPage() {
       })
     }
   }
+
+  // Définir le callback de sauvegarde pour la fermeture de fenêtre
+  useEffect(() => {
+    setOnSaveCallback(handleSave)
+    return () => setOnSaveCallback(null)
+  }, [projectId, articles.length])
 
   const handleExport = async () => {
     if (!projectId || articles.length === 0) return
@@ -191,6 +213,16 @@ export function ExtractionPage() {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
+      <UnsavedChangesModal
+        open={blocker.state === 'blocked'}
+        onSave={async () => {
+          await handleSave()
+          blocker.proceed?.()
+        }}
+        onDiscard={() => blocker.proceed?.()}
+        onCancel={() => blocker.reset?.()}
+      />
+
       {/* Header */}
       <header className="bg-card border-b px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-4">

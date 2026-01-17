@@ -241,4 +241,66 @@ export function setupProjectHandlers(): void {
       return false
     }
   })
+
+  // Duplicate project
+  ipcMain.handle('projects:duplicate', async (_, projectId: string): Promise<Project | null> => {
+    const sourcePath = join(getProjectsPath(), projectId)
+    const sourceMetadataPath = join(sourcePath, 'metadata.json')
+
+    try {
+      if (!existsSync(sourceMetadataPath)) {
+        return null
+      }
+
+      const sourceMetadata = JSON.parse(readFileSync(sourceMetadataPath, 'utf-8')) as ProjectMetadata
+
+      // Create new project with new ID
+      const newProjectId = Date.now().toString()
+      const newProjectPath = join(getProjectsPath(), newProjectId)
+
+      // Copy entire directory
+      mkdirSync(newProjectPath, { recursive: true })
+
+      // Copy all files recursively
+      const copyRecursive = (src: string, dest: string) => {
+        const entries = readdirSync(src, { withFileTypes: true })
+        for (const entry of entries) {
+          const srcPath = join(src, entry.name)
+          const destPath = join(dest, entry.name)
+          if (entry.isDirectory()) {
+            mkdirSync(destPath, { recursive: true })
+            copyRecursive(srcPath, destPath)
+          } else {
+            copyFileSync(srcPath, destPath)
+          }
+        }
+      }
+
+      copyRecursive(sourcePath, newProjectPath)
+
+      // Update metadata with new ID and name
+      const newMetadata: ProjectMetadata = {
+        ...sourceMetadata,
+        id: newProjectId,
+        name: `${sourceMetadata.name} (copie)`,
+        createdAt: new Date().toISOString(),
+        modifiedAt: new Date().toISOString(),
+      }
+
+      writeFileSync(
+        join(newProjectPath, 'metadata.json'),
+        JSON.stringify(newMetadata, null, 2)
+      )
+
+      const thumbnailPath = join(newProjectPath, 'thumbnail.png')
+
+      return {
+        ...newMetadata,
+        thumbnailPath: existsSync(thumbnailPath) ? thumbnailPath : null
+      }
+    } catch (error) {
+      console.error('Error duplicating project:', error)
+      return null
+    }
+  })
 }

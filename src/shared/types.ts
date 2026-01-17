@@ -73,6 +73,7 @@ export interface ElectronAPI {
   getProjects: () => Promise<Project[]>
   createProject: (name: string) => Promise<Project | null>
   deleteProject: (projectId: string) => Promise<boolean>
+  duplicateProject: (projectId: string) => Promise<Project | null>
   getProject: (projectId: string) => Promise<Project | null>
   updateProject: (projectId: string, updates: Partial<ProjectMetadata>) => Promise<boolean>
 

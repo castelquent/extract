@@ -46,7 +46,7 @@ const filterConfig: Record<ProjectFilter, { title: string; subtitle: string; ico
 
 export function ProjectsPage({ filter = 'all' }: ProjectsPageProps) {
   const navigate = useNavigate()
-  const { projects, loading, createProject, deleteProject } = useProjectsStore()
+  const { projects, loading, createProject, deleteProject, duplicateProject } = useProjectsStore()
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null)
 
@@ -69,12 +69,6 @@ export function ProjectsPage({ filter = 'all' }: ProjectsPageProps) {
     if (project) {
       setShowCreateModal(false)
     }
-  }
-
-  const handleDeleteProject = async () => {
-    if (!deleteTarget) return
-    await deleteProject(deleteTarget.id)
-    setDeleteTarget(null)
   }
 
   const handleOpenProject = (project: Project) => {
@@ -128,6 +122,7 @@ export function ProjectsPage({ filter = 'all' }: ProjectsPageProps) {
               project={project}
               onClick={() => handleOpenProject(project)}
               onDelete={() => setDeleteTarget(project)}
+              onDuplicate={() => duplicateProject(project.id)}
             />
           ))}
         </div>
@@ -141,7 +136,7 @@ export function ProjectsPage({ filter = 'all' }: ProjectsPageProps) {
       />
 
       {/* Delete Confirmation */}
-      <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Supprimer le projet ?</AlertDialogTitle>
@@ -152,9 +147,11 @@ export function ProjectsPage({ filter = 'all' }: ProjectsPageProps) {
           <AlertDialogFooter>
             <AlertDialogCancel>Annuler</AlertDialogCancel>
             <AlertDialogAction
-              onClick={(e) => {
+              onClick={async (e) => {
                 e.preventDefault()
-                handleDeleteProject()
+                if (!deleteTarget) return
+                await deleteProject(deleteTarget.id)
+                setDeleteTarget(null)
               }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >

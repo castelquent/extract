@@ -5,5 +5,6 @@ export {
   selectCurrentArticle,
   selectCurrentZones,
   selectTotalZonesCount,
+  selectHasUnsavedChanges,
 } from './extractionStore'
 export { useSettingsStore, selectAISettings, selectAppSettings } from './settingsStore'

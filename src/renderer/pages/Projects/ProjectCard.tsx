@@ -5,14 +5,19 @@ import {
   CardContent,
   Badge,
   Progress,
-  Button,
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+  ContextMenuSeparator,
 } from '@/components/ui'
-import { Trash2 } from 'lucide-react'
+import { Copy, Trash2 } from 'lucide-react'
 
 interface ProjectCardProps {
   project: Project
   onClick: () => void
   onDelete: () => void
+  onDuplicate: () => void
 }
 
 const statusConfig: Record<Project['status'], { label: string; variant: 'info' | 'warning' | 'secondary' | 'success' }> = {
@@ -23,7 +28,7 @@ const statusConfig: Record<Project['status'], { label: string; variant: 'info' |
   completed: { label: 'Terminé', variant: 'success' }
 }
 
-export function ProjectCard({ project, onClick, onDelete }: ProjectCardProps) {
+export function ProjectCard({ project, onClick, onDelete, onDuplicate }: ProjectCardProps) {
   const [thumbnailSrc, setThumbnailSrc] = useState<string | null>(null)
 
   useEffect(() => {
@@ -40,64 +45,66 @@ export function ProjectCard({ project, onClick, onDelete }: ProjectCardProps) {
   const status = statusConfig[project.status]
 
   return (
-    <Card
-      className="cursor-pointer hover:border-primary/50 transition-colors group relative"
-      onClick={onClick}
-    >
-      <CardContent className="p-4">
-        {/* Thumbnail */}
-        <div className="aspect-[4/3] bg-muted rounded-md mb-4 overflow-hidden">
-          {thumbnailSrc ? (
-            <img
-              src={thumbnailSrc}
-              alt={project.name}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-              PDF
-            </div>
-          )}
-        </div>
-
-        {/* Info */}
-        <div className="space-y-3">
-          <h3 className="font-semibold truncate">{project.name}</h3>
-
-          <div className="flex items-center gap-2">
-            <Badge variant={status.variant}>{status.label}</Badge>
-            {project.articlesCount > 0 && (
-              <span className="text-xs text-muted-foreground">
-                {project.articlesCount} article{project.articlesCount > 1 ? 's' : ''}
-              </span>
-            )}
-          </div>
-
-          {project.totalFields > 0 && (
-            <div className="space-y-1">
-              <Progress value={progress} className="h-1.5" />
-              <p className="text-xs text-muted-foreground text-right">{progress}%</p>
-            </div>
-          )}
-
-          <p className="text-xs text-muted-foreground">
-            Modifié le {new Date(project.modifiedAt).toLocaleDateString('fr-FR')}
-          </p>
-        </div>
-
-        {/* Delete button */}
-        <Button
-          variant="destructive"
-          size="icon"
-          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8"
-          onClick={(e) => {
-            e.stopPropagation()
-            onDelete()
-          }}
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <Card
+          className="cursor-pointer hover:border-primary/50 transition-colors group relative"
+          onClick={onClick}
         >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </CardContent>
-    </Card>
+          <CardContent className="p-4">
+            {/* Thumbnail */}
+            <div className="aspect-[4/3] bg-muted rounded-md mb-4 overflow-hidden">
+              {thumbnailSrc ? (
+                <img
+                  src={thumbnailSrc}
+                  alt={project.name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                  PDF
+                </div>
+              )}
+            </div>
+
+            {/* Info */}
+            <div className="space-y-3">
+              <h3 className="font-semibold truncate">{project.name}</h3>
+
+              <div className="flex items-center gap-2">
+                <Badge variant={status.variant}>{status.label}</Badge>
+                {project.articlesCount > 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    {project.articlesCount} article{project.articlesCount > 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+
+              {project.totalFields > 0 && (
+                <div className="space-y-1">
+                  <Progress value={progress} className="h-1.5" />
+                  <p className="text-xs text-muted-foreground text-right">{progress}%</p>
+                </div>
+              )}
+
+              <p className="text-xs text-muted-foreground">
+                Modifié le {new Date(project.modifiedAt).toLocaleDateString('fr-FR')}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onClick={onDuplicate}>
+          <Copy className="h-4 w-4 mr-2" />
+          Dupliquer
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
+          <Trash2 className="h-4 w-4 mr-2" />
+          Supprimer
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   )
 }

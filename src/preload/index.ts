@@ -1,11 +1,16 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { ElectronAPI } from '@shared/types'
 
-const api: ElectronAPI = {
+const api: ElectronAPI & {
+  onCheckUnsavedChanges: (callback: () => void) => () => void
+  confirmClose: () => void
+  cancelClose: () => void
+} = {
   // Projects
   getProjects: () => ipcRenderer.invoke('projects:getAll'),
   createProject: (name) => ipcRenderer.invoke('projects:create', name),
   deleteProject: (projectId) => ipcRenderer.invoke('projects:delete', projectId),
+  duplicateProject: (projectId) => ipcRenderer.invoke('projects:duplicate', projectId),
   getProject: (projectId) => ipcRenderer.invoke('projects:getById', projectId),
   updateProject: (projectId, updates) => ipcRenderer.invoke('projects:update', projectId, updates),
 
@@ -34,6 +39,17 @@ const api: ElectronAPI = {
   checkUpdates: () => ipcRenderer.invoke('settings:checkUpdates'),
   downloadUpdate: () => ipcRenderer.invoke('settings:downloadUpdate'),
   installUpdate: () => ipcRenderer.invoke('settings:installUpdate'),
+
+  // Window close management
+  onCheckUnsavedChanges: (callback: () => void) => {
+    ipcRenderer.on('check-unsaved-changes', callback)
+    // Retourner une fonction de cleanup
+    return () => {
+      ipcRenderer.removeListener('check-unsaved-changes', callback)
+    }
+  },
+  confirmClose: () => ipcRenderer.send('confirm-close'),
+  cancelClose: () => ipcRenderer.send('cancel-close'),
 }
 
 contextBridge.exposeInMainWorld('api', api)

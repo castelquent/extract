@@ -4,6 +4,7 @@ import type { Article, Zone } from '@shared/types'
 
 interface ExtractionState {
   articles: Article[]
+  savedArticles: Article[] // Pour détecter les changements non sauvegardés
   currentArticleId: number | null
   selectedZoneIndex: number | null
   currentPage: number
@@ -50,7 +51,8 @@ interface ExtractionState {
 }
 
 const initialState = {
-  articles: [],
+  articles: [] as Article[],
+  savedArticles: [] as Article[],
   currentArticleId: null,
   selectedZoneIndex: null,
   currentPage: 1,
@@ -299,13 +301,16 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
     try {
       const data = await window.api.loadExtraction(projectId)
       if (data?.articles) {
+        // Deep copy pour savedArticles afin de détecter les changements
+        const articlesCopy = JSON.parse(JSON.stringify(data.articles))
         set({
           articles: data.articles,
+          savedArticles: articlesCopy,
           currentArticleId: data.articles.length > 0 ? data.articles[0].id : null,
           loading: false,
         })
       } else {
-        set({ loading: false })
+        set({ loading: false, savedArticles: [] })
       }
     } catch (err) {
       toast.error("Erreur lors du chargement de l'extraction")
@@ -315,11 +320,17 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
 
   saveExtraction: async (projectId) => {
     const { articles } = get()
-    if (articles.length === 0) return true
+    if (articles.length === 0) {
+      set({ savedArticles: [] })
+      return true
+    }
 
     try {
       const success = await window.api.saveExtraction(projectId, { articles })
       if (success) {
+        // Mettre à jour savedArticles pour refléter l'état sauvegardé
+        const articlesCopy = JSON.parse(JSON.stringify(articles))
+        set({ savedArticles: articlesCopy })
         toast.success('Extraction sauvegardée')
       }
       return success
@@ -364,3 +375,6 @@ export const selectCurrentZones = (state: ExtractionState) =>
 
 export const selectTotalZonesCount = (state: ExtractionState) =>
   state.articles.reduce((acc, a) => acc + a.zones.length, 0)
+
+export const selectHasUnsavedChanges = (state: ExtractionState) =>
+  JSON.stringify(state.articles) !== JSON.stringify(state.savedArticles)

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, useBlocker } from 'react-router-dom'
 import type { Article, Project } from '@shared/types'
+import { useUIStore } from '@/stores'
 import {
   Button,
   ScrollArea,
@@ -81,6 +82,14 @@ export function EditorPage() {
   const hasUnsavedChanges = JSON.stringify(articles) !== JSON.stringify(savedArticles)
   const blocker = useBlocker(hasUnsavedChanges && !loading)
 
+  // UI Store pour la fermeture de fenêtre
+  const { setHasUnsavedChanges, setOnSaveCallback } = useUIStore()
+
+  // Synchroniser le dirty state avec le uiStore pour la fermeture de fenêtre
+  useEffect(() => {
+    setHasUnsavedChanges(hasUnsavedChanges)
+    return () => setHasUnsavedChanges(false)
+  }, [hasUnsavedChanges, setHasUnsavedChanges])
 
   const currentArticle = articles[currentIndex]
 
@@ -142,6 +151,12 @@ export function EditorPage() {
     setSavedArticles(articles)
     setSaving(false)
   }
+
+  // Définir le callback de sauvegarde pour la fermeture de fenêtre
+  useEffect(() => {
+    setOnSaveCallback(saveProgress)
+    return () => setOnSaveCallback(null)
+  }, [projectId, articles])
 
   const transcribeArticle = async () => {
     await transcribeArticleAt(currentIndex)
