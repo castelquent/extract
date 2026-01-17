@@ -1,0 +1,197 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 14% 10%;
+    --foreground: 220 13% 91%;
+
+    --card: 220 14% 14%;
+    --card-foreground: 220 13% 91%;
+
+    --popover: 220 14% 14%;
+    --popover-foreground: 220 13% 91%;
+
+    --primary: 240 0% 98%;
+    --primary-foreground: 0.985 0% 0%;
+
+    --secondary: 220 14% 20%;
+    --secondary-foreground: 220 13% 91%;
+
+    --muted: 220 14% 20%;
+    --muted-foreground: 220 13% 65%;
+
+    --accent: 220 14% 20%;
+    --accent-foreground: 220 13% 91%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 14% 25%;
+    --input: 220 14% 25%;
+    --ring: 199 89% 48%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+  .dark {
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html, body, #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
+      Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-dark-800;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-dark-600 rounded;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-dark-500;
+}
+
+/* Quill Editor dark mode */
+.ql-toolbar {
+  @apply bg-secondary border-border rounded-t-md;
+}
+
+.ql-toolbar .ql-stroke {
+  stroke: hsl(var(--foreground));
+}
+
+.ql-toolbar .ql-fill {
+  fill: hsl(var(--foreground));
+}
+
+.ql-toolbar .ql-picker {
+  color: hsl(var(--foreground));
+}
+
+.ql-toolbar button:hover .ql-stroke,
+.ql-toolbar .ql-picker-label:hover .ql-stroke {
+  stroke: hsl(var(--primary));
+}
+
+.ql-toolbar button:hover .ql-fill,
+.ql-toolbar .ql-picker-label:hover .ql-fill {
+  fill: hsl(var(--primary));
+}
+
+.ql-toolbar button.ql-active .ql-stroke {
+  stroke: hsl(var(--ring));
+}
+
+.ql-toolbar button.ql-active .ql-fill {
+  fill: hsl(var(--ring));
+}
+
+.ql-container {
+  @apply bg-background border-border rounded-b-md;
+  font-size: 14px;
+}
+
+.ql-editor {
+  @apply text-foreground min-h-[250px];
+}
+
+.ql-editor.ql-blank::before {
+  @apply text-muted-foreground;
+  font-style: normal;
+}
+
+.ql-snow .ql-picker-options {
+  @apply bg-popover border-border;
+}
+.ql-editor p{
+  margin-bottom: 0.5em;
+}
+
+.rpv-core__inner-page {
+    background-color: transparent !important;
+    box-shadow: none !important;
+}
+.rpv-core__page-layer::after {
+    bottom: 0!important;
+    left: 0!important;
+    right: 0!important;
+    top: 0!important;
+}
+.rpv-core__icon,
+.rpv-zoom__popover-target-scale--ltr,
+.rpv-zoom__popover-target-arrow{
+  color: white;
+  border-color: white rgba(0,0,0,0) rgba(0,0,0,0);
+}
+/* Legacy utility classes (pour compatibilité) */
+@layer components {
+  .btn {
+    @apply px-4 py-2 rounded-lg font-medium transition-colors duration-200;
+  }
+
+  .btn-primary {
+    @apply bg-primary-600 hover:bg-primary-700 text-white;
+  }
+
+  .btn-secondary {
+    @apply bg-dark-700 hover:bg-dark-600 text-dark-100;
+  }
+
+  .btn-danger {
+    @apply bg-red-600 hover:bg-red-700 text-white;
+  }
+
+  .sidebar {
+    @apply bg-dark-800 border-r border-dark-700;
+  }
+}

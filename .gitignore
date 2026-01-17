@@ -4,6 +4,8 @@ node_modules/
 # Build outputs
 dist/
 out/
+src/dist-electron/
+src/release/
 
 # Python portable (sera téléchargé séparément)
 python-portable/
@@ -23,6 +25,7 @@ Thumbs.db
 # Temp files
 *.tmp
 *.temp
+tmpclaude-*
 
 # Electron
 *.asar

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npx tsc:*)",
+      "Bash(ls:*)",
+      "Bash(dir \"d:\\\\ExtrAct V2\\\\src\\\\node_modules\\\\pdfjs-dist\" /b)",
+      "Bash(dir \"d:\\\\ExtrAct V2\\\\src\\\\node_modules\\\\pdfjs-dist\\\\build\" /b)",
+      "Bash(npm uninstall:*)",
+      "Bash(cmd /c \"dir /s /b %LOCALAPPDATA%\\\\extract* 2>nul\")"
+    ]
+  }
+}

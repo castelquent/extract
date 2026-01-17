@@ -1,3 +1,0 @@
-@echo off
-echo Lancement de ScanTools Electron...
-npm start
