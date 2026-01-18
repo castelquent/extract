@@ -1,4 +1,21 @@
 import { useState, useEffect } from 'react'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import type { Template, TemplateField, FieldType } from '@shared/types'
 import { useTemplatesStore } from '@/stores'
 import {
@@ -78,6 +95,14 @@ function createEmptyField(order: number): TemplateField {
   }
 }
 
+// Titre is always mandatory and first
+const TITRE_FIELD: TemplateField = {
+  name: 'Titre',
+  type: 'text',
+  order: 0,
+  aiHint: 'Le titre de l\'article',
+}
+
 function createEmptyTemplate(): Template {
   return {
     id: `template_${Date.now()}`,
@@ -85,6 +110,7 @@ function createEmptyTemplate(): Template {
     description: '',
     aiContext: '',
     fields: [
+      { ...TITRE_FIELD },
       { name: 'Contenu', type: 'richtext', order: 1 },
     ],
     createdAt: new Date().toISOString(),
@@ -94,25 +120,58 @@ function createEmptyTemplate(): Template {
 
 interface FieldEditorProps {
   field: TemplateField
+  fieldId: string
   onChange: (field: TemplateField) => void
   onRemove: () => void
   canRemove: boolean
+  isTitre: boolean
   disabled?: boolean
 }
 
-function FieldEditor({ field, onChange, onRemove, canRemove, disabled }: FieldEditorProps) {
+function FieldEditor({ field, fieldId, onChange, onRemove, canRemove, isTitre, disabled }: FieldEditorProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: fieldId, disabled: disabled || isTitre })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
   return (
-    <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg" onKeyDown={(e) => e.stopPropagation()}>
-      {!disabled && <GripVertical className="h-5 w-5 text-muted-foreground mt-2 cursor-grab" />}
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg"
+      onKeyDown={(e) => e.stopPropagation()}
+    >
+      {!disabled && (
+        <div
+          {...attributes}
+          {...listeners}
+          className={`mt-2 ${isTitre ? 'cursor-not-allowed opacity-30' : 'cursor-grab active:cursor-grabbing'}`}
+        >
+          <GripVertical className="h-5 w-5 text-muted-foreground" />
+        </div>
+      )}
 
       <div className="flex-1 grid grid-cols-2 gap-3">
         <div className="space-y-1">
-          <Label className="text-xs">Nom du champ</Label>
+          <Label className="text-xs">
+            Nom du champ
+            {isTitre && <Badge variant="secondary" className="ml-2 text-[10px]">Obligatoire</Badge>}
+          </Label>
           <Input
             value={field.name}
             onChange={(e) => onChange({ ...field, name: e.target.value })}
             placeholder="Ex: Titre, Auteur..."
-            disabled={disabled}
+            disabled={disabled || isTitre}
           />
         </div>
 
@@ -121,7 +180,7 @@ function FieldEditor({ field, onChange, onRemove, canRemove, disabled }: FieldEd
           <Select
             value={field.type}
             onValueChange={(value: FieldType) => onChange({ ...field, type: value })}
-            disabled={disabled}
+            disabled={disabled || isTitre}
           >
             <SelectTrigger>
               <SelectValue />
@@ -151,8 +210,8 @@ function FieldEditor({ field, onChange, onRemove, canRemove, disabled }: FieldEd
           variant="ghost"
           size="icon"
           onClick={onRemove}
-          disabled={!canRemove}
-          className="text-muted-foreground hover:text-destructive"
+          disabled={!canRemove || isTitre}
+          className={`text-muted-foreground ${isTitre ? 'opacity-30 cursor-not-allowed' : 'hover:text-destructive'}`}
         >
           <X className="h-4 w-4" />
         </Button>
@@ -175,9 +234,28 @@ function TemplateEditorModal({ template, open, onOpenChange, onSave }: TemplateE
 
   const isDefault = template?.isDefault ?? false
 
+  // DnD sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 5 },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
+
   useEffect(() => {
     if (template) {
-      setEditedTemplate({ ...template })
+      // Ensure Titre field exists when editing
+      const hasTitre = template.fields.some(f => f.name === 'Titre' && f.order === 0)
+      if (!hasTitre) {
+        setEditedTemplate({
+          ...template,
+          fields: [{ ...TITRE_FIELD }, ...template.fields.map(f => ({ ...f, order: f.order + 1 }))],
+        })
+      } else {
+        setEditedTemplate({ ...template })
+      }
     } else {
       setEditedTemplate(createEmptyTemplate())
     }
@@ -188,10 +266,19 @@ function TemplateEditorModal({ template, open, onOpenChange, onSave }: TemplateE
   const generatedPrompt = buildPromptFromTemplate(editedTemplate)
   const currentPrompt = customPrompt ?? generatedPrompt
 
-  const handleFieldChange = (index: number, field: TemplateField) => {
-    const newFields = [...editedTemplate.fields]
-    newFields[index] = field
-    setEditedTemplate({ ...editedTemplate, fields: newFields })
+  // Sort fields by order for display
+  const sortedFields = [...editedTemplate.fields].sort((a, b) => a.order - b.order)
+  const fieldIds = sortedFields.map((_, idx) => `field-${idx}`)
+
+  const handleFieldChange = (sortedIndex: number, field: TemplateField) => {
+    // Find the actual field in the original array
+    const targetField = sortedFields[sortedIndex]
+    const actualIndex = editedTemplate.fields.findIndex(f => f.order === targetField.order && f.name === targetField.name)
+    if (actualIndex >= 0) {
+      const newFields = [...editedTemplate.fields]
+      newFields[actualIndex] = { ...field, order: targetField.order }
+      setEditedTemplate({ ...editedTemplate, fields: newFields })
+    }
   }
 
   const handleAddField = () => {
@@ -202,9 +289,32 @@ function TemplateEditorModal({ template, open, onOpenChange, onSave }: TemplateE
     })
   }
 
-  const handleRemoveField = (index: number) => {
-    const newFields = editedTemplate.fields.filter((_, i) => i !== index)
+  const handleRemoveField = (sortedIndex: number) => {
+    const targetField = sortedFields[sortedIndex]
+    // Never remove Titre
+    if (targetField.name === 'Titre' && targetField.order === 0) return
+    const newFields = editedTemplate.fields.filter(f => !(f.order === targetField.order && f.name === targetField.name))
     setEditedTemplate({ ...editedTemplate, fields: newFields })
+  }
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    const oldIndex = fieldIds.indexOf(active.id as string)
+    const newIndex = fieldIds.indexOf(over.id as string)
+
+    // Don't allow moving Titre (index 0) or moving something to position 0
+    if (oldIndex === 0 || newIndex === 0) return
+
+    const reorderedFields = arrayMove(sortedFields, oldIndex, newIndex)
+    // Reassign orders, keeping Titre at 0
+    const updatedFields = reorderedFields.map((field, idx) => ({
+      ...field,
+      order: idx,
+    }))
+
+    setEditedTemplate({ ...editedTemplate, fields: updatedFields })
   }
 
   const handleSave = () => {
@@ -287,20 +397,31 @@ function TemplateEditorModal({ template, open, onOpenChange, onSave }: TemplateE
               )}
             </div>
 
-            <div className="space-y-2">
-              {editedTemplate.fields
-                .sort((a, b) => a.order - b.order)
-                .map((field, index) => (
-                  <FieldEditor
-                    key={index}
-                    field={field}
-                    onChange={(f) => handleFieldChange(index, f)}
-                    onRemove={() => handleRemoveField(index)}
-                    canRemove={editedTemplate.fields.length > 1 && !isDefault}
-                    disabled={isDefault}
-                  />
-                ))}
-            </div>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext items={fieldIds} strategy={verticalListSortingStrategy}>
+                <div className="space-y-2">
+                  {sortedFields.map((field, index) => {
+                    const isTitre = field.name === 'Titre' && field.order === 0
+                    return (
+                      <FieldEditor
+                        key={fieldIds[index]}
+                        fieldId={fieldIds[index]}
+                        field={field}
+                        onChange={(f) => handleFieldChange(index, f)}
+                        onRemove={() => handleRemoveField(index)}
+                        canRemove={editedTemplate.fields.length > 1 && !isDefault && !isTitre}
+                        isTitre={isTitre}
+                        disabled={isDefault}
+                      />
+                    )
+                  })}
+                </div>
+              </SortableContext>
+            </DndContext>
           </div>
 
           {/* Prompt Preview */}

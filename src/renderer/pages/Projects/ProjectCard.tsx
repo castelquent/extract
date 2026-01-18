@@ -11,7 +11,8 @@ import {
   ContextMenuTrigger,
   ContextMenuSeparator,
 } from '@/components/ui'
-import { Copy, Trash2 } from 'lucide-react'
+import { Copy, Trash2, FileStack } from 'lucide-react'
+import { useTemplatesStore } from '@/stores'
 
 interface ProjectCardProps {
   project: Project
@@ -30,6 +31,9 @@ const statusConfig: Record<Project['status'], { label: string; variant: 'info' |
 
 export function ProjectCard({ project, onClick, onDelete, onDuplicate }: ProjectCardProps) {
   const [thumbnailSrc, setThumbnailSrc] = useState<string | null>(null)
+  const { templates } = useTemplatesStore()
+
+  const templateName = templates.find(t => t.id === project.templateId)?.name
 
   useEffect(() => {
     if (project.thumbnailPath) {
@@ -73,9 +77,10 @@ export function ProjectCard({ project, onClick, onDelete, onDuplicate }: Project
 
               <div className="flex items-center gap-2">
                 <Badge variant={status.variant}>{status.label}</Badge>
-                {project.articlesCount > 0 && (
-                  <span className="text-xs text-muted-foreground">
-                    {project.articlesCount} article{project.articlesCount > 1 ? 's' : ''}
+                {templateName && (
+                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                    <FileStack className="h-3 w-3" />
+                    {templateName}
                   </span>
                 )}
               </div>
