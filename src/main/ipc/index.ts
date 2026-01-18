@@ -3,6 +3,7 @@ import { setupExtractionHandlers } from './extraction'
 import { setupTranscriptionHandlers } from './transcription'
 import { setupExportHandlers } from './export'
 import { setupSettingsHandlers } from './settings'
+import { setupTemplateHandlers } from './templates'
 
 export function setupIpcHandlers(): void {
   setupProjectHandlers()
@@ -10,4 +11,5 @@ export function setupIpcHandlers(): void {
   setupTranscriptionHandlers()
   setupExportHandlers()
   setupSettingsHandlers()
+  setupTemplateHandlers()
 }

@@ -64,8 +64,8 @@ export function ProjectsPage({ filter = 'all' }: ProjectsPageProps) {
 
   const config = filterConfig[filter]
 
-  const handleCreateProject = async (name: string) => {
-    const project = await createProject(name)
+  const handleCreateProject = async (name: string, templateId: string) => {
+    const project = await createProject(name, templateId)
     if (project) {
       setShowCreateModal(false)
     }

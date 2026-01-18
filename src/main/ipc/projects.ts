@@ -124,7 +124,7 @@ export function setupProjectHandlers(): void {
   })
 
   // Create new project
-  ipcMain.handle('projects:create', async (_, name: string): Promise<Project | null> => {
+  ipcMain.handle('projects:create', async (_, name: string, templateId: string): Promise<Project | null> => {
     const result = await dialog.showOpenDialog({
       properties: ['openFile'],
       filters: [{ name: 'PDF', extensions: ['pdf'] }]
@@ -155,7 +155,8 @@ export function setupProjectHandlers(): void {
         status: 'new',
         articlesCount: 0,
         filledFields: 0,
-        totalFields: 0
+        totalFields: 0,
+        templateId: templateId || 'press-article'
       }
 
       writeFileSync(

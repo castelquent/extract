@@ -53,12 +53,12 @@ export function ProjectCard({ project, onClick, onDelete, onDuplicate }: Project
         >
           <CardContent className="p-4">
             {/* Thumbnail */}
-            <div className="aspect-[4/3] bg-muted rounded-md mb-4 overflow-hidden">
+            <div className="aspect-[4/3] rounded-md mb-4 overflow-hidden">
               {thumbnailSrc ? (
                 <img
                   src={thumbnailSrc}
                   alt={project.name}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-contain"
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-muted-foreground">

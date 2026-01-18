@@ -1,19 +1,21 @@
 import ReactQuill from 'react-quill'
 import 'react-quill/dist/quill.snow.css'
-import type { Article } from '@shared/types'
+import type { Article, Template, TemplateField } from '@shared/types'
 import {
   Button,
   Input,
   Label,
   ScrollArea,
   Separator,
+  Textarea,
 } from '@/components/ui'
 import { Sparkles } from 'lucide-react'
 
 interface ArticleFormProps {
   article: Article | undefined
+  template: Template | null
   transcribing: boolean
-  onUpdate: (field: keyof Article, value: string) => void
+  onUpdate: (fieldName: string, value: string) => void
   onTranscribe: () => void
 }
 
@@ -25,12 +27,71 @@ const quillModules = {
   ]
 }
 
+interface DynamicFieldProps {
+  field: TemplateField
+  value: string
+  onChange: (value: string) => void
+}
+
+function DynamicField({ field, value, onChange }: DynamicFieldProps) {
+  switch (field.type) {
+    case 'text':
+      return (
+        <div className="space-y-2">
+          <Label htmlFor={field.name}>{field.name}</Label>
+          <Input
+            id={field.name}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={field.name}
+          />
+        </div>
+      )
+
+    case 'textarea':
+      return (
+        <div className="space-y-2">
+          <Label htmlFor={field.name}>{field.name}</Label>
+          <Textarea
+            id={field.name}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={field.name}
+            rows={4}
+          />
+        </div>
+      )
+
+    case 'richtext':
+      return (
+        <div className="space-y-2">
+          <Label>{field.name}</Label>
+          <ReactQuill
+            theme="snow"
+            value={value}
+            onChange={onChange}
+            placeholder={field.name}
+            modules={quillModules}
+          />
+        </div>
+      )
+
+    default:
+      return null
+  }
+}
+
 export function ArticleForm({
   article,
+  template,
   transcribing,
   onUpdate,
   onTranscribe
 }: ArticleFormProps) {
+  const sortedFields = template?.fields
+    ? [...template.fields].sort((a, b) => a.order - b.order)
+    : []
+
   return (
     <ScrollArea className="flex-1">
       <div className="p-4 space-y-4">
@@ -47,38 +108,16 @@ export function ArticleForm({
 
         <Separator />
 
-        {/* Fields */}
+        {/* Dynamic Fields */}
         <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="title">Titre</Label>
-            <Input
-              id="title"
-              value={article?.title || ''}
-              onChange={(e) => onUpdate('title', e.target.value)}
-              placeholder="Titre de l'article"
+          {sortedFields.map((field) => (
+            <DynamicField
+              key={field.name}
+              field={field}
+              value={article?.fields?.[field.name] || ''}
+              onChange={(value) => onUpdate(field.name, value)}
             />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="author">Auteur</Label>
-            <Input
-              id="author"
-              value={article?.author || ''}
-              onChange={(e) => onUpdate('author', e.target.value)}
-              placeholder="Nom de l'auteur"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Contenu</Label>
-            <ReactQuill
-              theme="snow"
-              value={article?.content || ''}
-              onChange={(value) => onUpdate('content', value)}
-              placeholder="Contenu de l'article..."
-              modules={quillModules}
-            />
-          </div>
+          ))}
         </div>
       </div>
     </ScrollArea>

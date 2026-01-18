@@ -94,6 +94,16 @@
     box-sizing: border-box;
   }
 
+  /* Disable focus rings globally */
+  *:focus {
+    outline: none !important;
+  }
+  *:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+    --tw-ring-shadow: none !important;
+  }
+
   html, body, #root {
     height: 100%;
   }

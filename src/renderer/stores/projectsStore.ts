@@ -12,7 +12,7 @@ interface ProjectsState {
   loadProjects: () => Promise<void>
   setCurrentProject: (project: Project | null) => void
   loadProject: (projectId: string) => Promise<Project | null>
-  createProject: (name: string) => Promise<Project | null>
+  createProject: (name: string, templateId: string) => Promise<Project | null>
   deleteProject: (id: string) => Promise<boolean>
   duplicateProject: (id: string) => Promise<Project | null>
   updateProject: (id: string, updates: Partial<ProjectMetadata>) => Promise<boolean>
@@ -55,10 +55,10 @@ export const useProjectsStore = create<ProjectsState>((set) => ({
     }
   },
 
-  createProject: async (name) => {
+  createProject: async (name, templateId) => {
     set({ error: null })
     try {
-      const project = await window.api.createProject(name)
+      const project = await window.api.createProject(name, templateId)
       if (project) {
         set((state) => ({ projects: [project, ...state.projects] }))
         toast.success('Projet créé')

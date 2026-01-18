@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Home, Scissors, FileText, Settings, PanelLeftClose, PanelLeft, Sun, Moon } from 'lucide-react'
+import { Home, Scissors, FileText, FileStack, Settings, PanelLeftClose, PanelLeft, Sun, Moon } from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -17,6 +17,7 @@ const navItems = [
   { to: '/', icon: Home, label: 'Accueil', filter: 'all' as const },
   { to: '/extraction', icon: Scissors, label: 'Extraction', filter: 'extraction' as const },
   { to: '/transcription', icon: FileText, label: 'Transcription', filter: 'transcription' as const },
+  { to: '/templates', icon: FileStack, label: 'Modèles', filter: null },
 ]
 
 export function NavigationDrawer() {
@@ -27,7 +28,8 @@ export function NavigationDrawer() {
   const projects = useProjectsStore((state) => state.projects)
   const isCollapsed = state === 'collapsed'
 
-  const getCounts = (filter: 'all' | 'extraction' | 'transcription') => {
+  const getCounts = (filter: 'all' | 'extraction' | 'transcription' | null) => {
+    if (filter === null) return 0
     const state = { projects } as any
     switch (filter) {
       case 'extraction':

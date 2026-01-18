@@ -144,3 +144,8 @@ export {
   SheetTitle,
   SheetDescription,
 } from './sheet'
+export {
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
+} from './collapsible'

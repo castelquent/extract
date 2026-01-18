@@ -6,9 +6,15 @@ const api: ElectronAPI & {
   confirmClose: () => void
   cancelClose: () => void
 } = {
+  // Templates
+  getTemplates: () => ipcRenderer.invoke('templates:getAll'),
+  getTemplate: (templateId) => ipcRenderer.invoke('templates:getById', templateId),
+  saveTemplate: (template) => ipcRenderer.invoke('templates:save', template),
+  deleteTemplate: (templateId) => ipcRenderer.invoke('templates:delete', templateId),
+
   // Projects
   getProjects: () => ipcRenderer.invoke('projects:getAll'),
-  createProject: (name) => ipcRenderer.invoke('projects:create', name),
+  createProject: (name, templateId) => ipcRenderer.invoke('projects:create', name, templateId),
   deleteProject: (projectId) => ipcRenderer.invoke('projects:delete', projectId),
   duplicateProject: (projectId) => ipcRenderer.invoke('projects:duplicate', projectId),
   getProject: (projectId) => ipcRenderer.invoke('projects:getById', projectId),
@@ -24,7 +30,7 @@ const api: ElectronAPI & {
   getPdfFile: (projectId, imagePath) => ipcRenderer.invoke('extraction:getPdfFile', projectId, imagePath),
 
   // Transcription
-  transcribe: (projectId, imagePath, settings) => ipcRenderer.invoke('transcription:transcribe', projectId, imagePath, settings),
+  transcribe: (projectId, imagePath, settings, template) => ipcRenderer.invoke('transcription:transcribe', projectId, imagePath, settings, template),
 
   // Export
   exportPdf: (projectId, articles) => ipcRenderer.invoke('export:pdf', projectId, articles),

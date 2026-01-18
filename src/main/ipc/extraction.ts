@@ -53,8 +53,8 @@ export function setupExtractionHandlers(): void {
     }
   })
 
-  // Export articles to images
-  ipcMain.handle('extraction:exportImages', async (_, projectId: string, articles: Article[]): Promise<boolean> => {
+  // Export articles to images - returns updated articles with imagePath
+  ipcMain.handle('extraction:exportImages', async (_, projectId: string, articles: Article[]): Promise<Article[] | null> => {
     const projectPath = getProjectPath(projectId)
     const pdfPath = join(projectPath, 'source.pdf')
     const imagesPath = join(projectPath, 'images')
@@ -84,29 +84,29 @@ export function setupExtractionHandlers(): void {
         }
 
         if (code === 0) {
-          // Save export data with relative paths (like V1)
-          const exportData: ExtractionData = {
-            articles: articles.map((article, index) => ({
-              ...article,
-              imagePath: `images/article_${index + 1}.pdf`
-            }))
-          }
+          // Ajouter les imagePath aux articles
+          const updatedArticles = articles.map((article, index) => ({
+            ...article,
+            imagePath: `images/article_${index + 1}.pdf`
+          }))
 
+          // Sauvegarder dans data.json
+          const exportData: ExtractionData = { articles: updatedArticles }
           writeFileSync(
             join(projectPath, 'data.json'),
             JSON.stringify(exportData, null, 2)
           )
 
-          resolve(true)
+          resolve(updatedArticles)
         } else {
           console.error('Python script failed with code:', code)
-          resolve(false)
+          resolve(null)
         }
       })
 
       proc.on('error', (error) => {
         console.error('Failed to start Python process:', error)
-        resolve(false)
+        resolve(null)
       })
     })
   })

@@ -8,3 +8,4 @@ export {
   selectHasUnsavedChanges,
 } from './extractionStore'
 export { useSettingsStore, selectAISettings, selectAppSettings } from './settingsStore'
+export { useTemplatesStore } from './templatesStore'

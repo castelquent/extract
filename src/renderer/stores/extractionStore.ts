@@ -74,6 +74,7 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
     const newArticle: Article = {
       id: newId,
       zones: [],
+      fields: {},
     }
     set((state) => ({
       articles: [...state.articles, newArticle],
@@ -114,6 +115,7 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
     const newArticle: Article = {
       id: newId,
       zones: [zone],
+      fields: {},
     }
     set((state) => ({
       articles: [...state.articles, newArticle],
@@ -347,12 +349,15 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
 
     set({ exporting: true, error: null })
     try {
-      const success = await window.api.exportImages(projectId, articles)
-      if (success) {
+      const updatedArticles = await window.api.exportImages(projectId, articles)
+      if (updatedArticles) {
+        // Mettre à jour directement avec les articles retournés (avec imagePath)
+        const articlesCopy = JSON.parse(JSON.stringify(updatedArticles))
+        set({ articles: updatedArticles, savedArticles: articlesCopy })
         toast.success('Images exportées')
       }
       set({ exporting: false })
-      return success
+      return !!updatedArticles
     } catch (err) {
       toast.error("Erreur lors de l'export des images")
       set({ error: "Erreur lors de l'export des images", exporting: false })

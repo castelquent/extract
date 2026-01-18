@@ -8,7 +8,12 @@
       "Bash(dir \"d:\\\\ExtrAct V2\\\\src\\\\node_modules\\\\pdfjs-dist\\\\build\" /b)",
       "Bash(npm uninstall:*)",
       "Bash(cmd /c \"dir /s /b %LOCALAPPDATA%\\\\extract* 2>nul\")",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(npx shadcn@latest add:*)",
+      "Bash(npx vue-tsc:*)",
+      "Bash(npx typescript:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }

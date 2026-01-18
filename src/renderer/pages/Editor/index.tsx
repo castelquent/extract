@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useBlocker } from 'react-router-dom'
-import type { Article, Project } from '@shared/types'
-import { useUIStore } from '@/stores'
+import type { Article, Project, Template } from '@shared/types'
+import { useUIStore, useProjectsStore } from '@/stores'
 import {
   Button,
   ScrollArea,
@@ -59,18 +59,16 @@ export function EditorPage() {
   const [deleteConfirmIndex, setDeleteConfirmIndex] = useState<number | null>(null)
   const [bulkDeleteIndices, setBulkDeleteIndices] = useState<number[] | null>(null)
   const [bulkTranscribeProgress, setBulkTranscribeProgress] = useState<{ current: number; total: number } | null>(null)
+  const [template, setTemplate] = useState<Template | null>(null)
 
-
-  const toolbarPluginInstance = toolbarPlugin();
-  const { Toolbar } = toolbarPluginInstance;
+  const toolbarPluginInstance = toolbarPlugin()
+  const { Toolbar } = toolbarPluginInstance
 
   const pageLayout = {
-      // On ajoute 30px (ou ce que tu veux) à la boîte de chaque page
       transformSize: ({ size }: { size: any }) => ({
           height: size.height + 30,
           width: size.width + 30,
       }),
-      // On centre la page dans cette boîte pour que la marge soit égale partout
       buildPageStyles: () => ({
           alignItems: 'center',
           display: 'flex',
@@ -84,6 +82,7 @@ export function EditorPage() {
 
   // UI Store pour la fermeture de fenêtre
   const { setHasUnsavedChanges, setOnSaveCallback } = useUIStore()
+  const { updateProject } = useProjectsStore()
 
   // Synchroniser le dirty state avec le uiStore pour la fermeture de fenêtre
   useEffect(() => {
@@ -116,6 +115,12 @@ export function EditorPage() {
     const proj = await window.api.getProject(projectId)
     setProject(proj)
 
+    // Charger le template du projet
+    if (proj?.templateId) {
+      const tmpl = await window.api.getTemplate(proj.templateId)
+      setTemplate(tmpl)
+    }
+
     const data = await window.api.loadExtraction(projectId)
     console.log('Loaded data:', data)
     if (data?.articles) {
@@ -126,26 +131,31 @@ export function EditorPage() {
     setLoading(false)
   }
 
-  const updateArticle = (field: keyof Article, value: string) => {
+  const updateArticle = (fieldId: string, value: string) => {
     setArticles(prev => prev.map((article, idx) =>
-      idx === currentIndex ? { ...article, [field]: value } : article
+      idx === currentIndex ? {
+        ...article,
+        fields: { ...article.fields, [fieldId]: value }
+      } : article
     ))
   }
 
   const saveProgress = async () => {
-    if (!projectId) return
+    if (!projectId || !template) return
 
     setSaving(true)
     await window.api.saveExtraction(projectId, { articles })
 
+    // Calculer les champs remplis en fonction du template
+    const totalFieldsPerArticle = template.fields.length
     const filledFields = articles.reduce((acc, article) => {
-      return acc + (article.title ? 1 : 0) + (article.author ? 1 : 0) + (article.content ? 1 : 0)
+      return acc + template.fields.filter(f => article.fields?.[f.name]).length
     }, 0)
 
-    await window.api.updateProject(projectId, {
-      status: filledFields === articles.length * 3 ? 'completed' : 'in_progress',
+    await updateProject(projectId, {
+      status: filledFields === articles.length * totalFieldsPerArticle ? 'completed' : 'in_progress',
       filledFields,
-      totalFields: articles.length * 3
+      totalFields: articles.length * totalFieldsPerArticle
     })
 
     setSavedArticles(articles)
@@ -164,18 +174,16 @@ export function EditorPage() {
 
   const transcribeArticleAt = async (index: number) => {
     const article = articles[index]
-    if (!projectId || !article?.imagePath) return
+    if (!projectId || !article?.imagePath || !template) return
 
     setTranscribing(true)
     const settings = await window.api.getSettings()
-    const result = await window.api.transcribe(projectId, article.imagePath, settings.ai)
+    const result = await window.api.transcribe(projectId, article.imagePath, settings.ai, template)
     if (result.success && result.data) {
       setArticles(prev => prev.map((a, idx) =>
         idx === index ? {
           ...a,
-          title: result.data!.title,
-          author: result.data!.author,
-          content: result.data!.content
+          fields: { ...a.fields, ...result.data!.fields }
         } : a
       ))
     }
@@ -193,7 +201,7 @@ export function EditorPage() {
   }
 
   const bulkTranscribe = async (indices: number[]) => {
-    if (!projectId) return
+    if (!projectId || !template) return
 
     setTranscribing(true)
     setBulkTranscribeProgress({ current: 0, total: indices.length })
@@ -204,15 +212,13 @@ export function EditorPage() {
       const article = articles[index]
       if (!article?.imagePath) continue
 
-      const result = await window.api.transcribe(projectId, article.imagePath, settings.ai)
+      const result = await window.api.transcribe(projectId, article.imagePath, settings.ai, template)
 
       if (result.success && result.data) {
         setArticles(prev => prev.map((a, idx) =>
           idx === index ? {
             ...a,
-            title: result.data!.title,
-            author: result.data!.author,
-            content: result.data!.content
+            fields: { ...a.fields, ...result.data!.fields }
           } : a
         ))
       }
@@ -265,8 +271,12 @@ export function EditorPage() {
   }
 
   const getArticleCompletion = (article: Article) => {
-    const fields = [article.title, article.author, article.content]
-    return fields.filter(Boolean).length
+    if (!template) return 0
+    return template.fields.filter(f => article.fields?.[f.name]).length
+  }
+
+  const getTotalFields = () => {
+    return template?.fields.length || 0
   }
 
   if (loading) {
@@ -430,8 +440,8 @@ export function EditorPage() {
                     <Badge variant="outline">
                       {currentIndex + 1} / {articles.length}
                     </Badge>
-                    <Badge variant={getArticleCompletion(currentArticle) === 3 ? 'success' : 'secondary'}>
-                      {getArticleCompletion(currentArticle)}/3
+                    <Badge variant={getArticleCompletion(currentArticle) === getTotalFields() ? 'success' : 'secondary'}>
+                      {getArticleCompletion(currentArticle)}/{getTotalFields()}
                     </Badge>
                   </div>
                   <Button
@@ -449,6 +459,7 @@ export function EditorPage() {
               <ArticleForm
                 key={currentIndex}
                 article={currentArticle}
+                template={template}
                 transcribing={transcribing}
                 onUpdate={updateArticle}
                 onTranscribe={transcribeArticle}

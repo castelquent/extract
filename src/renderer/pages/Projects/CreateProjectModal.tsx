@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -9,24 +9,39 @@ import {
   Button,
   Input,
   Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@/components/ui'
+import { useTemplatesStore } from '@/stores'
 
 interface CreateProjectModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onCreate: (name: string) => void
+  onCreate: (name: string, templateId: string) => void
 }
 
 export function CreateProjectModal({ open, onOpenChange, onCreate }: CreateProjectModalProps) {
   const [name, setName] = useState('')
+  const [templateId, setTemplateId] = useState('press-article')
   const [loading, setLoading] = useState(false)
+  const { templates, loadTemplates } = useTemplatesStore()
+
+  useEffect(() => {
+    if (open && templates.length === 0) {
+      loadTemplates()
+    }
+  }, [open, templates.length, loadTemplates])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    await onCreate(name || 'Nouveau projet')
+    await onCreate(name || 'Nouveau projet', templateId)
     setLoading(false)
     setName('')
+    setTemplateId('press-article')
   }
 
   return (
@@ -49,6 +64,25 @@ export function CreateProjectModal({ open, onOpenChange, onCreate }: CreateProje
               placeholder="Mon projet"
               autoFocus
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="project-template">Modèle</Label>
+            <Select value={templateId} onValueChange={setTemplateId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Choisir un modèle" />
+              </SelectTrigger>
+              <SelectContent>
+                {templates.map((template) => (
+                  <SelectItem key={template.id} value={template.id}>
+                    {template.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Le modèle définit les champs disponibles pour chaque article.
+            </p>
           </div>
 
           <p className="text-sm text-muted-foreground">

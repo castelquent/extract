@@ -1,3 +1,24 @@
+// Template types
+export type FieldType = 'text' | 'textarea' | 'richtext'
+
+export interface TemplateField {
+  name: string
+  type: FieldType
+  aiHint?: string
+  order: number
+}
+
+export interface Template {
+  id: string
+  name: string
+  description?: string
+  aiContext?: string
+  fields: TemplateField[]
+  isDefault?: boolean
+  createdAt: string
+  updatedAt: string
+}
+
 // Project types
 export interface ProjectMetadata {
   id: string
@@ -9,6 +30,7 @@ export interface ProjectMetadata {
   articlesCount: number
   filledFields: number
   totalFields: number
+  templateId: string
 }
 
 export interface Project extends ProjectMetadata {
@@ -27,9 +49,7 @@ export interface Zone {
 export interface Article {
   id: number
   zones: Zone[]
-  title?: string
-  author?: string
-  content?: string
+  fields: Record<string, string>
   imagePath?: string
 }
 
@@ -50,9 +70,7 @@ export interface AISettings {
 export interface TranscriptionResult {
   success: boolean
   data?: {
-    title: string
-    author: string
-    content: string
+    fields: Record<string, string>
   }
   error?: string
   rawContent?: string
@@ -69,9 +87,15 @@ export interface Settings {
 
 // IPC API types
 export interface ElectronAPI {
+  // Templates
+  getTemplates: () => Promise<Template[]>
+  getTemplate: (templateId: string) => Promise<Template | null>
+  saveTemplate: (template: Template) => Promise<boolean>
+  deleteTemplate: (templateId: string) => Promise<boolean>
+
   // Projects
   getProjects: () => Promise<Project[]>
-  createProject: (name: string) => Promise<Project | null>
+  createProject: (name: string, templateId: string) => Promise<Project | null>
   deleteProject: (projectId: string) => Promise<boolean>
   duplicateProject: (projectId: string) => Promise<Project | null>
   getProject: (projectId: string) => Promise<Project | null>
@@ -80,13 +104,13 @@ export interface ElectronAPI {
   // Extraction
   saveExtraction: (projectId: string, data: ExtractionData) => Promise<boolean>
   loadExtraction: (projectId: string) => Promise<ExtractionData | null>
-  exportImages: (projectId: string, articles: Article[]) => Promise<boolean>
+  exportImages: (projectId: string, articles: Article[]) => Promise<Article[] | null>
   getPdfPath: (projectId: string) => Promise<string | null>
   getPdfData: (projectId: string) => Promise<ArrayBuffer | null>
   getImageData: (projectId: string, imagePath: string) => Promise<string | null>
   getPdfFile: (projectId: string, imagePath: string) => Promise<string | null>
   // Transcription
-  transcribe: (projectId: string, imagePath: string, settings: AISettings) => Promise<TranscriptionResult>
+  transcribe: (projectId: string, imagePath: string, settings: AISettings, template: Template) => Promise<TranscriptionResult>
 
   // Export
   exportPdf: (projectId: string, articles: Article[]) => Promise<boolean>
