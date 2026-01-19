@@ -27,6 +27,7 @@ import {
 interface ArticlesTableProps {
   articles: Article[]
   currentIndex: number
+  totalFields: number
   onSelectArticle: (index: number) => void
   onSelectionChange?: (selectedIds: number[]) => void
   onTranscribe?: (index: number) => void
@@ -38,6 +39,7 @@ interface ArticlesTableProps {
 export function ArticlesTable({
   articles,
   currentIndex,
+  totalFields,
   onSelectArticle,
   onSelectionChange,
   onTranscribe,
@@ -48,8 +50,8 @@ export function ArticlesTable({
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
 
   const getArticleCompletion = (article: Article) => {
-    const fields = [article.title, article.author, article.content]
-    return fields.filter(Boolean).length
+    if (!article.fields) return 0
+    return Object.values(article.fields).filter(Boolean).length
   }
 
   const columns: ColumnDef<Article>[] = [
@@ -81,7 +83,7 @@ export function ArticlesTable({
       cell: ({ row }) => {
         const article = row.original
         const index = articles.findIndex((a) => a.id === article.id)
-        const displayName = article.title || `Article ${index + 1}`
+        const displayName = article.fields?.Titre || `Article ${index + 1}`
         return (
           <button
             onClick={() => onSelectArticle(index)}
@@ -98,8 +100,8 @@ export function ArticlesTable({
       cell: ({ row }) => {
         const completion = getArticleCompletion(row.original)
         return (
-          <Badge variant={completion === 3 ? 'success' : 'secondary'}>
-            {completion}/3
+          <Badge variant={completion === totalFields ? 'success' : 'secondary'}>
+            {completion}/{totalFields}
           </Badge>
         )
       },

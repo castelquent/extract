@@ -60,6 +60,7 @@ export function EditorPage() {
   const [bulkDeleteIndices, setBulkDeleteIndices] = useState<number[] | null>(null)
   const [bulkTranscribeProgress, setBulkTranscribeProgress] = useState<{ current: number; total: number } | null>(null)
   const [template, setTemplate] = useState<Template | null>(null)
+  const [activeTab, setActiveTab] = useState('editor')
 
   const toolbarPluginInstance = toolbarPlugin()
   const { Toolbar } = toolbarPluginInstance
@@ -422,7 +423,7 @@ export function EditorPage() {
         <ResizableHandle />
         {/* Editor panel */}
         <ResizablePanel minSize={20} className="min-w-[375px] border-l bg-card flex flex-col h-full">
-          <Tabs defaultValue="editor" className="flex flex-col flex-1 h-full min-h-0">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 h-full min-h-0">
             <TabsContent value="editor" className="flex flex-col flex-1 min-h-0 data-[state=inactive]:hidden m-0">
               {/* Navigation */}
               <div className="p-4 border-b shrink-0">
@@ -476,7 +477,11 @@ export function EditorPage() {
                   <ArticlesTable
                     articles={articles}
                     currentIndex={currentIndex}
-                    onSelectArticle={setCurrentIndex}
+                    totalFields={getTotalFields()}
+                    onSelectArticle={(index) => {
+                      setCurrentIndex(index)
+                      setActiveTab('editor')
+                    }}
                     onTranscribe={transcribeArticleAt}
                     onDelete={setDeleteConfirmIndex}
                     onBulkTranscribe={bulkTranscribe}
