@@ -10,7 +10,7 @@ import {
   Separator,
   Textarea,
 } from '@/components/ui'
-import { Sparkles } from 'lucide-react'
+import { Sparkles, Download } from 'lucide-react'
 
 interface ArticleFormProps {
   article: Article | undefined
@@ -18,6 +18,7 @@ interface ArticleFormProps {
   transcribing: boolean
   onUpdate: (fieldName: string, value: string) => void
   onTranscribe: () => void
+  onExport: () => void
 }
 
 const quillModules = {
@@ -127,7 +128,8 @@ export function ArticleForm({
   template,
   transcribing,
   onUpdate,
-  onTranscribe
+  onTranscribe,
+  onExport
 }: ArticleFormProps) {
   const sortedFields = template?.fields
     ? [...template.fields].sort((a, b) => a.order - b.order)
@@ -136,16 +138,25 @@ export function ArticleForm({
   return (
     <ScrollArea className="flex-1">
       <div className="p-4 space-y-4">
-        {/* Transcription button */}
-        <Button
-          onClick={onTranscribe}
-          disabled={transcribing}
-          className="w-full"
-          variant="secondary"
-        >
-          <Sparkles className={`h-4 w-4 mr-2 ${transcribing ? 'animate-pulse' : ''}`} />
-          {transcribing ? 'Transcription en cours...' : 'Transcrire avec IA'}
-        </Button>
+        {/* Action buttons */}
+        <div className="flex gap-2">
+          <Button
+            onClick={onTranscribe}
+            disabled={transcribing}
+            className="flex-1"
+            variant="secondary"
+          >
+            <Sparkles className={`h-4 w-4 mr-2 ${transcribing ? 'animate-pulse' : ''}`} />
+            {transcribing ? 'Transcription...' : 'Transcrire avec IA'}
+          </Button>
+          <Button
+            onClick={onExport}
+            variant="outline"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Exporter
+          </Button>
+        </div>
 
         <Separator />
 

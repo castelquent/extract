@@ -13,6 +13,7 @@ function createWindow(): void {
     height: 900,
     minWidth: 1000,
     minHeight: 700,
+    autoHideMenuBar: true,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -22,8 +23,9 @@ function createWindow(): void {
     show: false,
   })
 
-  // Show window when ready
+  // Show window maximized when ready
   mainWindow.once('ready-to-show', () => {
+    mainWindow?.maximize()
     mainWindow?.show()
   })
 

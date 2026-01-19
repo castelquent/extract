@@ -115,6 +115,7 @@ export interface ElectronAPI {
   // Export
   exportPdf: (projectId: string, articles: Article[]) => Promise<boolean>
   exportDocx: (projectId: string, articles: Article[]) => Promise<boolean>
+  exportTxt: (projectId: string, articles: Article[]) => Promise<boolean>
   exportZip: (projectId: string) => Promise<boolean>
   importZip: () => Promise<string | null>
 

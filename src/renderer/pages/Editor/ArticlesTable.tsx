@@ -6,7 +6,7 @@ import {
   useReactTable,
   RowSelectionState,
 } from '@tanstack/react-table'
-import { MoreHorizontal, Sparkles, Trash2, X } from 'lucide-react'
+import { MoreHorizontal, Sparkles, Trash2, X, Download } from 'lucide-react'
 import type { Article } from '@shared/types'
 import {
   Table,
@@ -34,6 +34,7 @@ interface ArticlesTableProps {
   onDelete?: (index: number) => void
   onBulkTranscribe?: (indices: number[]) => void
   onBulkDelete?: (indices: number[]) => void
+  onBulkExport?: (indices: number[]) => void
 }
 
 export function ArticlesTable({
@@ -46,6 +47,7 @@ export function ArticlesTable({
   onDelete,
   onBulkTranscribe,
   onBulkDelete,
+  onBulkExport,
 }: ArticlesTableProps) {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
 
@@ -79,7 +81,7 @@ export function ArticlesTable({
     },
     {
       accessorKey: 'title',
-      header: 'Article',
+      header: 'Élement',
       cell: ({ row }) => {
         const article = row.original
         const index = articles.findIndex((a) => a.id === article.id)
@@ -226,6 +228,19 @@ export function ArticlesTable({
           >
             <Sparkles className="h-4 w-4 mr-2" />
             Transcrire
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              const indices = Object.keys(rowSelection)
+                .filter((key) => rowSelection[key])
+                .map((key) => parseInt(key))
+              onBulkExport?.(indices)
+            }}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Exporter
           </Button>
           <Button
             size="sm"

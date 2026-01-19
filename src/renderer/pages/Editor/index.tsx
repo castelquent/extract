@@ -23,16 +23,16 @@ import {
 import {
   ArrowLeft,
   Save,
-  FileText,
-  FileIcon,
   ChevronLeft,
   ChevronRight,
-  ImageIcon
+  ImageIcon,
+  Download
 } from 'lucide-react'
 import { ArticleForm } from './ArticleForm'
 import { TranscriptionModal } from './TranscriptionModal'
 import { UnsavedChangesModal } from './UnsavedChangesModal'
 import { ArticlesTable } from './ArticlesTable'
+import { ExportModal, ExportFormat } from './ExportModal'
 
 // Core viewer
 import { Viewer, SpecialZoomLevel } from '@react-pdf-viewer/core';
@@ -61,6 +61,8 @@ export function EditorPage() {
   const [bulkTranscribeProgress, setBulkTranscribeProgress] = useState<{ current: number; total: number } | null>(null)
   const [template, setTemplate] = useState<Template | null>(null)
   const [activeTab, setActiveTab] = useState('editor')
+  const [exportModalOpen, setExportModalOpen] = useState(false)
+  const [exportArticles, setExportArticles] = useState<Article[]>([])  // Articles to export
 
   const toolbarPluginInstance = toolbarPlugin()
   const { Toolbar } = toolbarPluginInstance
@@ -261,14 +263,41 @@ export function EditorPage() {
     setBulkDeleteIndices(null)
   }
 
-  const handleExport = async (format: 'pdf' | 'docx') => {
-    if (!projectId) return
+  // Export avec articles dynamiques (single ou batch)
+  const handleExport = async (format: ExportFormat) => {
+    if (!projectId || exportArticles.length === 0) return
 
-    if (format === 'pdf') {
-      await window.api.exportPdf(projectId, articles)
-    } else {
-      await window.api.exportDocx(projectId, articles)
+    switch (format) {
+      case 'pdf':
+        await window.api.exportPdf(projectId, exportArticles)
+        break
+      case 'docx':
+        await window.api.exportDocx(projectId, exportArticles)
+        break
+      case 'txt':
+        await window.api.exportTxt(projectId, exportArticles)
+        break
     }
+  }
+
+  // Ouvrir le modal d'export pour un seul article
+  const openExportSingle = () => {
+    if (!currentArticle) return
+    setExportArticles([currentArticle])
+    setExportModalOpen(true)
+  }
+
+  // Ouvrir le modal d'export pour plusieurs articles (batch depuis sommaire)
+  const openExportBatch = (indices: number[]) => {
+    const articlesToExport = indices.map(i => articles[i]).filter(Boolean)
+    setExportArticles(articlesToExport)
+    setExportModalOpen(true)
+  }
+
+  // Ouvrir le modal d'export pour tous les articles
+  const openExportAll = () => {
+    setExportArticles(articles)
+    setExportModalOpen(true)
   }
 
   const getArticleCompletion = (article: Article) => {
@@ -291,14 +320,19 @@ export function EditorPage() {
   return (
     <div className="h-screen flex flex-col">
       <TranscriptionModal open={transcribing} progress={bulkTranscribeProgress} />
+      <ExportModal
+        open={exportModalOpen}
+        onClose={() => setExportModalOpen(false)}
+        onExport={handleExport}
+      />
 
       {/* Bulk delete confirmation dialog */}
       <AlertDialog open={bulkDeleteIndices !== null} onOpenChange={(open) => !open && setBulkDeleteIndices(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer {bulkDeleteIndices?.length} article(s) ?</AlertDialogTitle>
+            <AlertDialogTitle>Supprimer {bulkDeleteIndices?.length} élement(s) ?</AlertDialogTitle>
             <AlertDialogDescription>
-              Cette action est irréversible. Les articles sélectionnés seront définitivement supprimés.
+              Cette action est irréversible. Les élements sélectionnés seront définitivement supprimés.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -317,9 +351,9 @@ export function EditorPage() {
       <AlertDialog open={deleteConfirmIndex !== null} onOpenChange={(open) => !open && setDeleteConfirmIndex(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer l'article ?</AlertDialogTitle>
+            <AlertDialogTitle>Supprimer l'élement ?</AlertDialogTitle>
             <AlertDialogDescription>
-              Cette action est irréversible. L'article sera définitivement supprimé.
+              Cette action est irréversible. L'élement sera définitivement supprimé.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -356,20 +390,15 @@ export function EditorPage() {
             {project?.name || 'Éditeur'}
           </h1>
           <Badge variant="secondary">
-            {articles.length} article{articles.length > 1 ? 's' : ''}
+            {articles.length} élément{articles.length > 1 ? 's' : ''}
           </Badge>
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => handleExport('pdf')}>
-            <FileText className="h-4 w-4 mr-2" />
-            PDF
+          <Button variant="outline" onClick={openExportAll}>
+            <Download className="h-4 w-4 mr-2" />
+            Exporter tout
           </Button>
-          <Button variant="outline" size="sm" onClick={() => handleExport('docx')}>
-            <FileIcon className="h-4 w-4 mr-2" />
-            DOCX
-          </Button>
-          <Separator orientation="vertical" className="h-6 mx-2" />
           <Button onClick={saveProgress} disabled={saving}>
             <Save className="h-4 w-4 mr-2" />
             {saving ? 'Sauvegarde...' : 'Sauvegarder'}
@@ -464,6 +493,7 @@ export function EditorPage() {
                 transcribing={transcribing}
                 onUpdate={updateArticle}
                 onTranscribe={transcribeArticle}
+                onExport={openExportSingle}
               />
               </div>
             </TabsContent>
@@ -486,6 +516,7 @@ export function EditorPage() {
                     onDelete={setDeleteConfirmIndex}
                     onBulkTranscribe={bulkTranscribe}
                     onBulkDelete={confirmBulkDelete}
+                    onBulkExport={openExportBatch}
                   />
                 </ScrollArea>
               </div>

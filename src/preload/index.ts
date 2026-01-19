@@ -35,6 +35,7 @@ const api: ElectronAPI & {
   // Export
   exportPdf: (projectId, articles) => ipcRenderer.invoke('export:pdf', projectId, articles),
   exportDocx: (projectId, articles) => ipcRenderer.invoke('export:docx', projectId, articles),
+  exportTxt: (projectId, articles) => ipcRenderer.invoke('export:txt', projectId, articles),
   exportZip: (projectId) => ipcRenderer.invoke('export:zip', projectId),
   importZip: () => ipcRenderer.invoke('export:importZip'),
 

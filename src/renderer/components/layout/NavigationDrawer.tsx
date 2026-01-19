@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Home, Scissors, FileText, FileStack, Settings, PanelLeftClose, PanelLeft, Sun, Moon } from 'lucide-react'
+import { Home, Scissors, FileText, FileStack, Settings, PanelLeftClose, PanelLeft } from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -23,7 +23,7 @@ const navItems = [
 export function NavigationDrawer() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { openSettings, theme, toggleTheme } = useUIStore()
+  const { openSettings } = useUIStore()
   const { toggleSidebar, state } = useSidebar()
   const projects = useProjectsStore((state) => state.projects)
   const isCollapsed = state === 'collapsed'
@@ -53,7 +53,6 @@ export function NavigationDrawer() {
               <SidebarMenuItem key={item.to}>
                 <SidebarMenuButton
                   isActive={isActive}
-                  tooltip={item.label}
                   onClick={() => navigate(item.to)}
                 >
                   <item.icon className="h-4 w-4" />
@@ -71,26 +70,13 @@ export function NavigationDrawer() {
       <SidebarFooter className="border-t border-sidebar-border px-2 py-2">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton
-              tooltip={theme === 'dark' ? 'Mode clair' : 'Mode sombre'}
-              onClick={toggleTheme}
-            >
-              {theme === 'dark' ? (
-                <Sun className="h-4 w-4" />
-              ) : (
-                <Moon className="h-4 w-4" />
-              )}
-              <span>{theme === 'dark' ? 'Mode clair' : 'Mode sombre'}</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton tooltip="Paramètres" onClick={openSettings}>
+            <SidebarMenuButton onClick={openSettings}>
               <Settings className="h-4 w-4" />
               <span>Paramètres</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip={isCollapsed ? "Agrandir" : "Réduire"} onClick={toggleSidebar}>
+            <SidebarMenuButton onClick={toggleSidebar}>
               {isCollapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
               <span>{isCollapsed ? "Agrandir" : "Réduire"}</span>
             </SidebarMenuButton>
