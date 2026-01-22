@@ -106,7 +106,7 @@ async function transcribeWithOpenAI(
     },
     {
       headers: {
-        'Authorization': `Bearer ${settings.apiKey}`,
+        'Authorization': `Bearer ${settings.openaiApiKey || settings.apiKey}`,
         'Content-Type': 'application/json'
       }
     }
@@ -151,7 +151,7 @@ async function transcribeWithAnthropic(
     },
     {
       headers: {
-        'x-api-key': settings.apiKey,
+        'x-api-key': settings.anthropicApiKey || settings.apiKey,
         'anthropic-version': '2023-06-01',
         'Content-Type': 'application/json'
       }

@@ -4,14 +4,16 @@ import { Toaster } from 'sonner'
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { NavigationDrawer } from './NavigationDrawer'
 import { SettingsModal } from './SettingsModal'
-import { useProjectsStore } from '@/stores'
+import { useProjectsStore, useTemplatesStore } from '@/stores'
 
 export function AppLayout() {
   const loadProjects = useProjectsStore((state) => state.loadProjects)
+  const loadTemplates = useTemplatesStore((state) => state.loadTemplates)
 
   useEffect(() => {
     loadProjects()
-  }, [loadProjects])
+    loadTemplates()
+  }, [loadProjects, loadTemplates])
 
   return (
     <SidebarProvider>

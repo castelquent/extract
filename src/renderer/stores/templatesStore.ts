@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { toast } from 'sonner'
-import type { Template } from '@shared/types'
+import type { Template, DeleteTemplateResult } from '@shared/types'
 
 interface TemplatesState {
   templates: Template[]
@@ -11,7 +11,7 @@ interface TemplatesState {
   loadTemplates: () => Promise<void>
   getTemplate: (templateId: string) => Promise<Template | null>
   saveTemplate: (template: Template) => Promise<boolean>
-  deleteTemplate: (templateId: string) => Promise<boolean>
+  deleteTemplate: (templateId: string) => Promise<DeleteTemplateResult>
   clearError: () => void
 }
 
@@ -75,23 +75,26 @@ export const useTemplatesStore = create<TemplatesState>((set, get) => ({
     }
   },
 
-  deleteTemplate: async (templateId: string) => {
+  deleteTemplate: async (templateId: string): Promise<DeleteTemplateResult> => {
     set({ error: null })
     try {
-      const success = await window.api.deleteTemplate(templateId)
-      if (success) {
+      const result = await window.api.deleteTemplate(templateId)
+      if (result.success) {
         set((state) => ({
           templates: state.templates.filter(t => t.id !== templateId)
         }))
         toast.success('Modèle supprimé')
-      } else {
-        toast.error('Impossible de supprimer ce modèle')
+      } else if (result.reason === 'in_use') {
+        const projectList = result.projectNames?.join(', ') || ''
+        toast.error(`Ce modèle est utilisé par: ${projectList}`)
+      } else if (result.reason === 'is_default') {
+        toast.error('Impossible de supprimer un modèle par défaut')
       }
-      return success
+      return result
     } catch (err) {
       toast.error('Erreur lors de la suppression du modèle')
       set({ error: 'Erreur lors de la suppression du modèle' })
-      return false
+      return { success: false }
     }
   },
 

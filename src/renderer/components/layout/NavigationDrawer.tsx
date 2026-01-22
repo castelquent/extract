@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Home, Scissors, FileText, FileStack, Settings, PanelLeftClose, PanelLeft } from 'lucide-react'
+import { Home, Scissors, FileText, FileStack, Settings, PanelLeftClose, PanelLeft, CheckCircle } from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -11,12 +11,13 @@ import {
   SidebarMenuBadge,
   useSidebar,
 } from '@/components/ui/sidebar'
-import { useProjectsStore, selectExtractionProjects, selectTranscriptionProjects, useUIStore } from '@/stores'
+import { useProjectsStore, selectExtractionProjects, selectTranscriptionProjects, selectCompletedProjects, useUIStore } from '@/stores'
 
 const navItems = [
   { to: '/', icon: Home, label: 'Accueil', filter: 'all' as const },
   { to: '/extraction', icon: Scissors, label: 'Extraction', filter: 'extraction' as const },
   { to: '/transcription', icon: FileText, label: 'Transcription', filter: 'transcription' as const },
+  { to: '/completed', icon: CheckCircle, label: 'Terminés', filter: 'completed' as const },
   { to: '/templates', icon: FileStack, label: 'Modèles', filter: null },
 ]
 
@@ -28,7 +29,7 @@ export function NavigationDrawer() {
   const projects = useProjectsStore((state) => state.projects)
   const isCollapsed = state === 'collapsed'
 
-  const getCounts = (filter: 'all' | 'extraction' | 'transcription' | null) => {
+  const getCounts = (filter: 'all' | 'extraction' | 'transcription' | 'completed' | null) => {
     if (filter === null) return 0
     const state = { projects } as any
     switch (filter) {
@@ -36,6 +37,8 @@ export function NavigationDrawer() {
         return selectExtractionProjects(state).length
       case 'transcription':
         return selectTranscriptionProjects(state).length
+      case 'completed':
+        return selectCompletedProjects(state).length
       default:
         return projects.length
     }

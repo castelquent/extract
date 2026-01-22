@@ -1,4 +1,4 @@
-export { useProjectsStore, selectExtractionProjects, selectTranscriptionProjects } from './projectsStore'
+export { useProjectsStore, selectExtractionProjects, selectTranscriptionProjects, selectCompletedProjects } from './projectsStore'
 export { useUIStore } from './uiStore'
 export {
   useExtractionStore,

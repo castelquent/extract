@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Project } from '@shared/types'
-import { useProjectsStore, selectExtractionProjects, selectTranscriptionProjects } from '@/stores'
+import { useProjectsStore, selectExtractionProjects, selectTranscriptionProjects, selectCompletedProjects } from '@/stores'
 import { ProjectCard } from './ProjectCard'
 import { CreateProjectModal } from './CreateProjectModal'
 import {
@@ -15,9 +15,9 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from '@/components/ui'
-import { Plus, FolderOpen, Scissors, FileText, Home } from 'lucide-react'
+import { Plus, FolderOpen, Scissors, FileText, Home, CheckCircle } from 'lucide-react'
 
-export type ProjectFilter = 'all' | 'extraction' | 'transcription'
+export type ProjectFilter = 'all' | 'extraction' | 'transcription' | 'completed'
 
 interface ProjectsPageProps {
   filter?: ProjectFilter
@@ -42,6 +42,12 @@ const filterConfig: Record<ProjectFilter, { title: string; subtitle: string; ico
     icon: FileText,
     emptyMessage: 'Aucun projet à transcrire',
   },
+  completed: {
+    title: 'Terminés',
+    subtitle: 'Projets complétés',
+    icon: CheckCircle,
+    emptyMessage: 'Aucun projet terminé',
+  },
 }
 
 export function ProjectsPage({ filter = 'all' }: ProjectsPageProps) {
@@ -57,6 +63,8 @@ export function ProjectsPage({ filter = 'all' }: ProjectsPageProps) {
         return selectExtractionProjects(state)
       case 'transcription':
         return selectTranscriptionProjects(state)
+      case 'completed':
+        return selectCompletedProjects(state)
       default:
         return projects
     }

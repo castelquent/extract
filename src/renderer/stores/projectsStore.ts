@@ -137,6 +137,10 @@ export const useProjectsStore = create<ProjectsState>((set) => ({
 export const selectExtractionProjects = (state: ProjectsState) =>
   state.projects.filter((p) => p.status === 'new' || p.status === 'extracting')
 
-// Transcription: projets extracted, in_progress ou completed (images exportées)
+// Transcription: projets extracted ou in_progress (en cours de transcription)
 export const selectTranscriptionProjects = (state: ProjectsState) =>
-  state.projects.filter((p) => p.status === 'extracted' || p.status === 'in_progress' || p.status === 'completed')
+  state.projects.filter((p) => p.status === 'extracted' || p.status === 'in_progress')
+
+// Terminé: projets completed
+export const selectCompletedProjects = (state: ProjectsState) =>
+  state.projects.filter((p) => p.status === 'completed')

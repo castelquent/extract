@@ -19,6 +19,12 @@ export interface Template {
   updatedAt: string
 }
 
+export interface DeleteTemplateResult {
+  success: boolean
+  reason?: 'in_use' | 'is_default'
+  projectNames?: string[]
+}
+
 // Project types
 export interface ProjectMetadata {
   id: string
@@ -62,9 +68,11 @@ export type AIProvider = 'openai' | 'anthropic'
 
 export interface AISettings {
   provider: AIProvider
-  apiKey: string
+  apiKey: string  // Deprecated, kept for backward compatibility
   model: string
   prompt: string
+  anthropicApiKey?: string
+  openaiApiKey?: string
 }
 
 export interface TranscriptionResult {
@@ -91,7 +99,7 @@ export interface ElectronAPI {
   getTemplates: () => Promise<Template[]>
   getTemplate: (templateId: string) => Promise<Template | null>
   saveTemplate: (template: Template) => Promise<boolean>
-  deleteTemplate: (templateId: string) => Promise<boolean>
+  deleteTemplate: (templateId: string) => Promise<DeleteTemplateResult>
 
   // Projects
   getProjects: () => Promise<Project[]>

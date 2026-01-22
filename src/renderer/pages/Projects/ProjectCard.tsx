@@ -52,12 +52,12 @@ export function ProjectCard({ project, onClick, onDelete, onDuplicate }: Project
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <Card
-          className="cursor-pointer hover:border-primary/50 transition-colors group relative"
+          className="cursor-pointer hover:border-primary/50 transition-colors group relative h-full"
           onClick={onClick}
         >
-          <CardContent className="p-4">
+          <CardContent className="p-4 h-full flex flex-col">
             {/* Thumbnail */}
-            <div className="aspect-[4/3] rounded-md mb-4 overflow-hidden">
+            <div className="aspect-[4/3] rounded-md mb-4 overflow-hidden flex-shrink-0">
               {thumbnailSrc ? (
                 <img
                   src={thumbnailSrc}
@@ -72,7 +72,7 @@ export function ProjectCard({ project, onClick, onDelete, onDuplicate }: Project
             </div>
 
             {/* Info */}
-            <div className="space-y-3">
+            <div className="flex-1 space-y-3 flex flex-col">
               <h3 className="font-semibold truncate">{project.name}</h3>
 
               <div className="flex items-center gap-2">
@@ -92,7 +92,7 @@ export function ProjectCard({ project, onClick, onDelete, onDuplicate }: Project
                 </div>
               )}
 
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground" style={{ marginTop: 'auto' }}>
                 Modifié le {new Date(project.modifiedAt).toLocaleDateString('fr-FR')}
               </p>
             </div>
