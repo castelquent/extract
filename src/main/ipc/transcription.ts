@@ -30,6 +30,58 @@ RÈGLES STRICTES:
 - Réponds uniquement avec le JSON, sans explication ni markdown.`
 }
 
+// Parse API errors into user-friendly messages
+function parseApiError(error: any, provider: string): string {
+  // Axios error with response
+  if (error.response) {
+    const status = error.response.status
+    const data = error.response.data
+
+    // Common HTTP errors
+    if (status === 401) {
+      return provider === 'openai'
+        ? 'Clé API OpenAI invalide. Vérifiez vos paramètres.'
+        : 'Clé API Anthropic invalide. Vérifiez vos paramètres.'
+    }
+    if (status === 403) {
+      return 'Accès refusé. Votre clé API n\'a pas les permissions nécessaires.'
+    }
+    if (status === 429) {
+      return 'Limite de requêtes atteinte. Réessayez dans quelques minutes.'
+    }
+    if (status === 500 || status === 502 || status === 503) {
+      return `Service ${provider === 'openai' ? 'OpenAI' : 'Anthropic'} temporairement indisponible. Réessayez plus tard.`
+    }
+    if (status === 400) {
+      // Try to get specific error message from API
+      const apiMessage = data?.error?.message || data?.message || ''
+      if (apiMessage.includes('model')) {
+        return `Modèle non disponible. Vérifiez le modèle sélectionné dans les paramètres.`
+      }
+      return `Requête invalide: ${apiMessage || 'vérifiez vos paramètres'}`
+    }
+
+    // Generic with status
+    return `Erreur API (${status}): ${data?.error?.message || data?.message || 'Erreur inconnue'}`
+  }
+
+  // Network error (no response)
+  if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+    return 'Impossible de contacter le serveur. Vérifiez votre connexion internet.'
+  }
+  if (error.code === 'ETIMEDOUT' || error.message?.includes('timeout')) {
+    return 'La requête a expiré. L\'image est peut-être trop grande.'
+  }
+
+  // File system errors
+  if (error.code === 'ENOENT') {
+    return 'Fichier image introuvable. Le projet est peut-être corrompu.'
+  }
+
+  // Fallback
+  return error.message || 'Erreur inconnue lors de la transcription'
+}
+
 export function setupTranscriptionHandlers(): void {
   // Transcribe article image
   ipcMain.handle('transcription:transcribe', async (
@@ -52,6 +104,20 @@ export function setupTranscriptionHandlers(): void {
       ? 'image/jpeg'
       : 'image/png';
 
+      // Validate API key before making request
+      const apiKey = settings.provider === 'openai'
+        ? (settings.openaiApiKey || settings.apiKey)
+        : (settings.anthropicApiKey || settings.apiKey)
+
+      if (!apiKey || apiKey.trim() === '') {
+        return {
+          success: false,
+          error: settings.provider === 'openai'
+            ? 'Clé API OpenAI non configurée. Allez dans Paramètres > IA.'
+            : 'Clé API Anthropic non configurée. Allez dans Paramètres > IA.'
+        }
+      }
+
       // Generate dynamic prompt from template
       const prompt = buildPromptFromTemplate(template)
 
@@ -60,11 +126,15 @@ export function setupTranscriptionHandlers(): void {
       } else {
         return await transcribeWithAnthropic(base64Image, mimeType, settings, prompt, template)
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Transcription error:', error)
+
+      // Parse API errors for better messages
+      const errorMessage = parseApiError(error, settings.provider)
+
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: errorMessage
       }
     }
   })

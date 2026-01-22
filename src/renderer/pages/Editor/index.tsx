@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useBlocker } from 'react-router-dom'
+import { toast } from 'sonner'
 import type { Article, Project, Template } from '@shared/types'
 import { useUIStore, useProjectsStore } from '@/stores'
 import {
@@ -175,13 +176,14 @@ export function EditorPage() {
     await transcribeArticleAt(currentIndex)
   }
 
-  const transcribeArticleAt = async (index: number) => {
+  const transcribeArticleAt = async (index: number): Promise<boolean> => {
     const article = articles[index]
-    if (!projectId || !article?.imagePath || !template) return
+    if (!projectId || !article?.imagePath || !template) return false
 
     setTranscribing(true)
     const settings = await window.api.getSettings()
     const result = await window.api.transcribe(projectId, article.imagePath, settings.ai, template)
+
     if (result.success && result.data) {
       setArticles(prev => prev.map((a, idx) =>
         idx === index ? {
@@ -189,9 +191,14 @@ export function EditorPage() {
           fields: { ...a.fields, ...result.data!.fields }
         } : a
       ))
+      setTranscribing(false)
+      return true
+    } else {
+      // Show error to user
+      toast.error(result.error || 'Erreur lors de la transcription')
+      setTranscribing(false)
+      return false
     }
-
-    setTranscribing(false)
   }
 
   const deleteArticle = (index: number) => {
@@ -210,6 +217,10 @@ export function EditorPage() {
     setBulkTranscribeProgress({ current: 0, total: indices.length })
     const settings = await window.api.getSettings()
 
+    let successCount = 0
+    let errorCount = 0
+    let lastError = ''
+
     for (let i = 0; i < indices.length; i++) {
       const index = indices[i]
       const article = articles[index]
@@ -224,6 +235,10 @@ export function EditorPage() {
             fields: { ...a.fields, ...result.data!.fields }
           } : a
         ))
+        successCount++
+      } else {
+        errorCount++
+        lastError = result.error || 'Erreur inconnue'
       }
 
       // Mettre à jour la progression après chaque article terminé
@@ -237,6 +252,15 @@ export function EditorPage() {
 
     setBulkTranscribeProgress(null)
     setTranscribing(false)
+
+    // Show summary toast
+    if (errorCount === 0) {
+      toast.success(`${successCount} article${successCount > 1 ? 's' : ''} transcrit${successCount > 1 ? 's' : ''}`)
+    } else if (successCount === 0) {
+      toast.error(`Échec de la transcription: ${lastError}`)
+    } else {
+      toast.warning(`${successCount} réussi${successCount > 1 ? 's' : ''}, ${errorCount} échec${errorCount > 1 ? 's' : ''}: ${lastError}`)
+    }
   }
 
   const confirmBulkDelete = (indices: number[]) => {
