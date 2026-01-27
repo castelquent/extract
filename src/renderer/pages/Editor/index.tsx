@@ -48,6 +48,7 @@ import '@react-pdf-viewer/default-layout/lib/styles/index.css'
 export function EditorPage() {
   const { projectId } = useParams<{ projectId: string }>()
   const navigate = useNavigate()
+  const { deleteProject } = useProjectsStore()
 
   const [project, setProject] = useState<Project | null>(null)
   const [articles, setArticles] = useState<Article[]>([])
@@ -129,7 +130,8 @@ export function EditorPage() {
     console.log('Loaded data:', data)
     if (data?.articles) {
       setArticles(data.articles)
-      setSavedArticles(data.articles)
+      // Deep clone to avoid reference issues with change detection
+      setSavedArticles(JSON.parse(JSON.stringify(data.articles)))
     }
 
     setLoading(false)
@@ -162,9 +164,38 @@ export function EditorPage() {
       totalFields: articles.length * totalFieldsPerArticle
     })
 
-    setSavedArticles(articles)
+    // Deep clone to avoid reference issues
+    setSavedArticles(JSON.parse(JSON.stringify(articles)))
     setSaving(false)
+    toast.success('Sauvegardé')
   }
+
+  // Raccourcis clavier: navigation (flèches) et sauvegarde (Ctrl+S)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+S pour sauvegarder (toujours actif)
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault()
+        saveProgress()
+        return
+      }
+
+      // Navigation: ignorer si on est dans un input/textarea/contenteditable
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return
+      }
+
+      if (e.key === 'ArrowLeft' && currentIndex > 0) {
+        setCurrentIndex(prev => prev - 1)
+      } else if (e.key === 'ArrowRight' && currentIndex < articles.length - 1) {
+        setCurrentIndex(prev => prev + 1)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [currentIndex, articles.length, saveProgress])
 
   // Définir le callback de sauvegarde pour la fermeture de fenêtre
   useEffect(() => {
@@ -201,11 +232,23 @@ export function EditorPage() {
     }
   }
 
-  const deleteArticle = (index: number) => {
-    setArticles(prev => prev.filter((_, idx) => idx !== index))
-    // Ajuster l'index courant si nécessaire
-    if (currentIndex >= index && currentIndex > 0) {
-      setCurrentIndex(prev => prev - 1)
+  const deleteArticle = async (index: number) => {
+    const newArticles = articles.filter((_, idx) => idx !== index)
+
+    if (newArticles.length === 0) {
+      // Plus d'articles = supprimer le projet et retourner à l'accueil
+      if (projectId) {
+        await deleteProject(projectId)
+        navigate('/')
+      }
+    } else {
+      setArticles(newArticles)
+      // Ajuster l'index courant si nécessaire
+      if (currentIndex >= newArticles.length) {
+        setCurrentIndex(newArticles.length - 1)
+      } else if (currentIndex >= index && currentIndex > 0) {
+        setCurrentIndex(prev => prev - 1)
+      }
     }
     setDeleteConfirmIndex(null)
   }
@@ -267,21 +310,28 @@ export function EditorPage() {
     setBulkDeleteIndices(indices)
   }
 
-  const executeBulkDelete = () => {
+  const executeBulkDelete = async () => {
     if (!bulkDeleteIndices) return
 
     const indices = bulkDeleteIndices
-    // Trier en ordre décroissant pour supprimer de la fin vers le début
     const sortedIndices = [...indices].sort((a, b) => b - a)
+    const newArticles = articles.filter((_, idx) => !indices.includes(idx))
 
-    setArticles(prev => prev.filter((_, idx) => !indices.includes(idx)))
-
-    // Ajuster l'index courant
-    const deletedBefore = sortedIndices.filter(i => i < currentIndex).length
-    if (deletedBefore > 0) {
-      setCurrentIndex(prev => Math.max(0, prev - deletedBefore))
-    } else if (indices.includes(currentIndex)) {
-      setCurrentIndex(0)
+    if (newArticles.length === 0) {
+      // Plus d'articles = supprimer le projet et retourner à l'accueil
+      if (projectId) {
+        await deleteProject(projectId)
+        navigate('/')
+      }
+    } else {
+      setArticles(newArticles)
+      // Ajuster l'index courant
+      const deletedBefore = sortedIndices.filter(i => i < currentIndex).length
+      if (deletedBefore > 0) {
+        setCurrentIndex(Math.min(newArticles.length - 1, Math.max(0, currentIndex - deletedBefore)))
+      } else if (indices.includes(currentIndex)) {
+        setCurrentIndex(Math.min(newArticles.length - 1, 0))
+      }
     }
 
     setBulkDeleteIndices(null)
@@ -324,8 +374,8 @@ export function EditorPage() {
     setExportModalOpen(true)
   }
 
-  const getArticleCompletion = (article: Article) => {
-    if (!template) return 0
+  const getArticleCompletion = (article: Article | undefined) => {
+    if (!template || !article) return 0
     return template.fields.filter(f => article.fields?.[f.name]).length
   }
 

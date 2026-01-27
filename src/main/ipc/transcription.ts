@@ -1,8 +1,31 @@
 import { ipcMain, app } from 'electron'
 import axios from 'axios'
-import { readFileSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { join } from 'path'
-import type { TranscriptionResult, AISettings, Template } from '@shared/types'
+import type { TranscriptionResult, AISettings, Template, TranscriptionLog } from '@shared/types'
+
+// Get logs file path
+function getLogsPath(): string {
+  return join(app.getPath('userData'), 'logs.json')
+}
+
+// Append a log entry
+function appendLog(entry: TranscriptionLog): void {
+  try {
+    const logsPath = getLogsPath()
+    let logs: TranscriptionLog[] = []
+
+    if (existsSync(logsPath)) {
+      const content = readFileSync(logsPath, 'utf-8')
+      logs = JSON.parse(content)
+    }
+
+    logs.push(entry)
+    writeFileSync(logsPath, JSON.stringify(logs, null, 2))
+  } catch (error) {
+    console.error('Failed to write log:', error)
+  }
+}
 
 // Build dynamic prompt from template
 function buildPromptFromTemplate(template: Template): string {
@@ -121,16 +144,44 @@ export function setupTranscriptionHandlers(): void {
       // Generate dynamic prompt from template
       const prompt = buildPromptFromTemplate(template)
 
+      let result: TranscriptionResult & { usage?: { input: number; output: number } }
+
       if (settings.provider === 'openai') {
-        return await transcribeWithOpenAI(base64Image, mimeType, settings, prompt, template)
+        result = await transcribeWithOpenAI(base64Image, mimeType, settings, prompt, template)
       } else {
-        return await transcribeWithAnthropic(base64Image, mimeType, settings, prompt, template)
+        result = await transcribeWithAnthropic(base64Image, mimeType, settings, prompt, template)
       }
+
+      // Log the transcription
+      appendLog({
+        date: new Date().toISOString(),
+        projectId,
+        model: settings.model,
+        provider: settings.provider,
+        inputTokens: result.usage?.input || 0,
+        outputTokens: result.usage?.output || 0,
+        success: result.success,
+        error: result.error
+      })
+
+      return result
     } catch (error: any) {
       console.error('Transcription error:', error)
 
       // Parse API errors for better messages
       const errorMessage = parseApiError(error, settings.provider)
+
+      // Log failed transcription
+      appendLog({
+        date: new Date().toISOString(),
+        projectId,
+        model: settings.model,
+        provider: settings.provider,
+        inputTokens: 0,
+        outputTokens: 0,
+        success: false,
+        error: errorMessage
+      })
 
       return {
         success: false,
@@ -140,13 +191,15 @@ export function setupTranscriptionHandlers(): void {
   })
 }
 
+type TranscriptionResultWithUsage = TranscriptionResult & { usage?: { input: number; output: number } }
+
 async function transcribeWithOpenAI(
   base64Image: string,
   mimeType: string,
   settings: AISettings,
   prompt: string,
   template: Template
-): Promise<TranscriptionResult> {
+): Promise<TranscriptionResultWithUsage> {
   const response = await axios.post(
     'https://api.openai.com/v1/chat/completions',
     {
@@ -183,7 +236,16 @@ async function transcribeWithOpenAI(
   )
 
   const content = response.data.choices[0]?.message?.content || ''
-  return parseTranscriptionResponse(content, template)
+  const usage = response.data.usage
+  const result = parseTranscriptionResponse(content, template)
+
+  return {
+    ...result,
+    usage: {
+      input: usage?.prompt_tokens || 0,
+      output: usage?.completion_tokens || 0
+    }
+  }
 }
 
 async function transcribeWithAnthropic(
@@ -192,7 +254,7 @@ async function transcribeWithAnthropic(
   settings: AISettings,
   prompt: string,
   template: Template
-): Promise<TranscriptionResult> {
+): Promise<TranscriptionResultWithUsage> {
   const response = await axios.post(
     'https://api.anthropic.com/v1/messages',
     {
@@ -229,11 +291,41 @@ async function transcribeWithAnthropic(
   )
 
   const content = response.data.content[0]?.text || ''
-  return parseTranscriptionResponse(content, template)
+  const usage = response.data.usage
+  const result = parseTranscriptionResponse(content, template)
+
+  return {
+    ...result,
+    usage: {
+      input: usage?.input_tokens || 0,
+      output: usage?.output_tokens || 0
+    }
+  }
 }
 
 function parseTranscriptionResponse(content: string, template: Template): TranscriptionResult {
   try {
+    // Check if AI refused to process (common refusal patterns)
+    const refusalPatterns = [
+      /^je ne (peux|suis)/i,
+      /^i (cannot|can't|am unable)/i,
+      /^désolé/i,
+      /^sorry/i,
+      /^malheureusement/i,
+      /^unfortunately/i
+    ]
+
+    const isRefusal = refusalPatterns.some(pattern => pattern.test(content.trim()))
+    if (isRefusal) {
+      // Return first 200 chars of AI response as error message
+      const errorMsg = content.trim().substring(0, 200)
+      return {
+        success: false,
+        error: errorMsg,
+        rawContent: content
+      }
+    }
+
     let jsonStr = content;
 
     // 1. Extraction du Markdown
@@ -265,12 +357,16 @@ function parseTranscriptionResponse(content: string, template: Template): Transc
       data: { fields }
     }
   } catch (error) {
-    // If JSON parsing fails, return error
+    // If JSON parsing fails, return error with context
     console.error('Failed to parse JSON response:', error)
+
+    // If content looks like a message rather than JSON, show it
+    const trimmed = content.trim()
+    const looksLikeMessage = !trimmed.startsWith('{') && !trimmed.startsWith('[')
 
     return {
       success: false,
-      error: 'Failed to parse AI response',
+      error: looksLikeMessage ? trimmed.substring(0, 200) : 'Échec du parsing de la réponse IA',
       rawContent: content
     }
   }

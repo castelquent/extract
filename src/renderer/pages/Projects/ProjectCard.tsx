@@ -11,7 +11,7 @@ import {
   ContextMenuTrigger,
   ContextMenuSeparator,
 } from '@/components/ui'
-import { Copy, Trash2, FileStack } from 'lucide-react'
+import { Copy, Trash2, FileStack, FileArchive, Pencil } from 'lucide-react'
 import { useTemplatesStore } from '@/stores'
 
 interface ProjectCardProps {
@@ -19,6 +19,8 @@ interface ProjectCardProps {
   onClick: () => void
   onDelete: () => void
   onDuplicate: () => void
+  onExportZip: () => void
+  onRename: () => void
 }
 
 const statusConfig: Record<Project['status'], { label: string; variant: 'info' | 'warning' | 'secondary' | 'success' }> = {
@@ -29,7 +31,7 @@ const statusConfig: Record<Project['status'], { label: string; variant: 'info' |
   completed: { label: 'Terminé', variant: 'success' }
 }
 
-export function ProjectCard({ project, onClick, onDelete, onDuplicate }: ProjectCardProps) {
+export function ProjectCard({ project, onClick, onDelete, onDuplicate, onExportZip, onRename }: ProjectCardProps) {
   const [thumbnailSrc, setThumbnailSrc] = useState<string | null>(null)
   const { templates } = useTemplatesStore()
 
@@ -100,9 +102,17 @@ export function ProjectCard({ project, onClick, onDelete, onDuplicate }: Project
         </Card>
       </ContextMenuTrigger>
       <ContextMenuContent>
+        <ContextMenuItem onClick={onRename}>
+          <Pencil className="h-4 w-4 mr-2" />
+          Renommer
+        </ContextMenuItem>
         <ContextMenuItem onClick={onDuplicate}>
           <Copy className="h-4 w-4 mr-2" />
           Dupliquer
+        </ContextMenuItem>
+        <ContextMenuItem onClick={onExportZip}>
+          <FileArchive className="h-4 w-4 mr-2" />
+          Exporter ZIP
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">

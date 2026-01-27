@@ -19,6 +19,8 @@ const api: ElectronAPI & {
   duplicateProject: (projectId) => ipcRenderer.invoke('projects:duplicate', projectId),
   getProject: (projectId) => ipcRenderer.invoke('projects:getById', projectId),
   updateProject: (projectId, updates) => ipcRenderer.invoke('projects:update', projectId, updates),
+  exportProjectZip: (projectId) => ipcRenderer.invoke('projects:exportZip', projectId),
+  importProjectZip: () => ipcRenderer.invoke('projects:importZip'),
 
   // Extraction
   saveExtraction: (projectId, data) => ipcRenderer.invoke('extraction:save', projectId, data),
@@ -46,6 +48,9 @@ const api: ElectronAPI & {
   checkUpdates: () => ipcRenderer.invoke('settings:checkUpdates'),
   downloadUpdate: () => ipcRenderer.invoke('settings:downloadUpdate'),
   installUpdate: () => ipcRenderer.invoke('settings:installUpdate'),
+
+  // Logs
+  getLogs: () => ipcRenderer.invoke('settings:getLogs'),
 
   // Window close management
   onCheckUnsavedChanges: (callback: () => void) => {

@@ -84,6 +84,17 @@ export interface TranscriptionResult {
   rawContent?: string
 }
 
+export interface TranscriptionLog {
+  date: string
+  projectId: string
+  model: string
+  provider: string
+  inputTokens: number
+  outputTokens: number
+  success: boolean
+  error?: string
+}
+
 // Settings types
 export interface Settings {
   ai: AISettings
@@ -108,6 +119,8 @@ export interface ElectronAPI {
   duplicateProject: (projectId: string) => Promise<Project | null>
   getProject: (projectId: string) => Promise<Project | null>
   updateProject: (projectId: string, updates: Partial<ProjectMetadata>) => Promise<boolean>
+  exportProjectZip: (projectId: string) => Promise<boolean>
+  importProjectZip: () => Promise<Project | null>
 
   // Extraction
   saveExtraction: (projectId: string, data: ExtractionData) => Promise<boolean>
@@ -134,6 +147,9 @@ export interface ElectronAPI {
   checkUpdates: () => Promise<{ available: boolean; version?: string }>
   downloadUpdate: () => Promise<boolean>
   installUpdate: () => Promise<void>
+
+  // Logs
+  getLogs: () => Promise<TranscriptionLog[]>
 }
 
 declare global {

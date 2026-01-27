@@ -40,18 +40,44 @@ function RichTextField({ field, value, onChange }: DynamicFieldProps) {
   const [localValue, setLocalValue] = useState(value)
   const prevValueRef = useRef(value)
   const isUpdatingRef = useRef(false)
+  const isStabilizingRef = useRef(true) // Ignore Quill normalization on mount/update
 
-  // Synchroniser avec les valeurs externes (ex: transcription IA)
+  // Synchroniser avec les valeurs externes (ex: transcription IA, changement d'article)
   useEffect(() => {
     // Ne mettre à jour que si la valeur externe a vraiment changé
     // et qu'on n'est pas en train de traiter un changement local
     if (value !== prevValueRef.current && !isUpdatingRef.current) {
+      // Ignorer les changements Quill pendant la stabilisation
+      isStabilizingRef.current = true
       prevValueRef.current = value
       setLocalValue(value)
+
+      // Permettre les vrais changements après stabilisation de Quill (100ms)
+      setTimeout(() => {
+        isStabilizingRef.current = false
+      }, 100)
     }
   }, [value])
 
+  // Stabilisation initiale au montage
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      isStabilizingRef.current = false
+    }, 100)
+    return () => clearTimeout(timer)
+  }, [])
+
   const handleChange = (newValue: string) => {
+    // Ignorer les changements pendant la stabilisation (normalisation Quill)
+    if (isStabilizingRef.current) {
+      return
+    }
+
+    // Ne pas propager si la valeur n'a pas vraiment changé
+    if (newValue === prevValueRef.current) {
+      return
+    }
+
     // Marquer qu'on est en train de traiter un changement
     isUpdatingRef.current = true
     setLocalValue(newValue)

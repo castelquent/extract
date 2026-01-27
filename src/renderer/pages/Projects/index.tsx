@@ -14,8 +14,15 @@ import {
   AlertDialogFooter,
   AlertDialogCancel,
   AlertDialogAction,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  Input,
 } from '@/components/ui'
-import { Plus, FolderOpen, Scissors, FileText, Home, CheckCircle } from 'lucide-react'
+import { Plus, FolderOpen, Scissors, FileText, Home, CheckCircle, Upload } from 'lucide-react'
+import { toast } from 'sonner'
 
 export type ProjectFilter = 'all' | 'extraction' | 'transcription' | 'completed'
 
@@ -52,9 +59,11 @@ const filterConfig: Record<ProjectFilter, { title: string; subtitle: string; ico
 
 export function ProjectsPage({ filter = 'all' }: ProjectsPageProps) {
   const navigate = useNavigate()
-  const { projects, loading, createProject, deleteProject, duplicateProject } = useProjectsStore()
+  const { projects, loading, createProject, deleteProject, duplicateProject, updateProject } = useProjectsStore()
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null)
+  const [renameTarget, setRenameTarget] = useState<Project | null>(null)
+  const [newName, setNewName] = useState('')
 
   const filteredProjects = useMemo(() => {
     const state = { projects } as any
@@ -87,6 +96,37 @@ export function ProjectsPage({ filter = 'all' }: ProjectsPageProps) {
     }
   }
 
+  const handleExportZip = async (projectId: string) => {
+    const success = await window.api.exportProjectZip(projectId)
+    if (success) {
+      toast.success('Projet exporté')
+    }
+  }
+
+  const handleImportZip = async () => {
+    const project = await window.api.importProjectZip()
+    if (project) {
+      // Refresh projects list
+      await useProjectsStore.getState().loadProjects()
+      toast.success('Projet importé')
+    }
+  }
+
+  const handleRename = async () => {
+    if (!renameTarget || !newName.trim()) return
+    const success = await updateProject(renameTarget.id, { name: newName.trim() })
+    if (success) {
+      toast.success('Projet renommé')
+    }
+    setRenameTarget(null)
+    setNewName('')
+  }
+
+  const openRenameDialog = (project: Project) => {
+    setRenameTarget(project)
+    setNewName(project.name)
+  }
+
   const Icon = config.icon
 
   return (
@@ -100,10 +140,16 @@ export function ProjectsPage({ filter = 'all' }: ProjectsPageProps) {
             <p className="text-muted-foreground text-sm">{config.subtitle}</p>
           </div>
         </div>
-        <Button onClick={() => setShowCreateModal(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nouveau projet
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleImportZip}>
+            <Upload className="h-4 w-4 mr-2" />
+            Importer
+          </Button>
+          <Button onClick={() => setShowCreateModal(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Nouveau projet
+          </Button>
+        </div>
       </header>
 
       {/* Projects Grid */}
@@ -131,6 +177,8 @@ export function ProjectsPage({ filter = 'all' }: ProjectsPageProps) {
               onClick={() => handleOpenProject(project)}
               onDelete={() => setDeleteTarget(project)}
               onDuplicate={() => duplicateProject(project.id)}
+              onExportZip={() => handleExportZip(project.id)}
+              onRename={() => openRenameDialog(project)}
             />
           ))}
         </div>
@@ -168,6 +216,29 @@ export function ProjectsPage({ filter = 'all' }: ProjectsPageProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Rename Dialog */}
+      <Dialog open={!!renameTarget} onOpenChange={(open) => !open && setRenameTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Renommer le projet</DialogTitle>
+          </DialogHeader>
+          <Input
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            placeholder="Nom du projet"
+            onKeyDown={(e) => e.key === 'Enter' && handleRename()}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenameTarget(null)}>
+              Annuler
+            </Button>
+            <Button onClick={handleRename} disabled={!newName.trim()}>
+              Renommer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -2,7 +2,7 @@ import { ipcMain, app } from 'electron'
 import { join } from 'path'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { autoUpdater } from 'electron-updater'
-import type { Settings } from '@shared/types'
+import type { Settings, TranscriptionLog } from '@shared/types'
 
 const getSettingsPath = (): string => {
   return join(app.getPath('userData'), 'settings.json')
@@ -93,5 +93,20 @@ export function setupSettingsHandlers(): void {
   // Install update
   ipcMain.handle('settings:installUpdate', async (): Promise<void> => {
     autoUpdater.quitAndInstall()
+  })
+
+  // Get transcription logs
+  ipcMain.handle('settings:getLogs', async (): Promise<TranscriptionLog[]> => {
+    const logsPath = join(app.getPath('userData'), 'logs.json')
+
+    try {
+      if (existsSync(logsPath)) {
+        return JSON.parse(readFileSync(logsPath, 'utf-8'))
+      }
+      return []
+    } catch (error) {
+      console.error('Error loading logs:', error)
+      return []
+    }
   })
 }

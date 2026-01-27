@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useSettingsStore, useUIStore } from '@/stores'
 import {
   Button,
@@ -13,10 +13,12 @@ import {
   Badge,
   Dialog,
   DialogContent,
+  ScrollArea,
 } from '@/components/ui'
-import { Save, RefreshCw, Bot, Download } from 'lucide-react'
+import { Save, RefreshCw, Bot, Download, Receipt } from 'lucide-react'
+import type { TranscriptionLog } from '@shared/types'
 
-type SettingsTab = 'ai' | 'updates'
+type SettingsTab = 'ai' | 'logs' | 'updates'
 
 const AI_MODELS = [
   { value: 'claude-opus-4-5-20251101', label: 'Anthropic: Claude Opus 4.5', provider: 'anthropic' },
@@ -27,6 +29,32 @@ const AI_MODELS = [
   { value: 'gpt-5-mini', label: 'OpenAI: GPT-5 Mini', provider: 'openai' },
 ]
 
+// Prix par million de tokens (en USD)
+const MODEL_PRICING: Record<string, { input: number; output: number }> = {
+  // Anthropic
+  'claude-opus-4-5-20251101': { input: 5, output: 25 },
+  'claude-sonnet-4-5-20250929': { input: 3, output: 15 },
+  'claude-haiku-4-5-20251001': { input: 1, output: 5 },
+  // OpenAI
+  'gpt-5.2': { input: 1.75, output: 14 },
+  'gpt-5.2-pro': { input: 21, output: 168 },
+  'gpt-5-mini': { input: 0.25, output: 2 },
+}
+
+function calculateCost(log: TranscriptionLog): number {
+  const pricing = MODEL_PRICING[log.model]
+  if (!pricing) return 0
+
+  const inputCost = (log.inputTokens / 1_000_000) * pricing.input
+  const outputCost = (log.outputTokens / 1_000_000) * pricing.output
+  return inputCost + outputCost
+}
+
+function formatCost(cost: number): string {
+  if (cost < 0.01) return `${(cost * 100).toFixed(4)}c`
+  return `$${cost.toFixed(4)}`
+}
+
 export function SettingsModal() {
   const { settingsOpen, closeSettings } = useUIStore()
   const { settings, loading, saving, loadSettings, saveSettings, updateAI } = useSettingsStore()
@@ -35,13 +63,32 @@ export function SettingsModal() {
   const [version, setVersion] = useState('')
   const [updateStatus, setUpdateStatus] = useState<string>('')
   const [checking, setChecking] = useState(false)
+  const [logs, setLogs] = useState<TranscriptionLog[]>([])
 
   useEffect(() => {
     if (settingsOpen) {
       loadSettings()
       loadVersion()
+      loadLogs()
     }
   }, [settingsOpen, loadSettings])
+
+  const loadLogs = async () => {
+    const data = await window.api.getLogs()
+    setLogs(data)
+  }
+
+  const { totalCost, totalTokens, successCount } = useMemo(() => {
+    let cost = 0
+    let tokens = 0
+    let success = 0
+    for (const log of logs) {
+      cost += calculateCost(log)
+      tokens += log.inputTokens + log.outputTokens
+      if (log.success) success++
+    }
+    return { totalCost: cost, totalTokens: tokens, successCount: success }
+  }, [logs])
 
   const loadVersion = async () => {
     const v = await window.api.getVersion()
@@ -77,6 +124,7 @@ export function SettingsModal() {
 
   const navItems = [
     { id: 'ai' as const, label: 'IA', icon: Bot },
+    { id: 'logs' as const, label: 'Logs', icon: Receipt },
     { id: 'updates' as const, label: 'Mise à jour', icon: Download },
   ]
 
@@ -169,6 +217,85 @@ export function SettingsModal() {
                           </p>
                         </div>
                       </div>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'logs' && (
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-lg font-medium mb-4">Logs de transcription</h3>
+
+                      {/* Summary */}
+                      <div className="grid grid-cols-3 gap-4 mb-6">
+                        <div className="p-4 bg-muted/50 rounded-lg text-center">
+                          <p className="text-2xl font-bold">{logs.length}</p>
+                          <p className="text-xs text-muted-foreground">Transcriptions</p>
+                        </div>
+                        <div className="p-4 bg-muted/50 rounded-lg text-center">
+                          <p className="text-2xl font-bold">{successCount}</p>
+                          <p className="text-xs text-muted-foreground">Réussies</p>
+                        </div>
+                        <div className="p-4 bg-green-500/10 rounded-lg text-center">
+                          <p className="text-2xl font-bold text-green-600">{formatCost(totalCost)}</p>
+                          <p className="text-xs text-muted-foreground">Coût total</p>
+                        </div>
+                      </div>
+
+                      {/* Logs list */}
+                      {logs.length === 0 ? (
+                        <p className="text-center text-muted-foreground py-8">
+                          Aucune transcription enregistrée
+                        </p>
+                      ) : (
+                        <ScrollArea className="h-[280px] border rounded-lg">
+                          <table className="w-full text-sm">
+                            <thead className="bg-muted/50 sticky top-0">
+                              <tr>
+                                <th className="text-left p-2 font-medium">Date</th>
+                                <th className="text-left p-2 font-medium">Modèle</th>
+                                <th className="text-right p-2 font-medium">Tokens</th>
+                                <th className="text-right p-2 font-medium">Coût</th>
+                                <th className="text-center p-2 font-medium">Statut</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {[...logs].reverse().map((log, idx) => {
+                                const cost = calculateCost(log)
+                                const modelLabel = AI_MODELS.find(m => m.value === log.model)?.label || log.model
+                                return (
+                                  <tr key={idx} className="border-t hover:bg-muted/30">
+                                    <td className="p-2 text-muted-foreground">
+                                      {new Date(log.date).toLocaleDateString('fr-FR', {
+                                        day: '2-digit',
+                                        month: '2-digit',
+                                        hour: '2-digit',
+                                        minute: '2-digit'
+                                      })}
+                                    </td>
+                                    <td className="p-2 truncate max-w-[150px]" title={modelLabel}>
+                                      {modelLabel.split(': ')[1] || modelLabel}
+                                    </td>
+                                    <td className="p-2 text-right font-mono text-xs">
+                                      {(log.inputTokens + log.outputTokens).toLocaleString()}
+                                    </td>
+                                    <td className="p-2 text-right font-mono text-xs">
+                                      {formatCost(cost)}
+                                    </td>
+                                    <td className="p-2 text-center">
+                                      {log.success ? (
+                                        <Badge variant="default" className="bg-green-500/20 text-green-600 text-xs">OK</Badge>
+                                      ) : (
+                                        <Badge variant="destructive" className="text-xs">Erreur</Badge>
+                                      )}
+                                    </td>
+                                  </tr>
+                                )
+                              })}
+                            </tbody>
+                          </table>
+                        </ScrollArea>
+                      )}
                     </div>
                   </div>
                 )}
