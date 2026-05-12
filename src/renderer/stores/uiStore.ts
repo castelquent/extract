@@ -8,6 +8,7 @@ type UpdateStatus = 'idle' | 'checking' | 'available' | 'downloading' | 'ready' 
 interface UIState {
   drawerCollapsed: boolean
   settingsOpen: boolean
+  helpOpen: boolean
   theme: Theme
 
   // Window close state
@@ -26,6 +27,8 @@ interface UIState {
   setDrawerCollapsed: (collapsed: boolean) => void
   openSettings: () => void
   closeSettings: () => void
+  openHelp: () => void
+  closeHelp: () => void
   setTheme: (theme: Theme) => void
   toggleTheme: () => void
 
@@ -56,6 +59,7 @@ export const useUIStore = create<UIState>()(
     (set, get) => ({
       drawerCollapsed: false,
       settingsOpen: false,
+      helpOpen: false,
       theme: 'dark', // Dark by default
 
       // Window close state
@@ -73,6 +77,8 @@ export const useUIStore = create<UIState>()(
       setDrawerCollapsed: (collapsed) => set({ drawerCollapsed: collapsed }),
       openSettings: () => set({ settingsOpen: true }),
       closeSettings: () => set({ settingsOpen: false }),
+      openHelp: () => set({ helpOpen: true }),
+      closeHelp: () => set({ helpOpen: false }),
       setTheme: (theme) => {
         applyTheme(theme)
         set({ theme })

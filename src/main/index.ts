@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'path'
 import { autoUpdater } from 'electron-updater'
 import { setupIpcHandlers } from './ipc'
@@ -115,6 +115,12 @@ ipcMain.handle('start-update-download', async () => {
 ipcMain.on('install-update', () => {
   forceQuit = true
   autoUpdater.quitAndInstall()
+})
+
+// Open an external URL in the user's default browser
+ipcMain.handle('shell:openExternal', async (_event, url: string) => {
+  if (!/^https?:\/\//i.test(url)) return
+  await shell.openExternal(url)
 })
 
 app.on('window-all-closed', () => {

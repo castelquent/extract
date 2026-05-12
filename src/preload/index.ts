@@ -92,6 +92,9 @@ const api: ElectronAPI & {
   },
   startUpdateDownload: () => ipcRenderer.invoke('start-update-download'),
   installUpdate: () => ipcRenderer.send('install-update'),
+
+  // External shell
+  openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),
 }
 
 contextBridge.exposeInMainWorld('api', api)

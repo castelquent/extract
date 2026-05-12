@@ -4,6 +4,7 @@ import { Toaster } from 'sonner'
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { NavigationDrawer } from './NavigationDrawer'
 import { SettingsModal } from './SettingsModal'
+import { HelpModal } from './HelpModal'
 import { useProjectsStore, useTemplatesStore } from '@/stores'
 
 export function AppLayout() {
@@ -24,6 +25,7 @@ export function AppLayout() {
         </main>
       </SidebarInset>
       <SettingsModal />
+      <HelpModal />
       <Toaster position="bottom-right" richColors />
     </SidebarProvider>
   )

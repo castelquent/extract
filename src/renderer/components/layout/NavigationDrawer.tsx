@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Home, Scissors, FileText, FileStack, Settings, PanelLeftClose, PanelLeft, CheckCircle, Search } from 'lucide-react'
+import { Home, Scissors, FileText, FileStack, Settings, PanelLeftClose, PanelLeft, CheckCircle, Search, HelpCircle } from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -24,7 +24,7 @@ const navItems = [
 export function NavigationDrawer() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { openSettings, updateStatus } = useUIStore()
+  const { openSettings, openHelp, updateStatus } = useUIStore()
   const { toggleSidebar, state } = useSidebar()
   const projects = useProjectsStore((state) => state.projects)
   const isCollapsed = state === 'collapsed'
@@ -74,6 +74,12 @@ export function NavigationDrawer() {
 
       <SidebarFooter className="border-t border-sidebar-border px-2 py-2">
         <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton onClick={openHelp}>
+              <HelpCircle className="h-4 w-4" />
+              <span>Aide</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton onClick={openSettings}>
               <div className="relative">

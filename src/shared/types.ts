@@ -162,6 +162,9 @@ export interface ElectronAPI {
   onUpdateError: (callback: (error: string) => void) => () => void
   startUpdateDownload: () => Promise<void>
   installUpdate: () => void
+
+  // External shell
+  openExternal: (url: string) => Promise<void>
 }
 
 declare global {
