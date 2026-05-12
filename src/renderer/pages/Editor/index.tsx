@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useBlocker, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import type { Article, Project, Template } from '@shared/types'
+import type { Article, Project, Template, AISettings } from '@shared/types'
 import { useUIStore, useProjectsStore } from '@/stores'
 import {
   Button,
@@ -34,6 +34,9 @@ import { TranscriptionModal } from './TranscriptionModal'
 import { UnsavedChangesModal } from './UnsavedChangesModal'
 import { ArticlesTable } from './ArticlesTable'
 import { ExportModal, ExportFormat } from './ExportModal'
+import { ModelSelectionModal } from './ModelSelectionModal'
+import { findModel, getAvailableProviders } from '@/lib/aiModels'
+import type { AIProvider } from '@shared/types'
 
 // Core viewer
 import { Viewer, SpecialZoomLevel } from '@react-pdf-viewer/core';
@@ -67,6 +70,10 @@ export function EditorPage() {
   const [activeTab, setActiveTab] = useState('editor')
   const [exportModalOpen, setExportModalOpen] = useState(false)
   const [exportArticles, setExportArticles] = useState<Article[]>([])  // Articles to export
+  // Choix du modèle au moment de la transcription (single OU bulk)
+  const [pendingTranscribeIndices, setPendingTranscribeIndices] = useState<number[] | null>(null)
+  const [defaultModelForModal, setDefaultModelForModal] = useState<string>('')
+  const [availableProvidersForModal, setAvailableProvidersForModal] = useState<Set<AIProvider>>(new Set())
 
   const toolbarPluginInstance = toolbarPlugin()
   const { Toolbar } = toolbarPluginInstance
@@ -217,17 +224,53 @@ export function EditorPage() {
     return () => setOnSaveCallback(null)
   }, [projectId, articles])
 
-  const transcribeArticle = async () => {
-    await transcribeArticleAt(currentIndex)
+  /**
+   * Applique l'override de modèle aux settings IA : remplace le `model` et
+   * recalcule le `provider` correspondant. Si le modèle est inconnu de notre
+   * liste locale, on garde le model fourni et on conserve le provider d'origine.
+   */
+  const applyModelOverride = (ai: AISettings, modelOverride?: string): AISettings => {
+    if (!modelOverride) return ai
+    const found = findModel(modelOverride)
+    if (!found) return { ...ai, model: modelOverride }
+    return { ...ai, model: modelOverride, provider: found.provider }
   }
 
-  const transcribeArticleAt = async (index: number): Promise<boolean> => {
+  /**
+   * Ouvre la modal de choix du modèle pour 1 ou N articles. La transcription
+   * effective s'exécute après confirmation, dans `executePendingTranscribe`.
+   */
+  const requestTranscribe = async (indices: number[]) => {
+    if (indices.length === 0) return
+    const settings = await window.api.getSettings()
+    setDefaultModelForModal(settings.ai.model)
+    setAvailableProvidersForModal(getAvailableProviders(settings.ai))
+    setPendingTranscribeIndices(indices)
+  }
+
+  const executePendingTranscribe = (modelOverride: string) => {
+    const indices = pendingTranscribeIndices
+    setPendingTranscribeIndices(null)
+    if (!indices || indices.length === 0) return
+    if (indices.length === 1) {
+      transcribeArticleAt(indices[0], modelOverride)
+    } else {
+      bulkTranscribe(indices, modelOverride)
+    }
+  }
+
+  const transcribeArticle = async () => {
+    await requestTranscribe([currentIndex])
+  }
+
+  const transcribeArticleAt = async (index: number, modelOverride?: string): Promise<boolean> => {
     const article = articles[index]
     if (!projectId || !article?.imagePath || !template) return false
 
     setTranscribing(true)
     const settings = await window.api.getSettings()
-    const result = await window.api.transcribe(projectId, article.imagePath, settings.ai, template)
+    const aiSettings = applyModelOverride(settings.ai, modelOverride)
+    const result = await window.api.transcribe(projectId, article.imagePath, aiSettings, template)
 
     if (result.success && result.data) {
       setArticles(prev => prev.map((a, idx) =>
@@ -298,12 +341,13 @@ export function EditorPage() {
     setDeleteConfirmIndex(null)
   }
 
-  const bulkTranscribe = async (indices: number[]) => {
+  const bulkTranscribe = async (indices: number[], modelOverride?: string) => {
     if (!projectId || !template) return
 
     setTranscribing(true)
     setBulkTranscribeProgress({ current: 0, total: indices.length })
     const settings = await window.api.getSettings()
+    const aiSettings = applyModelOverride(settings.ai, modelOverride)
 
     let successCount = 0
     let errorCount = 0
@@ -314,7 +358,7 @@ export function EditorPage() {
       const article = articles[index]
       if (!article?.imagePath) continue
 
-      const result = await window.api.transcribe(projectId, article.imagePath, settings.ai, template)
+      const result = await window.api.transcribe(projectId, article.imagePath, aiSettings, template)
 
       if (result.success && result.data) {
         setArticles(prev => prev.map((a, idx) =>
@@ -439,6 +483,14 @@ export function EditorPage() {
   return (
     <div className="h-screen flex flex-col">
       <TranscriptionModal open={transcribing} progress={bulkTranscribeProgress} />
+      <ModelSelectionModal
+        open={pendingTranscribeIndices !== null}
+        articleCount={pendingTranscribeIndices?.length ?? 0}
+        defaultModel={defaultModelForModal}
+        availableProviders={availableProvidersForModal}
+        onCancel={() => setPendingTranscribeIndices(null)}
+        onConfirm={executePendingTranscribe}
+      />
       <ExportModal
         open={exportModalOpen}
         onClose={() => setExportModalOpen(false)}
@@ -633,9 +685,9 @@ export function EditorPage() {
                       setCurrentIndex(index)
                       setActiveTab('editor')
                     }}
-                    onTranscribe={transcribeArticleAt}
+                    onTranscribe={(index) => requestTranscribe([index])}
                     onDelete={setDeleteConfirmIndex}
-                    onBulkTranscribe={bulkTranscribe}
+                    onBulkTranscribe={(indices) => requestTranscribe(indices)}
                     onBulkDelete={confirmBulkDelete}
                     onBulkExport={openExportBatch}
                   />

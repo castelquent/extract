@@ -10,9 +10,9 @@ const getSettingsPath = (): string => {
 
 const defaultSettings: Settings = {
   ai: {
-    provider: 'openai',
+    provider: 'anthropic',
     apiKey: '',
-    model: 'gpt-4o',
+    model: 'claude-sonnet-4-6',
     prompt: `Tu es un assistant spécialisé dans l'extraction d'articles.
 Analyse l'image de l'article et retourne un JSON avec les champs suivants:
 - title: le titre de l'article

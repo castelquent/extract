@@ -1,0 +1,80 @@
+name: Build macOS
+
+# Builds an unsigned macOS .dmg + .zip for arm64 and x64 separately.
+# Triggered manually or on tag push (v*).
+# Note: builds are NOT signed (no Apple Developer cert). Users will need to
+# right-click → Open the first time to bypass Gatekeeper. Sign + notarize
+# will be added when monetization (LemonSqueezy) lands.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+env:
+  # Bump when a newer python-build-standalone release is available.
+  # Latest releases: https://github.com/indygreg/python-build-standalone/releases
+  PYTHON_VERSION: "3.13.5"
+  PYTHON_BUILD_TAG: "20260510"
+
+jobs:
+  build:
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - electron_arch: arm64
+            python_arch: aarch64
+          - electron_arch: x64
+            python_arch: x86_64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: src/package-lock.json
+
+      - name: Install npm dependencies
+        working-directory: ./src
+        run: npm ci
+
+      - name: Download Python portable (${{ matrix.python_arch }})
+        run: |
+          set -euo pipefail
+          URL="https://github.com/indygreg/python-build-standalone/releases/download/${PYTHON_BUILD_TAG}/cpython-${PYTHON_VERSION}+${PYTHON_BUILD_TAG}-${{ matrix.python_arch }}-apple-darwin-install_only.tar.gz"
+          echo "Downloading: $URL"
+          curl -L --fail -o python.tar.gz "$URL"
+          mkdir -p python-portable
+          # python-build-standalone "install_only" extrait dans un dossier "python/" — on strip pour avoir bin/, lib/, etc. directement
+          tar -xzf python.tar.gz -C python-portable --strip-components=1
+          rm python.tar.gz
+          ./python-portable/bin/python3 --version
+
+      - name: Install PyMuPDF in Python portable
+        run: |
+          set -euo pipefail
+          ./python-portable/bin/python3 -m pip install --no-cache-dir pymupdf
+
+      - name: Build app for ${{ matrix.electron_arch }}
+        working-directory: ./src
+        env:
+          # Empêche electron-builder de tenter de signer / notariser
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npx electron-builder --mac --${{ matrix.electron_arch }} --publish never
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: extract-mac-${{ matrix.electron_arch }}
+          path: |
+            src/release/*.dmg
+            src/release/*.zip
+          if-no-files-found: error
+          retention-days: 14

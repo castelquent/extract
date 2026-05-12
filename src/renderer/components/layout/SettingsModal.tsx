@@ -6,7 +6,9 @@ import {
   Label,
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
   Separator,
@@ -17,43 +19,9 @@ import {
 } from '@/components/ui'
 import { Save, RefreshCw, Bot, Download, Receipt } from 'lucide-react'
 import type { TranscriptionLog } from '@shared/types'
+import { AI_MODELS, calculateCost, formatCost, getAvailableProviders } from '@/lib/aiModels'
 
 type SettingsTab = 'ai' | 'logs' | 'updates'
-
-const AI_MODELS = [
-  { value: 'claude-opus-4-5-20251101', label: 'Anthropic: Claude Opus 4.5', provider: 'anthropic' },
-  { value: 'claude-sonnet-4-5-20250929', label: 'Anthropic: Claude Sonnet 4.5', provider: 'anthropic' },
-  { value: 'claude-haiku-4-5-20251001', label: 'Anthropic: Claude Haiku 4.5', provider: 'anthropic' },
-  { value: 'gpt-5.2', label: 'OpenAI: GPT-5.2', provider: 'openai' },
-  { value: 'gpt-5.2-pro', label: 'OpenAI: GPT-5.2 Pro', provider: 'openai' },
-  { value: 'gpt-5-mini', label: 'OpenAI: GPT-5 Mini', provider: 'openai' },
-]
-
-// Prix par million de tokens (en USD)
-const MODEL_PRICING: Record<string, { input: number; output: number }> = {
-  // Anthropic
-  'claude-opus-4-5-20251101': { input: 5, output: 25 },
-  'claude-sonnet-4-5-20250929': { input: 3, output: 15 },
-  'claude-haiku-4-5-20251001': { input: 1, output: 5 },
-  // OpenAI
-  'gpt-5.2': { input: 1.75, output: 14 },
-  'gpt-5.2-pro': { input: 21, output: 168 },
-  'gpt-5-mini': { input: 0.25, output: 2 },
-}
-
-function calculateCost(log: TranscriptionLog): number {
-  const pricing = MODEL_PRICING[log.model]
-  if (!pricing) return 0
-
-  const inputCost = (log.inputTokens / 1_000_000) * pricing.input
-  const outputCost = (log.outputTokens / 1_000_000) * pricing.output
-  return inputCost + outputCost
-}
-
-function formatCost(cost: number): string {
-  if (cost < 0.01) return `${(cost * 100).toFixed(4)}c`
-  return `$${cost.toFixed(4)}`
-}
 
 export function SettingsModal() {
   const {
@@ -215,11 +183,23 @@ export function SettingsModal() {
                               <SelectValue placeholder="Sélectionner un modèle" />
                             </SelectTrigger>
                             <SelectContent>
-                              {AI_MODELS.map(model => (
-                                <SelectItem key={model.value} value={model.value}>
-                                  {model.label}
-                                </SelectItem>
-                              ))}
+                              {(['anthropic', 'openai'] as const).map(provider => {
+                                const available = getAvailableProviders(settings.ai).has(provider)
+                                const models = AI_MODELS.filter(m => m.provider === provider)
+                                const label = provider === 'anthropic' ? 'Anthropic' : 'OpenAI'
+                                return (
+                                  <SelectGroup key={provider}>
+                                    <SelectLabel>
+                                      {label}{!available && ' — clé API manquante'}
+                                    </SelectLabel>
+                                    {models.map(model => (
+                                      <SelectItem key={model.value} value={model.value} disabled={!available}>
+                                        {model.label.replace(/^(Anthropic|OpenAI):\s*/, '')}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectGroup>
+                                )
+                              })}
                             </SelectContent>
                           </Select>
                         </div>
@@ -285,7 +265,11 @@ export function SettingsModal() {
                           Aucune transcription enregistrée
                         </p>
                       ) : (
-                        <ScrollArea className="h-[280px] border rounded-lg">
+                        <>
+                          <p className="text-xs text-muted-foreground mb-2 italic">
+                            Coûts calculés à titre indicatif d'après les tarifs publics au moment de la mise à jour de l'app. Ils peuvent différer légèrement de votre facture réelle (paliers, cache, remises, surtaxes régionales, etc.).
+                          </p>
+                          <ScrollArea className="h-[280px] border rounded-lg">
                           <table className="w-full text-sm">
                             <thead className="bg-muted/50 sticky top-0">
                               <tr>
@@ -332,6 +316,7 @@ export function SettingsModal() {
                             </tbody>
                           </table>
                         </ScrollArea>
+                        </>
                       )}
                     </div>
                   </div>

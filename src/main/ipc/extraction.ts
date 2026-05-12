@@ -15,7 +15,13 @@ const getProjectRoot = (): string => {
 }
 
 const getPythonPath = (): string => {
-  return join(getProjectRoot(), 'python-portable', 'python.exe')
+  // Windows: python-portable/python.exe (binaire portable Windows)
+  // Mac/Linux: python-portable/bin/python3 (structure de python-build-standalone install_only)
+  const root = getProjectRoot()
+  if (process.platform === 'win32') {
+    return join(root, 'python-portable', 'python.exe')
+  }
+  return join(root, 'python-portable', 'bin', 'python3')
 }
 
 const getScriptsPath = (): string => {
