@@ -43,7 +43,11 @@ jobs:
 
       - name: Install npm dependencies
         working-directory: ./src
-        run: npm ci
+        # `npm install` plutôt que `npm ci` pour tolérer les peerDeps non
+        # résolues dans le lockfile (electron-builder-squirrel-windows etc.).
+        # Build moins reproductible que `ci` mais évite la maintenance d'un
+        # lockfile gonflé de deps Windows qu'on n'utilise pas sur Mac.
+        run: npm install
 
       - name: Download Python portable (${{ matrix.python_arch }})
         run: |
