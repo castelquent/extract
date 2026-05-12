@@ -44,14 +44,17 @@ jobs:
 
       - name: Install npm dependencies
         working-directory: ./src
-        # `npm install` plutôt que `npm ci` pour tolérer les peerDeps non
-        # résolues dans le lockfile (electron-builder-squirrel-windows etc.).
-        # Build moins reproductible que `ci` mais évite la maintenance d'un
-        # lockfile gonflé de deps Windows qu'on n'utilise pas sur Mac.
-        # `dmg-license` est requis par dmg-builder sur Mac mais pas dans le
-        # lockfile (peerDep optionnelle non installée sur l'OS de dev Windows).
-        # `--no-save` pour pas polluer package.json.
+        # On supprime le package-lock.json avant npm install :
+        # le lockfile est généré sur Windows et référence les binaires natifs
+        # rollup/swc/etc. Windows-only ; npm a un bug connu (npm/cli#4828) qui
+        # fait qu'il n'installe pas les variantes Mac manquantes même en
+        # `npm install` quand le lockfile est présent. La régénération à la
+        # volée règle le problème pour ce build CI.
+        # `dmg-license` est requis par dmg-builder sur Mac mais reste hors
+        # lockfile (peerDep optionnelle), `--no-save` pour pas polluer
+        # package.json.
         run: |
+          rm -f package-lock.json
           npm install
           npm install dmg-license --no-save
 
