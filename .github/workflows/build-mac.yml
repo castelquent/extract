@@ -14,8 +14,9 @@ on:
 
 env:
   # Bump when a newer python-build-standalone release is available.
-  # Latest releases: https://github.com/indygreg/python-build-standalone/releases
-  PYTHON_VERSION: "3.13.5"
+  # Latest releases: https://github.com/astral-sh/python-build-standalone/releases
+  # Note: depuis 2024 le repo est sous astral-sh, pas indygreg.
+  PYTHON_VERSION: "3.13.13"
   PYTHON_BUILD_TAG: "20260510"
 
 jobs:
@@ -52,7 +53,7 @@ jobs:
       - name: Download Python portable (${{ matrix.python_arch }})
         run: |
           set -euo pipefail
-          URL="https://github.com/indygreg/python-build-standalone/releases/download/${PYTHON_BUILD_TAG}/cpython-${PYTHON_VERSION}+${PYTHON_BUILD_TAG}-${{ matrix.python_arch }}-apple-darwin-install_only.tar.gz"
+          URL="https://github.com/astral-sh/python-build-standalone/releases/download/${PYTHON_BUILD_TAG}/cpython-${PYTHON_VERSION}+${PYTHON_BUILD_TAG}-${{ matrix.python_arch }}-apple-darwin-install_only.tar.gz"
           echo "Downloading: $URL"
           curl -L --fail -o python.tar.gz "$URL"
           mkdir -p python-portable
