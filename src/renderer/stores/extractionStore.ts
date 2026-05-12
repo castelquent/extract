@@ -22,6 +22,7 @@ interface ExtractionState {
 
   // Actions - Zones
   addZoneAsNewArticle: (zone: Zone) => void
+  addZoneToArticle: (articleId: number, zone: Zone) => void
   updateZone: (zoneIndex: number, zone: Zone) => void
   updateZoneInArticle: (articleId: number, zoneIndex: number, zone: Zone) => void
   removeZone: (zoneIndex: number) => void
@@ -119,9 +120,24 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
     }
     set((state) => ({
       articles: [...state.articles, newArticle],
-      currentArticleId: newId,
-      selectedZoneIndex: 0,
+      currentArticleId: null,
+      selectedZoneIndex: null,
     }))
+  },
+
+  addZoneToArticle: (articleId, zone) => {
+    set((state) => {
+      const article = state.articles.find((a) => a.id === articleId)
+      if (!article) return state
+      const newZoneIndex = article.zones.length
+      return {
+        articles: state.articles.map((a) =>
+          a.id === articleId ? { ...a, zones: [...a.zones, zone] } : a
+        ),
+        currentArticleId: articleId,
+        selectedZoneIndex: newZoneIndex,
+      }
+    })
   },
 
   updateZone: (zoneIndex, zone) => {

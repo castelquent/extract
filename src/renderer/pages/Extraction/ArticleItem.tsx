@@ -17,6 +17,8 @@ import { Card, CardContent, Button, Badge } from '@/components/ui'
 interface ArticleItemProps {
   article: Article
   index: number
+  isActive: boolean
+  setRef?: (el: HTMLDivElement | null) => void
   onSelect: () => void
   onRemove: () => void
   onReorderZones: (fromIndex: number, toIndex: number) => void
@@ -26,6 +28,8 @@ interface ArticleItemProps {
 export function ArticleItem({
   article,
   index,
+  isActive,
+  setRef,
   onSelect,
   onRemove,
   onReorderZones,
@@ -56,18 +60,28 @@ export function ArticleItem({
 
   return (
     <Card
-      className="group transition-all cursor-pointer hover:bg-muted/50"
+      ref={setRef}
+      className={`group transition-all cursor-pointer ${
+        isActive
+          ? 'bg-primary/10 ring-2 ring-primary shadow-sm'
+          : 'hover:bg-muted/50'
+      }`}
       onClick={onSelect}
     >
       <CardContent className="p-3">
         <div className="flex items-center gap-2">
           {/* Article number */}
-          <div className="w-6 h-6 rounded flex items-center justify-center text-xs font-medium bg-primary/10 text-primary">
+          <div className={`w-6 h-6 rounded flex items-center justify-center text-xs font-medium ${
+            isActive ? 'bg-primary text-primary-foreground' : 'bg-primary/10 text-primary'
+          }`}>
             {index + 1}
           </div>
 
           {/* Article label */}
-          <span className="font-medium text-sm flex-1">Article {index + 1}</span>
+          <span className="font-medium text-sm flex-1">
+            Élement {index + 1}
+            {isActive && <span className="ml-2 text-xs text-primary font-normal">• actif</span>}
+          </span>
 
           {/* Zone count */}
           <Badge variant="secondary" className="text-xs">

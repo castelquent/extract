@@ -22,6 +22,7 @@ import {
   ChevronRight,
   Square,
   Save,
+  X,
 } from 'lucide-react'
 import { PdfViewer } from './PdfViewer'
 import { ZonesOverlay } from './ZonesOverlay'
@@ -33,6 +34,8 @@ export function ExtractionPage() {
   const { projectId } = useParams<{ projectId: string }>()
   const navigate = useNavigate()
   const viewerContainerRef = useRef<HTMLDivElement>(null)
+  const articleRefs = useRef<Map<number, HTMLDivElement>>(new Map())
+  const scrollTargetRef = useRef<number | null>(null)
 
   // Project store
   const { currentProject: project, loadProject: loadProjectStore, updateProject } = useProjectsStore()
@@ -54,6 +57,7 @@ export function ExtractionPage() {
     removeArticle,
     selectArticle,
     addZoneAsNewArticle,
+    addZoneToArticle,
     updateZoneInArticle,
     removeZoneFromArticle,
     selectZoneInArticle,
@@ -133,8 +137,31 @@ export function ExtractionPage() {
 
   // Zone management
   const handleZoneCreated = (zone: Zone) => {
-    addZoneAsNewArticle(zone)
+    const activeArticleExists =
+      currentArticleId !== null && articles.some((a) => a.id === currentArticleId)
+    if (activeArticleExists) {
+      scrollTargetRef.current = currentArticleId
+      addZoneToArticle(currentArticleId!, zone)
+    } else {
+      const newId = articles.length > 0 ? Math.max(...articles.map((a) => a.id)) + 1 : 1
+      scrollTargetRef.current = newId
+      addZoneAsNewArticle(zone)
+    }
   }
+
+  // Auto-scroll the sidebar to the element that was just touched
+  useEffect(() => {
+    const target = scrollTargetRef.current
+    if (target === null) return
+    scrollTargetRef.current = null
+    const el = articleRefs.current.get(target)
+    el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }, [articles])
+
+  const activeArticle =
+    currentArticleId !== null
+      ? articles.find((a) => a.id === currentArticleId) ?? null
+      : null
 
   // Navigation
   const goToPrevPage = () => {
@@ -155,15 +182,10 @@ export function ExtractionPage() {
     selectZoneInArticle(articleId, zoneIndex)
   }
 
-  // Jump to article's first zone page
+  // Lock an article as the active target (without jumping). Navigation
+  // is handled by clicking on a specific zone within the article.
   const jumpToArticle = (articleId: number) => {
-    const article = articles.find((a) => a.id === articleId)
-    if (article && article.zones.length > 0) {
-      setCurrentPage(article.zones[0].page)
-      selectZoneInArticle(articleId, 0)
-    } else {
-      selectArticle(articleId)
-    }
+    selectArticle(articleId)
   }
 
   // Keyboard shortcuts
@@ -200,7 +222,7 @@ export function ExtractionPage() {
       x2: 1,
       y2: 1,
     }
-    addZoneAsNewArticle(fullPageZone)
+    handleZoneCreated(fullPageZone)
   }
 
   if (loading) {
@@ -312,12 +334,12 @@ export function ExtractionPage() {
             onZoneMoveToArticle={moveZone}
           />
 
-          {/* Instructions overlay */}
-          {articles.length === 0 && pdfLoaded && (
+          {/* Instructions overlay (first-run only) */}
+          {pdfLoaded && articles.length === 0 && (
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-background/90 backdrop-blur-sm rounded-lg px-4 py-2 shadow-lg border">
               <p className="text-sm text-muted-foreground flex items-center gap-2">
                 <MousePointer2 className="h-4 w-4" />
-                Dessinez un rectangle sur le PDF pour créer votre premier article
+                Dessinez un rectangle sur le PDF pour créer votre premier élément
               </p>
             </div>
           )}
@@ -338,14 +360,25 @@ export function ExtractionPage() {
 
         {/* Sidebar - Articles list with DnD */}
         <aside className="w-80 border-l bg-card flex flex-col overflow-hidden">
-          <div className="p-4 border-b">
+          <div className="p-4 border-b space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="font-semibold flex items-center gap-2">
                 <Layers className="h-4 w-4" />
-                Articles
+                Élements
               </h2>
               <Badge variant="outline">{articles.length}</Badge>
             </div>
+            {activeArticle && (
+              <Button
+                variant="default"
+                size="sm"
+                className="w-full"
+                onClick={() => selectArticle(null)}
+              >
+                <X className="h-4 w-4 mr-2" />
+                Terminer l'élément en cours
+              </Button>
+            )}
           </div>
 
           <ScrollArea className="flex-1">
@@ -356,7 +389,7 @@ export function ExtractionPage() {
                     <MousePointer2 className="h-6 w-6 text-muted-foreground" />
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    Sélectionnez des zones sur le PDF pour créer des articles.
+                    Sélectionnez des zones sur le PDF pour créer des élements.
                   </p>
                 </div>
               ) : (
@@ -366,6 +399,11 @@ export function ExtractionPage() {
                         key={article.id}
                         article={article}
                         index={index}
+                        isActive={currentArticleId === article.id}
+                        setRef={(el) => {
+                          if (el) articleRefs.current.set(article.id, el)
+                          else articleRefs.current.delete(article.id)
+                        }}
                         onSelect={() => jumpToArticle(article.id)}
                         onRemove={() => removeArticle(article.id)}
                         onReorderZones={(fromIndex, toIndex) => reorderZones(article.id, fromIndex, toIndex)}
