@@ -48,7 +48,12 @@ jobs:
         # résolues dans le lockfile (electron-builder-squirrel-windows etc.).
         # Build moins reproductible que `ci` mais évite la maintenance d'un
         # lockfile gonflé de deps Windows qu'on n'utilise pas sur Mac.
-        run: npm install
+        # `dmg-license` est requis par dmg-builder sur Mac mais pas dans le
+        # lockfile (peerDep optionnelle non installée sur l'OS de dev Windows).
+        # `--no-save` pour pas polluer package.json.
+        run: |
+          npm install
+          npm install dmg-license --no-save
 
       - name: Download Python portable (${{ matrix.python_arch }})
         run: |
