@@ -5,11 +5,13 @@ import { ExtractionPage } from './pages/Extraction'
 import { EditorPage } from './pages/Editor'
 import { TemplatesPage } from './pages/Templates'
 import { WindowCloseHandler } from './components/WindowCloseHandler'
+import { UpdateHandler } from './components/UpdateHandler'
 
 function App() {
   return (
     <>
       <WindowCloseHandler />
+      <UpdateHandler />
       <Routes>
         <Route element={<AppLayout />}>
           <Route path="/" element={<ProjectsPage filter="all" />} />

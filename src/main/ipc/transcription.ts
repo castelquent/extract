@@ -250,7 +250,7 @@ async function transcribeWithOpenAI(
 
 async function transcribeWithAnthropic(
   base64Image: string,
-  mimeType: string,
+  _mimeType: string,
   settings: AISettings,
   prompt: string,
   template: Template

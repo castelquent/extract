@@ -56,12 +56,19 @@ function formatCost(cost: number): string {
 }
 
 export function SettingsModal() {
-  const { settingsOpen, closeSettings } = useUIStore()
+  const {
+    settingsOpen,
+    closeSettings,
+    updateStatus: globalUpdateStatus,
+    updateVersion,
+    updateProgress,
+    updateError,
+    setUpdateStatus: setGlobalUpdateStatus,
+  } = useUIStore()
   const { settings, loading, saving, loadSettings, saveSettings, updateAI } = useSettingsStore()
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('ai')
   const [version, setVersion] = useState('')
-  const [updateStatus, setUpdateStatus] = useState<string>('')
   const [checking, setChecking] = useState(false)
   const [logs, setLogs] = useState<TranscriptionLog[]>([])
 
@@ -78,16 +85,14 @@ export function SettingsModal() {
     setLogs(data)
   }
 
-  const { totalCost, totalTokens, successCount } = useMemo(() => {
+  const { totalCost, successCount } = useMemo(() => {
     let cost = 0
-    let tokens = 0
     let success = 0
     for (const log of logs) {
       cost += calculateCost(log)
-      tokens += log.inputTokens + log.outputTokens
       if (log.success) success++
     }
-    return { totalCost: cost, totalTokens: tokens, successCount: success }
+    return { totalCost: cost, successCount: success }
   }, [logs])
 
   const loadVersion = async () => {
@@ -103,16 +108,27 @@ export function SettingsModal() {
 
   const checkForUpdates = async () => {
     setChecking(true)
-    setUpdateStatus('Vérification...')
+    setGlobalUpdateStatus('checking')
     const result = await window.api.checkUpdates()
 
     if (result.available) {
-      setUpdateStatus(`Mise à jour disponible : v${result.version}`)
+      setGlobalUpdateStatus('available')
     } else {
-      setUpdateStatus('Vous êtes à jour !')
+      setGlobalUpdateStatus('idle')
     }
     setChecking(false)
   }
+
+  const handleStartUpdate = async () => {
+    setGlobalUpdateStatus('downloading')
+    await window.api.startUpdateDownload()
+  }
+
+  const handleInstallUpdate = () => {
+    window.api.installUpdate()
+  }
+
+  const isUpdating = globalUpdateStatus === 'downloading'
 
   const handleModelChange = (modelValue: string) => {
     const model = AI_MODELS.find(m => m.value === modelValue)
@@ -129,8 +145,29 @@ export function SettingsModal() {
   ]
 
   return (
-    <Dialog open={settingsOpen} onOpenChange={(open) => !open && closeSettings()}>
-      <DialogContent className="max-w-3xl max-h-[80vh] p-0 overflow-hidden">
+    <>
+      {/* Overlay de blocage pendant la mise à jour */}
+      {isUpdating && (
+        <div className="fixed inset-0 z-[100] bg-background/80 backdrop-blur-sm flex items-center justify-center">
+          <div className="bg-card p-8 rounded-lg shadow-lg text-center space-y-4 max-w-md">
+            <RefreshCw className="h-12 w-12 mx-auto animate-spin text-primary" />
+            <h2 className="text-xl font-semibold">Mise à jour en cours</h2>
+            <p className="text-muted-foreground">
+              Veuillez patienter pendant le téléchargement...
+            </p>
+            <div className="w-full bg-muted rounded-full h-3">
+              <div
+                className="bg-primary h-3 rounded-full transition-all duration-300"
+                style={{ width: `${updateProgress}%` }}
+              />
+            </div>
+            <p className="text-sm text-muted-foreground">{Math.round(updateProgress)}%</p>
+          </div>
+        </div>
+      )}
+
+      <Dialog open={settingsOpen} onOpenChange={(open) => !open && !isUpdating && closeSettings()}>
+        <DialogContent className="max-w-3xl max-h-[80vh] p-0 overflow-hidden">
         {loading || !settings ? (
           <div className="py-8 text-center text-muted-foreground">
             Chargement...
@@ -311,15 +348,62 @@ export function SettingsModal() {
                             <p className="font-medium">Version actuelle</p>
                             <Badge variant="secondary" className="mt-1">v{version}</Badge>
                           </div>
-                          <Button variant="outline" onClick={checkForUpdates} disabled={checking}>
+                          <Button variant="outline" onClick={checkForUpdates} disabled={checking || isUpdating}>
                             <RefreshCw className={`h-4 w-4 mr-2 ${checking ? 'animate-spin' : ''}`} />
                             Vérifier les mises à jour
                           </Button>
                         </div>
 
-                        {updateStatus && (
-                          <p className="text-sm text-primary p-3 bg-primary/10 rounded-md">
-                            {updateStatus}
+                        {/* Status messages */}
+                        {globalUpdateStatus === 'available' && updateVersion && (
+                          <div className="p-4 bg-primary/10 rounded-lg space-y-3">
+                            <p className="text-sm font-medium text-primary">
+                              Mise à jour disponible : v{updateVersion}
+                            </p>
+                            <Button onClick={handleStartUpdate} className="w-full">
+                              <Download className="h-4 w-4 mr-2" />
+                              Télécharger et installer
+                            </Button>
+                          </div>
+                        )}
+
+                        {globalUpdateStatus === 'downloading' && (
+                          <div className="p-4 bg-muted rounded-lg space-y-3">
+                            <p className="text-sm font-medium">Téléchargement en cours...</p>
+                            <div className="w-full bg-muted-foreground/20 rounded-full h-2">
+                              <div
+                                className="bg-primary h-2 rounded-full transition-all duration-300"
+                                style={{ width: `${updateProgress}%` }}
+                              />
+                            </div>
+                            <p className="text-xs text-muted-foreground text-center">
+                              {Math.round(updateProgress)}%
+                            </p>
+                          </div>
+                        )}
+
+                        {globalUpdateStatus === 'ready' && (
+                          <div className="p-4 bg-green-500/10 rounded-lg space-y-3">
+                            <p className="text-sm font-medium text-green-600">
+                              Mise à jour prête à être installée
+                            </p>
+                            <Button onClick={handleInstallUpdate} className="w-full" variant="default">
+                              Redémarrer et installer
+                            </Button>
+                          </div>
+                        )}
+
+                        {globalUpdateStatus === 'error' && updateError && (
+                          <div className="p-4 bg-destructive/10 rounded-lg">
+                            <p className="text-sm text-destructive">
+                              Erreur : {updateError}
+                            </p>
+                          </div>
+                        )}
+
+                        {globalUpdateStatus === 'idle' && !checking && (
+                          <p className="text-sm text-muted-foreground">
+                            Vous êtes à jour !
                           </p>
                         )}
                       </div>
@@ -341,7 +425,8 @@ export function SettingsModal() {
             </div>
           </div>
         )}
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

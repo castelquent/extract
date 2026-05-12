@@ -145,11 +145,22 @@ export interface ElectronAPI {
   saveSettings: (settings: Settings) => Promise<boolean>
   getVersion: () => Promise<string>
   checkUpdates: () => Promise<{ available: boolean; version?: string }>
-  downloadUpdate: () => Promise<boolean>
-  installUpdate: () => Promise<void>
 
   // Logs
   getLogs: () => Promise<TranscriptionLog[]>
+
+  // Window close management
+  onCheckUnsavedChanges: (callback: () => void) => () => void
+  confirmClose: () => void
+  cancelClose: () => void
+
+  // Auto-update
+  onUpdateAvailable: (callback: (version: string) => void) => () => void
+  onUpdateProgress: (callback: (percent: number) => void) => () => void
+  onUpdateDownloaded: (callback: () => void) => () => void
+  onUpdateError: (callback: (error: string) => void) => () => void
+  startUpdateDownload: () => Promise<void>
+  installUpdate: () => void
 }
 
 declare global {

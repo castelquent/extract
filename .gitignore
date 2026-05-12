@@ -29,3 +29,6 @@ tmpclaude-*
 
 # Electron
 *.asar
+
+# Notes personnelles
+src/UPDATE_NOTES.md

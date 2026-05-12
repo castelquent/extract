@@ -46,8 +46,6 @@ const api: ElectronAPI & {
   saveSettings: (settings) => ipcRenderer.invoke('settings:save', settings),
   getVersion: () => ipcRenderer.invoke('settings:getVersion'),
   checkUpdates: () => ipcRenderer.invoke('settings:checkUpdates'),
-  downloadUpdate: () => ipcRenderer.invoke('settings:downloadUpdate'),
-  installUpdate: () => ipcRenderer.invoke('settings:installUpdate'),
 
   // Logs
   getLogs: () => ipcRenderer.invoke('settings:getLogs'),
@@ -55,13 +53,44 @@ const api: ElectronAPI & {
   // Window close management
   onCheckUnsavedChanges: (callback: () => void) => {
     ipcRenderer.on('check-unsaved-changes', callback)
-    // Retourner une fonction de cleanup
     return () => {
       ipcRenderer.removeListener('check-unsaved-changes', callback)
     }
   },
   confirmClose: () => ipcRenderer.send('confirm-close'),
   cancelClose: () => ipcRenderer.send('cancel-close'),
+
+  // Auto-update events
+  onUpdateAvailable: (callback: (version: string) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, version: string) => callback(version)
+    ipcRenderer.on('update-available', handler)
+    return () => {
+      ipcRenderer.removeListener('update-available', handler)
+    }
+  },
+  onUpdateProgress: (callback: (percent: number) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, percent: number) => callback(percent)
+    ipcRenderer.on('update-progress', handler)
+    return () => {
+      ipcRenderer.removeListener('update-progress', handler)
+    }
+  },
+  onUpdateDownloaded: (callback: () => void) => {
+    const handler = () => callback()
+    ipcRenderer.on('update-downloaded', handler)
+    return () => {
+      ipcRenderer.removeListener('update-downloaded', handler)
+    }
+  },
+  onUpdateError: (callback: (error: string) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, error: string) => callback(error)
+    ipcRenderer.on('update-error', handler)
+    return () => {
+      ipcRenderer.removeListener('update-error', handler)
+    }
+  },
+  startUpdateDownload: () => ipcRenderer.invoke('start-update-download'),
+  installUpdate: () => ipcRenderer.send('install-update'),
 }
 
 contextBridge.exposeInMainWorld('api', api)

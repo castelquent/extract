@@ -1,353 +1,542 @@
-# ExtrAct - Documentation Produit
+# ExtrAct V2 - Documentation Technique
 
-> Application desktop d'extraction et d'édition d'articles depuis des documents PDF
+> Documentation développeur pour ExtrAct V2
 
-**Version actuelle :** 1.0.6
+**Version :** 2.0.5
 
 ---
 
 ## Table des matières
 
-1. [Présentation](#présentation)
-2. [Stack Technique](#stack-technique)
-3. [Fonctionnalités](#fonctionnalités)
-4. [Architecture](#architecture)
-5. [Flux de données](#flux-de-données)
-6. [Structure des fichiers](#structure-des-fichiers)
-
----
-
-## Présentation
-
-**ExtrAct** est une application desktop conçue pour extraire et éditer des articles depuis des documents PDF. Elle offre une interface visuelle permettant de :
-
-- Convertir des pages PDF en zones d'images représentant des articles
-- Transcrire automatiquement les métadonnées des articles (titre, auteur, contenu) via l'IA
-- Éditer les articles extraits avec un éditeur de texte riche
-- Exporter les articles vers différents formats (PDF, DOCX, ZIP)
-
-### Cas d'usage principal
-
-L'application cible les utilisateurs qui ont besoin de numériser et structurer des articles provenant de revues, journaux ou magazines au format PDF, notamment pour :
-- L'archivage documentaire
-- La création de bases de données d'articles
-- La numérisation de contenus imprimés
-
----
-
-## Stack Technique
-
-### Frontend
-| Technologie | Version | Usage |
-|-------------|---------|-------|
-| Electron | 28.0.0 | Framework desktop |
-| Bulma CSS | 0.9.4 | Framework UI |
-| Quill | 2.0.2 | Éditeur de texte riche |
-| PDF.js | 3.11.174 | Rendu PDF |
-| Split.js | - | Panneaux redimensionnables |
-| Panzoom | - | Zoom sur images |
-
-### Backend (Main Process)
-| Technologie | Usage |
-|-------------|-------|
-| Node.js | Runtime |
-| Electron IPC | Communication inter-processus |
-| Axios | Client HTTP (API IA) |
-| pdf-lib | Manipulation PDF |
-| PDFKit | Génération PDF |
-| docx | Génération Word |
-| adm-zip | Compression ZIP |
-
-### Python (Scripts utilitaires)
-| Bibliothèque | Usage |
-|--------------|-------|
-| PyMuPDF (fitz) | Extraction de pages PDF |
-| Pillow (PIL) | Traitement d'images |
-
-### Intégration IA
-| Fournisseur | Modèles supportés |
-|-------------|-------------------|
-| OpenAI | GPT-4o, GPT-4, GPT-4 Turbo |
-| Anthropic | Claude Opus 4, Claude Sonnet 4, etc. |
-
----
-
-## Fonctionnalités
-
-### 1. Gestion des Projets
-
-#### Création de projet
-- Import d'un fichier PDF source
-- Génération automatique d'une miniature (première page)
-- Attribution d'un nom personnalisé
-- Stockage dans `%AppData%/Local/ExtrAct/projects/{projectId}/`
-
-#### Liste des projets
-- Affichage en grille avec miniatures
-- Tri par date de modification, création ou nom
-- Indicateur de statut et progression
-- Statistiques (nombre d'articles, champs remplis)
-
-#### Statuts de projet
-| Statut | Description |
-|--------|-------------|
-| `new` | Projet créé, aucune extraction |
-| `in_progress` | Extraction ou édition en cours |
-| `extracted` | Articles extraits, édition possible |
-| `completed` | Tous les champs remplis |
-
-#### Import/Export
-- Export ZIP complet du projet (backup)
-- Import de projets depuis fichiers ZIP
-- Suppression avec confirmation
-
----
-
-### 2. Extraction d'Articles (Page Extraction)
-
-#### Sélection visuelle
-- Navigation page par page dans le PDF
-- Dessin de zones rectangulaires sur le canvas
-- Coordonnées normalisées (échelle 0-1) pour indépendance de résolution
-
-#### Types de zones
-| Type | Description |
-|------|-------------|
-| Zone unique | Un rectangle = un article |
-| Zones multiples | Plusieurs zones combinées = un article |
-| Page entière | Sélection rapide de toute la page |
-
-#### Gestion des articles
-- Liste en temps réel des articles sélectionnés
-- Indicateur du nombre de zones par article
-- Suppression d'articles ou de zones individuelles
-- Mode "multi-zone" pour combiner des zones
-
-#### Export des images
-- Conversion des zones en images PNG via Python
-- Combinaison verticale des zones multiples
-- Sauvegarde automatique de la progression
-
----
-
-### 3. Transcription IA
-
-#### Configuration
-- Choix du fournisseur (OpenAI ou Anthropic)
-- Sélection du modèle spécifique
-- Clés API configurables
-- Prompts système personnalisables
-
-#### Processus de transcription
-- Envoi de l'image de l'article à l'API Vision
-- Extraction structurée : titre, auteur, contenu
-- Parsing JSON automatique des réponses
-- Gestion des erreurs et formats de réponse variés
-
-#### Modes de transcription
-- **Article unique** : Transcrit l'article actuellement affiché
-- **Transcription par lot** : Traite tous les articles séquentiellement
-
----
-
-### 4. Éditeur d'Articles (Page Index)
-
-#### Interface
-- **Vue divisée** : Image de l'article (gauche) / Champs d'édition (droite)
-- **Panneaux redimensionnables** avec Split.js
-- **Zoom sur l'image** avec Panzoom
-
-#### Champs éditables
-| Champ | Type | Description |
-|-------|------|-------------|
-| Titre | Texte simple | Titre de l'article |
-| Auteur | Texte simple | Nom de l'auteur |
-| Contenu | Texte riche (HTML) | Corps de l'article |
-
-#### Barre d'outils Quill
-- Gras, italique, souligné
-- Listes à puces et numérotées
-- Effacer le formatage
-
-#### Navigation
-- Boutons flèches pour parcourir les articles
-- Table des matières avec indicateur de complétion
-- Sauvegarde automatique des modifications
-
----
-
-### 5. Export des Articles
-
-#### Format PDF
-- Document formaté avec PDFKit
-- Titre et auteur en en-tête de chaque article
-- Séparateurs entre articles
-- Texte justifié
-- Pagination automatique
-
-#### Format DOCX (Word)
-- Document structuré avec la bibliothèque `docx`
-- Styles de titre (Heading)
-- Paragraphes formatés
-- Alignement justifié
-
-#### Format ZIP (Backup)
-- Archive complète du projet
-- Inclut : PDF source, métadonnées, images, exports JSON
-- Idéal pour sauvegarde et partage
-
----
-
-### 6. Paramètres
-
-#### Configuration IA
-- Sélection du fournisseur (OpenAI/Anthropic)
-- Saisie et stockage sécurisé des clés API
-- Choix du modèle parmi ceux disponibles
-- Personnalisation du prompt système
-
-#### Mises à jour automatiques
-- Vérification des nouvelles versions
-- Téléchargement automatique en arrière-plan
-- Affichage de la progression (vitesse, taille)
-- Installation manuelle contrôlée par l'utilisateur
-
-#### Informations
-- Version actuelle de l'application
-- Lien vers le dépôt GitHub
+1. [Architecture](#architecture)
+2. [Stack technique](#stack-technique)
+3. [Structure des fichiers](#structure-des-fichiers)
+4. [IPC Handlers](#ipc-handlers)
+5. [Stores Zustand](#stores-zustand)
+6. [Types partagés](#types-partagés)
+7. [Templates](#templates)
+8. [Transcription IA](#transcription-ia)
+9. [Données persistées](#données-persistées)
+10. [Scripts Python](#scripts-python)
+11. [Build & Développement](#build--développement)
 
 ---
 
 ## Architecture
 
-### Structure du projet
-
 ```
-ExtrAct V2/
-├── main.js                 # Process principal Electron
-├── preload.js              # Bridge IPC sécurisé
-├── package.json            # Configuration npm
-│
-├── Pages HTML
-│   ├── projects.html       # Liste des projets
-│   ├── extraction.html     # Interface d'extraction
-│   ├── index.html          # Éditeur d'articles
-│   └── settings.html       # Paramètres
-│
-├── Renderers JavaScript
-│   ├── projects-renderer.js
-│   ├── extraction-renderer.js
-│   ├── renderer.js
-│   └── settings-renderer.js
-│
-├── Styles CSS
-│   ├── visualisateur.css   # Thème sombre commun
-│   ├── projects.css
-│   └── settings.css
-│
-├── Scripts Python
-│   ├── pdf_to_image.py     # Conversion zones → images
-│   ├── generate_thumbnail.py
-│   └── python-portable/    # Environnement Python embarqué
-│
-└── dist/                   # Application compilée
-```
-
-### Communication IPC
-
-Le fichier `preload.js` expose des APIs sécurisées aux processus renderer :
-
-| API | Fonctions |
-|-----|-----------|
-| `electronAPI` | Chargement/sauvegarde JSON, transcription IA |
-| `settingsAPI` | Gestion des paramètres, mises à jour |
-| `api` | Opérations projets, navigation, export |
-
-### Sécurité
-
-- **Context Isolation** : Activé
-- **Node Integration** : Désactivé
-- **IPC Bridge** : Communication via `contextBridge`
-- **Clés API** : Stockage local dans settings.json
-
----
-
-## Flux de données
-
-### Création → Extraction → Édition → Export
-
-```
-┌─────────────────┐
-│  Nouveau Projet │
-│  (projects.html)│
-└────────┬────────┘
-         │ Upload PDF
-         ▼
-┌─────────────────┐
-│   Extraction    │
-│(extraction.html)│
-└────────┬────────┘
-         │ Sélection zones
-         │ Export images
-         ▼
-┌─────────────────┐
-│    Éditeur      │
-│  (index.html)   │
-└────────┬────────┘
-         │ Transcription IA
-         │ Édition manuelle
-         ▼
-┌─────────────────┐
-│     Export      │
-│ PDF / DOCX / ZIP│
-└─────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                        Electron Main Process                     │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐              │
+│  │  projects   │  │  templates  │  │ extraction  │              │
+│  │    .ts      │  │     .ts     │  │    .ts      │              │
+│  └─────────────┘  └─────────────┘  └─────────────┘              │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐              │
+│  │transcription│  │   export    │  │  settings   │              │
+│  │    .ts      │  │     .ts     │  │    .ts      │              │
+│  └─────────────┘  └─────────────┘  └─────────────┘              │
+└─────────────────────────────────────────────────────────────────┘
+                              │ IPC
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                         Preload (Bridge)                         │
+│                      window.api.*                                │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                      Renderer (React SPA)                        │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │                    Zustand Stores                        │    │
+│  │  projects │ templates │ extraction │ settings │ ui      │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │                       Pages                              │    │
+│  │  Projects │ Extraction │ Editor │ Templates             │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │                    Components                            │    │
+│  │  layout/* │ ui/* (shadcn)                               │    │
+│  └─────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Structure des fichiers projet
+## Stack technique
 
-Chaque projet est stocké dans :
+| Couche | Technologie | Version |
+|--------|-------------|---------|
+| Desktop | Electron | 28.x |
+| Frontend | React | 18.x |
+| Language | TypeScript | 5.x |
+| Build | Vite | 5.x |
+| Styling | Tailwind CSS | 3.x |
+| Components | shadcn/ui (Radix) | latest |
+| State | Zustand | 4.x |
+| Routing | React Router | 6.x |
+| PDF Viewer | @react-pdf-viewer | 3.12.x |
+| Rich Text | react-quill | 2.x |
+| Drag & Drop | @dnd-kit | 6.x |
+| Tables | @tanstack/react-table | 8.x |
+| HTTP | axios | 1.x |
+| PDF Gen | pdfkit, pdf-lib | - |
+| Word Gen | docx | 8.x |
+| ZIP | adm-zip | 0.5.x |
+| Python | PyMuPDF (fitz) | 1.26.x |
+
+---
+
+## Structure des fichiers
+
 ```
-%AppData%/Local/ExtrAct/projects/{projectId}/
+src/
+├── main/
+│   ├── index.ts                 # Entry point Electron + auto-updater
+│   └── ipc/
+│       ├── index.ts             # Setup tous les handlers
+│       ├── projects.ts          # CRUD projets, ZIP import/export
+│       ├── templates.ts         # CRUD templates
+│       ├── extraction.ts        # Sauvegarde zones, génération images
+│       ├── transcription.ts     # Appels API OpenAI/Anthropic
+│       ├── export.ts            # Export PDF/DOCX/TXT
+│       └── settings.ts          # Paramètres, version, updates
+│
+├── preload/
+│   └── index.ts                 # contextBridge → window.api
+│
+├── renderer/
+│   ├── main.tsx                 # Entry point React
+│   ├── App.tsx                  # Routes + AppLayout
+│   │
+│   ├── pages/
+│   │   ├── Projects/
+│   │   │   ├── index.tsx        # Liste avec filtres
+│   │   │   ├── ProjectCard.tsx  # Card projet
+│   │   │   └── CreateProjectModal.tsx
+│   │   │
+│   │   ├── Extraction/
+│   │   │   ├── index.tsx        # Page principale
+│   │   │   ├── PdfViewer.tsx    # Rendu PDF (pdfjs-dist)
+│   │   │   ├── ZonesOverlay.tsx # Canvas de sélection
+│   │   │   ├── ZoneBox.tsx      # Rectangle de zone
+│   │   │   ├── ArticleItem.tsx  # Item dans la liste
+│   │   │   └── ZoneContextMenu.tsx
+│   │   │
+│   │   ├── Editor/
+│   │   │   ├── index.tsx        # Page principale
+│   │   │   ├── ArticleForm.tsx  # Formulaire dynamique
+│   │   │   ├── ArticlesTable.tsx # Sommaire avec @tanstack/react-table
+│   │   │   ├── TranscriptionModal.tsx
+│   │   │   ├── ExportModal.tsx
+│   │   │   └── UnsavedChangesModal.tsx
+│   │   │
+│   │   └── Templates/
+│   │       └── index.tsx        # CRUD templates + drag & drop
+│   │
+│   ├── components/
+│   │   ├── layout/
+│   │   │   ├── AppLayout.tsx    # Layout principal
+│   │   │   ├── NavigationDrawer.tsx
+│   │   │   └── SettingsModal.tsx
+│   │   │
+│   │   ├── ui/                  # Composants shadcn/ui
+│   │   │   ├── button.tsx
+│   │   │   ├── card.tsx
+│   │   │   ├── dialog.tsx
+│   │   │   ├── alert-dialog.tsx
+│   │   │   ├── select.tsx
+│   │   │   ├── input.tsx
+│   │   │   ├── textarea.tsx
+│   │   │   ├── tabs.tsx
+│   │   │   ├── table.tsx
+│   │   │   ├── checkbox.tsx
+│   │   │   ├── dropdown-menu.tsx
+│   │   │   ├── context-menu.tsx
+│   │   │   ├── resizable.tsx
+│   │   │   ├── scroll-area.tsx
+│   │   │   ├── collapsible.tsx
+│   │   │   ├── badge.tsx
+│   │   │   ├── separator.tsx
+│   │   │   ├── progress.tsx
+│   │   │   ├── skeleton.tsx
+│   │   │   ├── tooltip.tsx
+│   │   │   ├── label.tsx
+│   │   │   ├── sheet.tsx
+│   │   │   └── sidebar.tsx
+│   │   │
+│   │   ├── WindowCloseHandler.tsx
+│   │   └── UpdateHandler.tsx
+│   │
+│   ├── stores/
+│   │   ├── index.ts             # Exports
+│   │   ├── projectsStore.ts
+│   │   ├── extractionStore.ts
+│   │   ├── templatesStore.ts
+│   │   ├── settingsStore.ts
+│   │   └── uiStore.ts
+│   │
+│   └── styles/
+│       └── index.css            # Tailwind + CSS variables
+│
+├── shared/
+│   └── types.ts                 # Types partagés main/renderer
+│
+└── package.json                 # Config + electron-builder
+
+scripts/
+├── pdf_to_image.py              # Extraction zones → PDF
+└── generate_thumbnail.py        # Miniature projet
+
+python-portable/                 # Python embarqué Windows
 ```
 
-| Fichier | Description |
-|---------|-------------|
-| `metadata.json` | Informations du projet (nom, dates, statut) |
-| `source.pdf` | PDF original |
-| `thumbnail.png` | Miniature du projet |
-| `save.json` | Progression de l'extraction |
-| `export.json` | Données finales des articles |
-| `images/` | Dossier des images d'articles |
+---
 
-### Format metadata.json
-```json
-{
-  "id": "1234567890",
-  "name": "Nom du projet",
-  "originalFilename": "document.pdf",
-  "createdAt": "2024-01-01T00:00:00.000Z",
-  "modifiedAt": "2024-01-02T00:00:00.000Z",
-  "status": "in_progress",
-  "articlesCount": 5,
-  "filledFields": 12,
-  "totalFields": 15
+## IPC Handlers
+
+### projects.ts
+
+| Channel | Signature | Description |
+|---------|-----------|-------------|
+| `projects:getAll` | `() → Project[]` | Liste tous les projets |
+| `projects:getById` | `(id) → Project` | Récupère un projet |
+| `projects:create` | `(name, templateId) → Project` | Crée un projet (dialog PDF) |
+| `projects:update` | `(id, updates) → boolean` | Met à jour métadonnées |
+| `projects:delete` | `(id) → boolean` | Supprime un projet |
+| `projects:duplicate` | `(id) → Project` | Duplique un projet |
+| `projects:exportZip` | `(id) → boolean` | Export ZIP (dialog save) |
+| `projects:importZip` | `() → Project` | Import ZIP (dialog open) |
+
+### templates.ts
+
+| Channel | Signature | Description |
+|---------|-----------|-------------|
+| `templates:getAll` | `() → Template[]` | Liste tous les templates |
+| `templates:getById` | `(id) → Template` | Récupère un template |
+| `templates:save` | `(template) → boolean` | Crée ou met à jour |
+| `templates:delete` | `(id) → DeleteTemplateResult` | Supprime (vérifie usage) |
+
+### extraction.ts
+
+| Channel | Signature | Description |
+|---------|-----------|-------------|
+| `extraction:save` | `(projectId, data) → boolean` | Sauvegarde zones/articles |
+| `extraction:load` | `(projectId) → ExtractionData` | Charge la progression |
+| `extraction:exportImages` | `(projectId, articles) → Article[]` | Génère les PDFs via Python |
+| `extraction:getPdfPath` | `(projectId) → string` | Chemin du PDF source |
+| `extraction:getPdfData` | `(projectId) → ArrayBuffer` | Données PDF pour viewer |
+| `extraction:getImageData` | `(projectId, path) → string` | Image base64 |
+| `extraction:getPdfFile` | `(projectId, path) → string` | URL file:// pour viewer |
+
+### transcription.ts
+
+| Channel | Signature | Description |
+|---------|-----------|-------------|
+| `transcription:transcribe` | `(projectId, imagePath, settings, template) → TranscriptionResult` | Transcrit une image |
+
+### export.ts
+
+| Channel | Signature | Description |
+|---------|-----------|-------------|
+| `export:pdf` | `(projectId, articles) → boolean` | Export PDF (dialog save) |
+| `export:docx` | `(projectId, articles) → boolean` | Export DOCX |
+| `export:txt` | `(projectId, articles) → boolean` | Export TXT |
+
+### settings.ts
+
+| Channel | Signature | Description |
+|---------|-----------|-------------|
+| `settings:get` | `() → Settings` | Récupère les paramètres |
+| `settings:save` | `(settings) → boolean` | Sauvegarde |
+| `settings:getVersion` | `() → string` | Version de l'app |
+| `settings:checkUpdates` | `() → { available, version }` | Vérifie les mises à jour |
+| `logs:getAll` | `() → TranscriptionLog[]` | Historique transcriptions |
+
+---
+
+## Stores Zustand
+
+### projectsStore
+
+```typescript
+interface ProjectsState {
+  projects: Project[]
+  currentProject: Project | null
+  loading: boolean
+  error: string | null
+
+  loadProjects: () => Promise<void>
+  createProject: (name: string, templateId: string) => Promise<Project | null>
+  deleteProject: (id: string) => Promise<boolean>
+  duplicateProject: (id: string) => Promise<Project | null>
+  updateProject: (id: string, updates: Partial<ProjectMetadata>) => Promise<boolean>
+  setCurrentProject: (project: Project | null) => void
+}
+
+// Selectors
+selectExtractionProjects(state)   // status: new | extracting
+selectTranscriptionProjects(state) // status: extracted | in_progress
+selectCompletedProjects(state)     // status: completed
+```
+
+### extractionStore
+
+```typescript
+interface ExtractionState {
+  articles: Article[]
+  currentArticleId: number | null
+  selectedZoneIndex: number | null
+  currentPage: number
+  totalPages: number
+
+  setArticles: (articles: Article[]) => void
+  addArticle: () => number
+  removeArticle: (id: number) => void
+  addZone: (articleId: number, zone: Zone) => void
+  removeZone: (articleId: number, zoneIndex: number) => void
+  // ...
 }
 ```
 
-### Format export.json
+### templatesStore
+
+```typescript
+interface TemplatesState {
+  templates: Template[]
+  loading: boolean
+
+  loadTemplates: () => Promise<void>
+  saveTemplate: (template: Template) => Promise<boolean>
+  deleteTemplate: (id: string) => Promise<DeleteTemplateResult>
+}
+```
+
+### uiStore
+
+```typescript
+interface UIState {
+  drawerCollapsed: boolean
+  settingsOpen: boolean
+  theme: 'light' | 'dark'
+
+  // Window close
+  pendingClose: boolean
+  hasUnsavedChanges: boolean
+  onSaveCallback: (() => Promise<void>) | null
+
+  // Auto-update
+  updateStatus: 'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'error'
+  updateVersion: string | null
+  updateProgress: number
+}
+```
+
+---
+
+## Types partagés
+
+Définis dans `src/shared/types.ts` :
+
+```typescript
+// Template
+type FieldType = 'text' | 'textarea' | 'richtext'
+
+interface TemplateField {
+  name: string
+  type: FieldType
+  aiHint?: string    // Indice pour l'IA
+  order: number
+}
+
+interface Template {
+  id: string
+  name: string
+  description?: string
+  aiContext?: string  // Contexte pour le prompt IA
+  fields: TemplateField[]
+  isDefault?: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+// Project
+interface ProjectMetadata {
+  id: string
+  name: string
+  originalFilename: string
+  createdAt: string
+  modifiedAt: string
+  status: 'new' | 'extracting' | 'extracted' | 'in_progress' | 'completed'
+  articlesCount: number
+  filledFields: number
+  totalFields: number
+  templateId: string
+}
+
+// Article
+interface Zone {
+  page: number
+  x1: number  // 0-1 normalisé
+  y1: number
+  x2: number
+  y2: number
+}
+
+interface Article {
+  id: number
+  zones: Zone[]
+  fields: Record<string, string>  // Dynamique selon template
+  imagePath?: string
+}
+
+// AI
+interface AISettings {
+  provider: 'openai' | 'anthropic'
+  model: string
+  openaiApiKey?: string
+  anthropicApiKey?: string
+}
+```
+
+---
+
+## Templates
+
+### Génération du prompt IA
+
+Le prompt est construit dynamiquement à partir du template :
+
+```typescript
+function buildPromptFromTemplate(template: Template): string {
+  const fieldsList = template.fields
+    .sort((a, b) => a.order - b.order)
+    .map(f => {
+      let line = `- ${f.name}`
+      if (f.aiHint) line += ` (${f.aiHint})`
+      return line
+    })
+    .join('\n')
+
+  const context = template.aiContext || 'Tu es un assistant...'
+
+  return `${context}
+
+Analyse le document et retourne un JSON avec les champs suivants:
+${fieldsList}
+
+RÈGLES STRICTES:
+- Ne reformule rien, transcris le texte tel quel.
+- Pour les champs richtext, utilise du HTML (<p>, <strong>, <em>).
+- Réponds uniquement avec le JSON.`
+}
+```
+
+### Templates par défaut
+
+Définis dans `src/main/ipc/templates.ts` :
+
+- **Article de presse** : Titre, Auteur, Contenu (richtext)
+- **Correspondance** : Titre, Date, Expéditeur, Destinataire, Contenu (richtext)
+
+### Sécurité à l'import ZIP
+
+À l'export, le template est inclus dans le ZIP. À l'import :
+1. Le template est extrait
+2. Une nouvelle ID est générée (`template_{timestamp}`)
+3. Le template est ajouté s'il n'existe pas déjà
+4. Le projet référence cette nouvelle ID
+
+---
+
+## Transcription IA
+
+### Flow
+
+1. Image envoyée en base64
+2. Prompt généré depuis template
+3. Appel API (OpenAI Vision ou Anthropic)
+4. Parsing JSON de la réponse
+5. Mapping vers `article.fields`
+
+### Providers
+
+**OpenAI :**
+- Endpoint : `https://api.openai.com/v1/chat/completions`
+- Format : image_url avec data URI
+
+**Anthropic :**
+- Endpoint : `https://api.anthropic.com/v1/messages`
+- Format : document base64 (PDF)
+
+### Gestion erreurs
+
+Messages user-friendly pour :
+- 401 : Clé API invalide
+- 403 : Permissions insuffisantes
+- 429 : Rate limit
+- 500/502/503 : Service indisponible
+- Timeout : Image trop grande
+
+### Logs
+
+Chaque transcription est loggée dans `logs.json` :
+
+```typescript
+interface TranscriptionLog {
+  date: string
+  projectId: string
+  model: string
+  provider: string
+  inputTokens: number
+  outputTokens: number
+  success: boolean
+  error?: string
+}
+```
+
+---
+
+## Données persistées
+
+Emplacement : `%AppData%/Local/ExtrAct/`
+
+### Fichiers globaux
+
+| Fichier | Contenu |
+|---------|---------|
+| `templates.json` | Templates utilisateur + défaut |
+| `settings.json` | Clés API, thème, préférences |
+| `logs.json` | Historique transcriptions |
+
+### Dossier projet
+
+`projects/{projectId}/`
+
+| Fichier | Contenu |
+|---------|---------|
+| `metadata.json` | Métadonnées projet |
+| `source.pdf` | PDF original |
+| `thumbnail.png` | Miniature (première page) |
+| `save.json` | Articles avec zones et champs |
+| `images/` | PDFs extraits par article |
+
+### Format save.json
+
 ```json
 {
   "articles": [
     {
       "id": 1,
       "zones": [
-        { "page": 1, "x1": 0.1, "y1": 0.2, "x2": 0.9, "y2": 0.8 }
+        { "page": 0, "x1": 0.1, "y1": 0.1, "x2": 0.9, "y2": 0.5 }
       ],
-      "title": "Titre de l'article",
-      "author": "Nom de l'auteur",
-      "content": "<p>Contenu HTML de l'article...</p>"
+      "fields": {
+        "Titre": "Mon article",
+        "Auteur": "John Doe",
+        "Contenu": "<p>Le contenu...</p>"
+      },
+      "imagePath": "images/article_1.pdf"
     }
   ]
 }
@@ -355,32 +544,88 @@ Chaque projet est stocké dans :
 
 ---
 
-## Raccourcis clavier
+## Scripts Python
 
-| Raccourci | Action |
-|-----------|--------|
-| `Ctrl + O` | Ouvrir l'extraction |
-| `Ctrl + S` | Sauvegarder |
-| `Ctrl + ,` | Ouvrir les paramètres |
-| `←` / `→` | Article précédent/suivant (éditeur) |
+### pdf_to_image.py
 
----
+Extrait les zones sélectionnées et génère un PDF par article.
 
-## Notes de développement
-
-### Environnement de développement
 ```bash
-npm install          # Installer les dépendances
-npm start            # Lancer en mode développement
-npm run build        # Compiler pour Windows (NSIS)
-npm run build:publish # Compiler et publier sur GitHub
+python pdf_to_image.py <input.pdf> <output_dir> <zones_json>
 ```
 
-### Configuration auto-update
-- Provider : GitHub Releases
-- Repository : `castelquent/extract`
-- Protocole : HTTPS
+Arguments :
+- `input.pdf` : PDF source
+- `output_dir` : Dossier de sortie
+- `zones_json` : JSON des zones (format `[{page, x1, y1, x2, y2}, ...]`)
+
+### generate_thumbnail.py
+
+Génère une miniature de la première page.
+
+```bash
+python generate_thumbnail.py <input.pdf> <output.png>
+```
 
 ---
 
-*Documentation générée pour ExtrAct V2*
+## Build & Développement
+
+### Prérequis
+
+- Node.js 18+
+- Python 3.x avec PyMuPDF
+
+### Scripts npm
+
+```bash
+cd src
+
+# Développement
+npm run dev           # Vite dev server
+npm run electron:dev  # Vite + Electron
+
+# Production
+npm run build         # Build complet
+npm run build:win     # Build Windows (NSIS)
+
+# Vérification
+npm run typecheck     # TypeScript check
+```
+
+### Configuration electron-builder
+
+Dans `src/package.json` :
+
+```json
+{
+  "build": {
+    "appId": "com.extract.app",
+    "productName": "ExtrAct",
+    "extraResources": [
+      { "from": "../python-portable", "to": "python-portable" },
+      { "from": "../scripts", "to": "scripts" }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "castelquent",
+      "repo": "extract"
+    }
+  }
+}
+```
+
+### Auto-update
+
+- Provider : GitHub Releases
+- Vérification au démarrage (configurable)
+- Download en arrière-plan avec progression
+- Installation manuelle par l'utilisateur
+
+---
+
+*Documentation technique ExtrAct V2 - Janvier 2025*

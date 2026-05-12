@@ -3,6 +3,8 @@ import { persist } from 'zustand/middleware'
 
 type Theme = 'light' | 'dark'
 
+type UpdateStatus = 'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'error'
+
 interface UIState {
   drawerCollapsed: boolean
   settingsOpen: boolean
@@ -12,6 +14,12 @@ interface UIState {
   pendingClose: boolean
   hasUnsavedChanges: boolean
   onSaveCallback: (() => Promise<void>) | null
+
+  // Update state
+  updateStatus: UpdateStatus
+  updateVersion: string | null
+  updateProgress: number
+  updateError: string | null
 
   // Actions
   toggleDrawer: () => void
@@ -25,6 +33,12 @@ interface UIState {
   setPendingClose: (pending: boolean) => void
   setHasUnsavedChanges: (hasChanges: boolean) => void
   setOnSaveCallback: (callback: (() => Promise<void>) | null) => void
+
+  // Update actions
+  setUpdateStatus: (status: UpdateStatus) => void
+  setUpdateVersion: (version: string | null) => void
+  setUpdateProgress: (progress: number) => void
+  setUpdateError: (error: string | null) => void
 }
 
 // Apply theme to document
@@ -49,6 +63,12 @@ export const useUIStore = create<UIState>()(
       hasUnsavedChanges: false,
       onSaveCallback: null,
 
+      // Update state
+      updateStatus: 'idle',
+      updateVersion: null,
+      updateProgress: 0,
+      updateError: null,
+
       toggleDrawer: () => set((state) => ({ drawerCollapsed: !state.drawerCollapsed })),
       setDrawerCollapsed: (collapsed) => set({ drawerCollapsed: collapsed }),
       openSettings: () => set({ settingsOpen: true }),
@@ -67,6 +87,12 @@ export const useUIStore = create<UIState>()(
       setPendingClose: (pending) => set({ pendingClose: pending }),
       setHasUnsavedChanges: (hasChanges) => set({ hasUnsavedChanges: hasChanges }),
       setOnSaveCallback: (callback) => set({ onSaveCallback: callback }),
+
+      // Update actions
+      setUpdateStatus: (status) => set({ updateStatus: status }),
+      setUpdateVersion: (version) => set({ updateVersion: version }),
+      setUpdateProgress: (progress) => set({ updateProgress: progress }),
+      setUpdateError: (error) => set({ updateError: error }),
     }),
     {
       name: 'extract-ui-storage',

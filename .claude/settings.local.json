@@ -13,7 +13,11 @@
       "Bash(npx vue-tsc:*)",
       "Bash(npx typescript:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(npm run *)",
+      "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\('main:', p.main\\); console.log\\('build.files:', JSON.stringify\\(p.build?.files, null, 2\\)\\);\")",
+      "Bash(dir main *)",
+      "Bash(dir dist-electron\\\\main)"
     ]
   }
 }

@@ -4,7 +4,6 @@ import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
-  SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -24,10 +23,12 @@ const navItems = [
 export function NavigationDrawer() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { openSettings } = useUIStore()
+  const { openSettings, updateStatus } = useUIStore()
   const { toggleSidebar, state } = useSidebar()
   const projects = useProjectsStore((state) => state.projects)
   const isCollapsed = state === 'collapsed'
+
+  const hasUpdate = updateStatus === 'available' || updateStatus === 'ready'
 
   const getCounts = (filter: 'all' | 'extraction' | 'transcription' | 'completed' | null) => {
     if (filter === null) return 0
@@ -74,9 +75,17 @@ export function NavigationDrawer() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton onClick={openSettings}>
-              <Settings className="h-4 w-4" />
+              <div className="relative">
+                <Settings className="h-4 w-4" />
+                {hasUpdate && (
+                  <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary animate-pulse" />
+                )}
+              </div>
               <span>Paramètres</span>
             </SidebarMenuButton>
+            {hasUpdate && (
+              <SidebarMenuBadge className="bg-primary text-primary-foreground">!</SidebarMenuBadge>
+            )}
           </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton onClick={toggleSidebar}>

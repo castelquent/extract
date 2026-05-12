@@ -1,6 +1,6 @@
 {
   "name": "extract-v2",
-  "version": "2.0.0",
+  "version": "2.0.5",
   "description": "Application d'extraction et d'édition d'articles depuis des PDF",
   "main": "dist-electron/main/index.js",
   "scripts": {
@@ -8,7 +8,7 @@
     "build": "tsc && vite build && electron-builder",
     "build:win": "tsc && vite build && electron-builder --win",
     "preview": "vite preview",
-    "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "electron:dev": "vite",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
