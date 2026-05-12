@@ -130,6 +130,7 @@ export interface ElectronAPI {
   getPdfData: (projectId: string) => Promise<ArrayBuffer | null>
   getImageData: (projectId: string, imagePath: string) => Promise<string | null>
   getPdfFile: (projectId: string, imagePath: string) => Promise<string | null>
+  extractText: (projectId: string, imagePath: string) => Promise<string | null>
   // Transcription
   transcribe: (projectId: string, imagePath: string, settings: AISettings, template: Template) => Promise<TranscriptionResult>
 

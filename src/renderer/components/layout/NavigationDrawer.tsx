@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Home, Scissors, FileText, FileStack, Settings, PanelLeftClose, PanelLeft, CheckCircle } from 'lucide-react'
+import { Home, Scissors, FileText, FileStack, Settings, PanelLeftClose, PanelLeft, CheckCircle, Search } from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -17,6 +17,7 @@ const navItems = [
   { to: '/extraction', icon: Scissors, label: 'Extraction', filter: 'extraction' as const },
   { to: '/transcription', icon: FileText, label: 'Transcription', filter: 'transcription' as const },
   { to: '/completed', icon: CheckCircle, label: 'Terminés', filter: 'completed' as const },
+  { to: '/search', icon: Search, label: 'Recherche', filter: null },
   { to: '/templates', icon: FileStack, label: 'Modèles', filter: null },
 ]
 

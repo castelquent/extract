@@ -4,6 +4,7 @@ import { ProjectsPage } from './pages/Projects'
 import { ExtractionPage } from './pages/Extraction'
 import { EditorPage } from './pages/Editor'
 import { TemplatesPage } from './pages/Templates'
+import { SearchPage } from './pages/Search'
 import { WindowCloseHandler } from './components/WindowCloseHandler'
 import { UpdateHandler } from './components/UpdateHandler'
 
@@ -18,6 +19,7 @@ function App() {
           <Route path="/extraction" element={<ProjectsPage filter="extraction" />} />
           <Route path="/transcription" element={<ProjectsPage filter="transcription" />} />
           <Route path="/completed" element={<ProjectsPage filter="completed" />} />
+          <Route path="/search" element={<SearchPage />} />
           <Route path="/templates" element={<TemplatesPage />} />
           <Route path="/extraction/:projectId" element={<ExtractionPage />} />
           <Route path="/editor/:projectId" element={<EditorPage />} />

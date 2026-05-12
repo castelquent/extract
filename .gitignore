@@ -32,3 +32,6 @@ tmpclaude-*
 
 # Notes personnelles
 src/UPDATE_NOTES.md
+
+# Tesseract / OCR temp files (downloaded at runtime)
+*.traineddata

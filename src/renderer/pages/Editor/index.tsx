@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate, useBlocker } from 'react-router-dom'
+import { useParams, useNavigate, useBlocker, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import type { Article, Project, Template } from '@shared/types'
 import { useUIStore, useProjectsStore } from '@/stores'
@@ -47,6 +47,7 @@ import '@react-pdf-viewer/default-layout/lib/styles/index.css'
 
 export function EditorPage() {
   const { projectId } = useParams<{ projectId: string }>()
+  const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const { deleteProject } = useProjectsStore()
 
@@ -57,6 +58,7 @@ export function EditorPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [transcribing, setTranscribing] = useState(false)
+  const [copyingOcr, setCopyingOcr] = useState(false)
   const [currentPdfSrc, setCurrentPdfSrc] = useState<string | null>(null)
   const [deleteConfirmIndex, setDeleteConfirmIndex] = useState<number | null>(null)
   const [bulkDeleteIndices, setBulkDeleteIndices] = useState<number[] | null>(null)
@@ -132,6 +134,18 @@ export function EditorPage() {
       setArticles(data.articles)
       // Deep clone to avoid reference issues with change detection
       setSavedArticles(JSON.parse(JSON.stringify(data.articles)))
+
+      // Deep-link from search: open the requested article and strip the param
+      const requested = searchParams.get('article')
+      if (requested !== null) {
+        const idx = parseInt(requested, 10)
+        if (!Number.isNaN(idx) && idx >= 0 && idx < data.articles.length) {
+          setCurrentIndex(idx)
+        }
+        const next = new URLSearchParams(searchParams)
+        next.delete('article')
+        setSearchParams(next, { replace: true })
+      }
     }
 
     setLoading(false)
@@ -229,6 +243,37 @@ export function EditorPage() {
       toast.error(result.error || 'Erreur lors de la transcription')
       setTranscribing(false)
       return false
+    }
+  }
+
+  const copyOcrText = async () => {
+    if (!projectId || !currentArticle?.imagePath) {
+      toast.error('Aucun PDF d\'article disponible')
+      return
+    }
+
+    setCopyingOcr(true)
+    try {
+      const text = await window.api.extractText(projectId, currentArticle.imagePath)
+
+      if (text === null) {
+        toast.error('Erreur lors de l\'extraction du texte')
+        return
+      }
+
+      const trimmed = text.trim()
+      if (!trimmed) {
+        toast.warning('Aucun texte OCR détecté dans ce PDF (scan sans couche texte)')
+        return
+      }
+
+      await navigator.clipboard.writeText(trimmed)
+      toast.success('Texte OCR copié dans le presse-papier')
+    } catch (error) {
+      console.error('copyOcrText error:', error)
+      toast.error('Impossible de copier le texte')
+    } finally {
+      setCopyingOcr(false)
     }
   }
 
@@ -565,8 +610,10 @@ export function EditorPage() {
                 article={currentArticle}
                 template={template}
                 transcribing={transcribing}
+                copyingOcr={copyingOcr}
                 onUpdate={updateArticle}
                 onTranscribe={transcribeArticle}
+                onCopyOcr={copyOcrText}
                 onExport={openExportSingle}
               />
               </div>

@@ -30,6 +30,7 @@ const api: ElectronAPI & {
   getPdfData: (projectId) => ipcRenderer.invoke('extraction:getPdfData', projectId),
   getImageData: (projectId, imagePath) => ipcRenderer.invoke('extraction:getImageData', projectId, imagePath),
   getPdfFile: (projectId, imagePath) => ipcRenderer.invoke('extraction:getPdfFile', projectId, imagePath),
+  extractText: (projectId, imagePath) => ipcRenderer.invoke('extraction:extractText', projectId, imagePath),
 
   // Transcription
   transcribe: (projectId, imagePath, settings, template) => ipcRenderer.invoke('transcription:transcribe', projectId, imagePath, settings, template),

@@ -10,14 +10,16 @@ import {
   Separator,
   Textarea,
 } from '@/components/ui'
-import { Sparkles, Download } from 'lucide-react'
+import { Sparkles, Download, Copy } from 'lucide-react'
 
 interface ArticleFormProps {
   article: Article | undefined
   template: Template | null
   transcribing: boolean
+  copyingOcr?: boolean
   onUpdate: (fieldName: string, value: string) => void
   onTranscribe: () => void
+  onCopyOcr?: () => void
   onExport: () => void
 }
 
@@ -153,8 +155,10 @@ export function ArticleForm({
   article,
   template,
   transcribing,
+  copyingOcr,
   onUpdate,
   onTranscribe,
+  onCopyOcr,
   onExport
 }: ArticleFormProps) {
   const sortedFields = template?.fields
@@ -175,6 +179,17 @@ export function ArticleForm({
             <Sparkles className={`h-4 w-4 mr-2 ${transcribing ? 'animate-pulse' : ''}`} />
             {transcribing ? 'Transcription...' : 'Transcrire avec IA'}
           </Button>
+          {onCopyOcr && (
+            <Button
+              onClick={onCopyOcr}
+              disabled={copyingOcr}
+              variant="outline"
+              title="Copier le texte OCR du PDF dans le presse-papier"
+            >
+              <Copy className={`h-4 w-4 mr-2 ${copyingOcr ? 'animate-pulse' : ''}`} />
+              Copier OCR
+            </Button>
+          )}
           <Button
             onClick={onExport}
             variant="outline"

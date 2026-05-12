@@ -1,6 +1,6 @@
 import { ipcMain, app } from 'electron'
 import { join } from 'path'
-import { existsSync, readFileSync, writeFileSync } from 'fs'
+import { existsSync, readFileSync, writeFileSync, unlinkSync } from 'fs'
 import { spawn } from 'child_process'
 import type { Article, ExtractionData } from '@shared/types'
 
@@ -100,6 +100,48 @@ export function setupExtractionHandlers(): void {
           resolve(updatedArticles)
         } else {
           console.error('Python script failed with code:', code)
+          resolve(null)
+        }
+      })
+
+      proc.on('error', (error) => {
+        console.error('Failed to start Python process:', error)
+        resolve(null)
+      })
+    })
+  })
+
+  // Extract text directly from the article PDF (works if PDF has a text layer:
+  // soit natif, soit injecte par ocrArticle apres Tesseract)
+  ipcMain.handle('extraction:extractText', async (_, projectId: string, imagePath: string): Promise<string | null> => {
+    const projectPath = getProjectPath(projectId)
+    const fullPdfPath = imagePath.includes(':') || imagePath.startsWith('/')
+      ? imagePath
+      : join(projectPath, imagePath)
+
+    if (!existsSync(fullPdfPath)) return null
+
+    const pythonPath = getPythonPath()
+    const scriptPath = join(getScriptsPath(), 'extract_text.py')
+    const outputPath = join(projectPath, 'extract_text_output.txt')
+
+    return new Promise((resolve) => {
+      const proc = spawn(pythonPath, [scriptPath, fullPdfPath, outputPath])
+
+      proc.on('close', (code) => {
+        if (code !== 0) {
+          console.error('extract_text.py failed with code:', code)
+          try { if (existsSync(outputPath)) unlinkSync(outputPath) } catch {}
+          resolve(null)
+          return
+        }
+
+        try {
+          const text = existsSync(outputPath) ? readFileSync(outputPath, 'utf-8') : ''
+          if (existsSync(outputPath)) unlinkSync(outputPath)
+          resolve(text)
+        } catch (error) {
+          console.error('Error reading extracted text:', error)
           resolve(null)
         }
       })
