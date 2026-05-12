@@ -70,10 +70,12 @@ jobs:
           rm python.tar.gz
           ./python-portable/bin/python3 --version
 
-      - name: Install PyMuPDF in Python portable
+      - name: Install Python deps in Python portable
         run: |
           set -euo pipefail
-          ./python-portable/bin/python3 -m pip install --no-cache-dir pymupdf
+          # PyMuPDF pour le rendu PDF (toutes les opérations d'extraction)
+          # Pillow pour generate_thumbnail.py (resize + sauvegarde PNG optimisée)
+          ./python-portable/bin/python3 -m pip install --no-cache-dir pymupdf pillow
 
       - name: Build app for ${{ matrix.electron_arch }}
         working-directory: ./src
