@@ -57,6 +57,10 @@ interface ExtractionState {
   removeArticle: (id: number) => void
   selectArticle: (id: number | null) => void
   updateArticle: (id: number, updates: Partial<WorkingArticle>) => void
+  // Unlock = wipe fields + reset status to 'new'. Used when the user
+  // confirms they want to modify zones of a persisted element that has
+  // filled fields (zone change invalidates the PDF, so fields are stale).
+  unlockArticle: (id: number) => void
 
   // Zones
   addZoneAsNewArticle: (zone: Zone) => void
@@ -169,6 +173,14 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
   updateArticle: (id, updates) => {
     set((state) => ({
       articles: state.articles.map((a) => (a.id === id ? { ...a, ...updates } : a)),
+    }))
+  },
+
+  unlockArticle: (id) => {
+    set((state) => ({
+      articles: state.articles.map((a) =>
+        a.id === id ? { ...a, fields: {}, persistedStatus: 'new' as const } : a
+      ),
     }))
   },
 
@@ -518,3 +530,9 @@ export const selectTotalZonesCount = (state: ExtractionState): number =>
 
 export const selectHasUnsavedChanges = (state: ExtractionState): boolean =>
   JSON.stringify(state.articles) !== JSON.stringify(state.savedArticles)
+
+// A persisted article with at least one filled field is "locked": modifying
+// its zones would invalidate the extract.pdf (and any AI transcription).
+// User must explicitly unlock via the confirmation modal.
+export const isArticleLocked = (a: WorkingArticle): boolean =>
+  !!a.persistedId && Object.values(a.fields).some((v) => typeof v === 'string' && v.length > 0)

@@ -11,7 +11,17 @@ import {
   useTemplatesStore,
   useUIStore,
 } from '@/stores'
+import { isArticleLocked } from '@/stores/extractionStore'
+import type { WorkingArticle } from '@/stores/extractionStore'
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
   Badge,
   Button,
   ScrollArea,
@@ -71,6 +81,7 @@ export function ExtractionV2Page() {
     moveZone,
     reorderZones,
     updateArticle,
+    unlockArticle,
     setDefaultTemplate,
     reset: resetExtraction,
     hydrateFromSource,
@@ -85,6 +96,7 @@ export function ExtractionV2Page() {
   const [pdfLoaded, setPdfLoaded] = useState(false)
   const [zoomLevel, setZoomLevel] = useState(1)
   const [generateOpen, setGenerateOpen] = useState(false)
+  const [unlockTarget, setUnlockTarget] = useState<WorkingArticle | null>(null)
 
   const ZOOM_MIN = 1
   const ZOOM_MAX = 5
@@ -172,10 +184,12 @@ export function ExtractionV2Page() {
     : 'Nouveau dossier'
 
   const handleZoneCreated = (zone: Zone) => {
-    const active = currentArticleId !== null && articles.some((a) => a.id === currentArticleId)
-    if (active) {
-      scrollTargetRef.current = currentArticleId
-      addZoneToArticle(currentArticleId!, zone)
+    const activeArticle =
+      currentArticleId !== null ? articles.find((a) => a.id === currentArticleId) ?? null : null
+    // Locked active element → never append; spawn a fresh one instead.
+    if (activeArticle && !isArticleLocked(activeArticle)) {
+      scrollTargetRef.current = activeArticle.id
+      addZoneToArticle(activeArticle.id, zone)
     } else {
       const newId = articles.length > 0 ? Math.max(...articles.map((a) => a.id)) + 1 : 1
       scrollTargetRef.current = newId
@@ -469,6 +483,8 @@ export function ExtractionV2Page() {
                       }
                       templates={templates}
                       onTemplateChange={(template) => handleTemplateChange(article.id, template)}
+                      locked={isArticleLocked(article)}
+                      onUnlockRequest={() => setUnlockTarget(article)}
                     >
                       {article.zones.map((zone, zoneIndex) => (
                         <ZoneItem
@@ -508,6 +524,40 @@ export function ExtractionV2Page() {
         dossiers={dossiers}
         onConfirm={handleConfirmGenerate}
       />
+
+      <AlertDialog
+        open={!!unlockTarget}
+        onOpenChange={(open) => !open && setUnlockTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Déverrouiller cet élément ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Modifier les zones invalide le PDF extrait et la transcription. Les{' '}
+              {unlockTarget
+                ? Object.values(unlockTarget.fields).filter(
+                    (v) => typeof v === 'string' && v.length > 0
+                  ).length
+                : 0}{' '}
+              champ(s) déjà remplis seront supprimés. Cette action n'est appliquée définitivement
+              qu'au prochain Sauvegarder.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                if (unlockTarget) unlockArticle(unlockTarget.id)
+                setUnlockTarget(null)
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Déverrouiller et vider les champs
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

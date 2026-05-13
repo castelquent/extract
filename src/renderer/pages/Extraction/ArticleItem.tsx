@@ -1,4 +1,4 @@
-import { Trash2 } from 'lucide-react'
+import { Lock, Trash2, Unlock } from 'lucide-react'
 import {
   DndContext,
   closestCenter,
@@ -36,6 +36,10 @@ interface ArticleItemProps {
   // Optional: when provided, show an inline model selector for this element.
   templates?: Template[]
   onTemplateChange?: (template: Template) => void
+  // When true, the element is persisted with filled fields. Zone edits + delete
+  // are gated behind onUnlockRequest (confirms wiping fields).
+  locked?: boolean
+  onUnlockRequest?: () => void
   children: React.ReactNode
 }
 
@@ -49,6 +53,8 @@ export function ArticleItem({
   onReorderZones,
   templates,
   onTemplateChange,
+  locked,
+  onUnlockRequest,
   children,
 }: ArticleItemProps) {
   const sensors = useSensors(
@@ -94,9 +100,17 @@ export function ArticleItem({
           </div>
 
           {/* Article label */}
-          <span className="font-medium text-sm flex-1">
+          <span className="font-medium text-sm flex-1 flex items-center gap-1.5">
+            {locked && (
+              <Lock
+                className="h-3.5 w-3.5 text-amber-500"
+                aria-label="Élément verrouillé"
+              />
+            )}
             Élement {index + 1}
-            {isActive && <span className="ml-2 text-xs text-primary font-normal">• actif</span>}
+            {isActive && !locked && (
+              <span className="ml-2 text-xs text-primary font-normal">• actif</span>
+            )}
           </span>
 
           {/* Zone count */}
@@ -104,22 +118,37 @@ export function ArticleItem({
             {article.zones.length} zone{article.zones.length > 1 ? 's' : ''}
           </Badge>
 
-          {/* Delete button */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-            onClick={(e) => {
-              e.stopPropagation()
-              onRemove()
-            }}
-          >
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
+          {/* Action button: unlock for locked elements, delete for the rest */}
+          {locked ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+              title="Déverrouiller (vide les champs)"
+              onClick={(e) => {
+                e.stopPropagation()
+                onUnlockRequest?.()
+              }}
+            >
+              <Unlock className="h-4 w-4 text-amber-600" />
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={(e) => {
+                e.stopPropagation()
+                onRemove()
+              }}
+            >
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          )}
         </div>
 
-        {/* Inline model selector */}
-        {templates && templates.length > 0 && onTemplateChange && (
+        {/* Inline model selector — hidden on locked elements (handled by editor) */}
+        {!locked && templates && templates.length > 0 && onTemplateChange && (
           <div
             className="mt-2 ml-8"
             onClick={(e) => e.stopPropagation()}
