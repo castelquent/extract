@@ -153,6 +153,14 @@ Affichage : ProjectCard montre `5 à extraire` + badge `8/12` (vert si plein). P
 
 `src/main/watchers.ts` watch `projects/` profond, debounce 250ms, émet `v2:fs:projectsListChanged` + `v2:fs:projectChanged(projectId)`. AppLayout listen → refresh `projectsStoreV2` + `projectStore` (si projet courant). **extractionStore et editorStore PAS refresh** (perdrait les drafts en mémoire).
 
+### Édition scopée par dossier
+
+Depuis ProjectDetail, chaque header de dossier (et la section "Sans dossier") expose un bouton "Éditer" qui navigue vers `/editor/:projectId?dossier=:dossierId` (ou `?orphans=1` pour les orphelins). Bouton désactivé si la section a 0 élément — pas de modale d'erreur nécessaire.
+
+`EditorV2` lit ces query params au mount et passe `{ dossierId }` à `editorStore.loadScope`. Le header affiche en sous-titre "Dossier : Mars 1920" ou "Sans dossier" pour rappeler le scope actif. Sans param = projet entier (comportement par défaut).
+
+`ArticleScope` supporte aussi `sourceId` côté IPC mais pas encore d'entry point UI (à ajouter si besoin émerge). Sélection multiple : à faire en v2 de la feature.
+
 ### Strict Mode gotcha
 
 Le cleanup du `useEffect` d'ExtractionV2 ne reset PAS `extractionStore` (sinon le double-mount React Strict niquerait `sessionProjectId` et toute Save/Generate échouerait silencieusement). Voir le commentaire dans `pages/ExtractionV2/index.tsx`.
