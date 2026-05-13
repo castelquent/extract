@@ -12,7 +12,18 @@ import {
   horizontalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import type { WorkingArticle as Article } from '@/stores/extractionStore'
-import { Card, CardContent, Button, Badge } from '@/components/ui'
+import type { Template } from '@shared/types'
+import {
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui'
 
 interface ArticleItemProps {
   article: Article
@@ -22,6 +33,9 @@ interface ArticleItemProps {
   onSelect: () => void
   onRemove: () => void
   onReorderZones: (fromIndex: number, toIndex: number) => void
+  // Optional: when provided, show an inline model selector for this element.
+  templates?: Template[]
+  onTemplateChange?: (template: Template) => void
   children: React.ReactNode
 }
 
@@ -33,6 +47,8 @@ export function ArticleItem({
   onSelect,
   onRemove,
   onReorderZones,
+  templates,
+  onTemplateChange,
   children,
 }: ArticleItemProps) {
   const sensors = useSensors(
@@ -101,6 +117,33 @@ export function ArticleItem({
             <Trash2 className="h-4 w-4 text-destructive" />
           </Button>
         </div>
+
+        {/* Inline model selector */}
+        {templates && templates.length > 0 && onTemplateChange && (
+          <div
+            className="mt-2 ml-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Select
+              value={article.templateId ?? ''}
+              onValueChange={(id) => {
+                const template = templates.find((t) => t.id === id)
+                if (template) onTemplateChange(template)
+              }}
+            >
+              <SelectTrigger className="h-7 text-xs">
+                <SelectValue placeholder="Modèle" />
+              </SelectTrigger>
+              <SelectContent>
+                {templates.map((t) => (
+                  <SelectItem key={t.id} value={t.id} className="text-xs">
+                    {t.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         {/* Zones list with drag & drop reordering */}
         {article.zones.length > 0 && (

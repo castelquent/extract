@@ -3,11 +3,12 @@
 // dialog asks where the articles go (new dossier / existing / orphan).
 import { useEffect, useRef, useState } from 'react'
 import { useBlocker, useNavigate, useParams } from 'react-router-dom'
-import type { Zone } from '@shared/types'
+import type { Template, Zone } from '@shared/types'
 import {
   selectHasUnsavedChanges,
   useExtractionStore,
   useProjectStore,
+  useTemplatesStore,
   useUIStore,
 } from '@/stores'
 import {
@@ -69,9 +70,14 @@ export function ExtractionV2Page() {
     selectZoneInArticle,
     moveZone,
     reorderZones,
+    updateArticle,
+    setDefaultTemplate,
     reset: resetExtraction,
     generateV2Articles,
   } = useExtractionStore()
+
+  const templates = useTemplatesStore((s) => s.templates)
+  const loadTemplates = useTemplatesStore((s) => s.loadTemplates)
 
   const [pdfCanvas, setPdfCanvas] = useState<HTMLCanvasElement | null>(null)
   const [pdfLoaded, setPdfLoaded] = useState(false)
@@ -101,10 +107,11 @@ export function ExtractionV2Page() {
     return () => window.removeEventListener('wheel', onWheel)
   }, [])
 
-  // Load project (for dossier list + source metadata)
+  // Load project (for dossier list + source metadata) + templates list
   useEffect(() => {
     if (!projectId) return
     loadProject(projectId)
+    loadTemplates()
     // Start fresh — no incremental persistence in v2 extraction.
     setArticles([])
     return () => {
@@ -113,6 +120,23 @@ export function ExtractionV2Page() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId])
+
+  // Seed the store's default model (used by addZoneAsNewArticle) once we
+  // know both the project's defaultTemplateId and the templates list.
+  useEffect(() => {
+    if (!project || templates.length === 0) return
+    const defaultTpl = templates.find((t) => t.id === project.defaultTemplateId)
+    if (!defaultTpl) return
+    setDefaultTemplate(defaultTpl.id, defaultTpl.fields, defaultTpl.aiContext)
+  }, [project, templates, setDefaultTemplate])
+
+  const handleTemplateChange = (articleId: number, template: Template) => {
+    updateArticle(articleId, {
+      templateId: template.id,
+      schema: template.fields,
+      aiContext: template.aiContext,
+    })
+  }
 
   useEffect(() => {
     setPdfLoaded(!!sourceId)
@@ -389,6 +413,8 @@ export function ExtractionV2Page() {
                       onReorderZones={(fromIndex, toIndex) =>
                         reorderZones(article.id, fromIndex, toIndex)
                       }
+                      templates={templates}
+                      onTemplateChange={(template) => handleTemplateChange(article.id, template)}
                     >
                       {article.zones.map((zone, zoneIndex) => (
                         <ZoneItem

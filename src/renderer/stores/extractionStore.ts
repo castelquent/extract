@@ -9,12 +9,16 @@ import type { TemplateField, Zone } from '@shared/types'
 // In-memory article shape (numeric id is a session-local handle). The schema
 // is snapshotted from a Template at creation time — copied here so the
 // article is autonomous (template edits won't mutate it).
+// `templateId` is a UI-only marker: which model the user last picked for this
+// working article (so the sidebar select can show the right label). Not
+// persisted to disk on generate.
 export interface WorkingArticle {
   id: number
   zones: Zone[]
   fields: Record<string, string>
   schema: TemplateField[]
   aiContext?: string
+  templateId?: string
 }
 
 interface ExtractionState {
@@ -27,14 +31,15 @@ interface ExtractionState {
   exporting: boolean
   error: string | null
 
-  // Default schema/aiContext applied to every new WorkingArticle. Set by the
-  // page from the project's default model. Each article can be overridden via
-  // updateArticle({ schema, aiContext }).
+  // Default model applied to every new WorkingArticle. Set by the page from
+  // the project's default model. Each article can be overridden via
+  // updateArticle({ templateId, schema, aiContext }).
+  defaultTemplateId?: string
   defaultSchema: TemplateField[]
   defaultAiContext?: string
 
   // Defaults
-  setDefaultTemplate: (schema: TemplateField[], aiContext?: string) => void
+  setDefaultTemplate: (templateId: string, schema: TemplateField[], aiContext?: string) => void
 
   // Articles
   setArticles: (articles: WorkingArticle[]) => void
@@ -85,6 +90,7 @@ const initialState = {
   totalPages: 0,
   exporting: false,
   error: null as string | null,
+  defaultTemplateId: undefined as string | undefined,
   defaultSchema: [] as TemplateField[],
   defaultAiContext: undefined as string | undefined,
 }
@@ -92,12 +98,13 @@ const initialState = {
 export const useExtractionStore = create<ExtractionState>((set, get) => ({
   ...initialState,
 
-  setDefaultTemplate: (schema, aiContext) => set({ defaultSchema: schema, defaultAiContext: aiContext }),
+  setDefaultTemplate: (templateId, schema, aiContext) =>
+    set({ defaultTemplateId: templateId, defaultSchema: schema, defaultAiContext: aiContext }),
 
   setArticles: (articles) => set({ articles }),
 
   addArticle: () => {
-    const { articles, defaultSchema, defaultAiContext } = get()
+    const { articles, defaultTemplateId, defaultSchema, defaultAiContext } = get()
     const newId = articles.length > 0 ? Math.max(...articles.map((a) => a.id)) + 1 : 1
     const newArticle: WorkingArticle = {
       id: newId,
@@ -105,6 +112,7 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
       fields: {},
       schema: defaultSchema,
       aiContext: defaultAiContext,
+      templateId: defaultTemplateId,
     }
     set((state) => ({
       articles: [...state.articles, newArticle],
@@ -139,7 +147,7 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
   },
 
   addZoneAsNewArticle: (zone) => {
-    const { articles, defaultSchema, defaultAiContext } = get()
+    const { articles, defaultTemplateId, defaultSchema, defaultAiContext } = get()
     const newId = articles.length > 0 ? Math.max(...articles.map((a) => a.id)) + 1 : 1
     const newArticle: WorkingArticle = {
       id: newId,
@@ -147,6 +155,7 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
       fields: {},
       schema: defaultSchema,
       aiContext: defaultAiContext,
+      templateId: defaultTemplateId,
     }
     set((state) => ({
       articles: [...state.articles, newArticle],
