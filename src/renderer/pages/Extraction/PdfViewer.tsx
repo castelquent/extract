@@ -8,6 +8,9 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = PdfWorker
 
 interface PdfViewerProps {
   projectId: string
+  // When provided, loads via v2_sourcesGetPdfData(projectId, sourceId)
+  // instead of the legacy getPdfData(projectId).
+  sourceId?: string
   currentPage: number
   zoomLevel?: number
   onTotalPagesChange: (total: number) => void
@@ -17,6 +20,7 @@ interface PdfViewerProps {
 
 export function PdfViewer({
   projectId,
+  sourceId,
   currentPage,
   zoomLevel = 1,
   onTotalPagesChange,
@@ -41,7 +45,9 @@ export function PdfViewer({
       setError(null)
 
       try {
-        const pdfData = await window.api.getPdfData(projectId)
+        const pdfData = sourceId
+          ? await window.api.v2_sourcesGetPdfData(projectId, sourceId)
+          : await window.api.getPdfData(projectId)
         if (cancelled) return
 
         if (!pdfData) {
@@ -73,7 +79,7 @@ export function PdfViewer({
     return () => {
       cancelled = true
     }
-  }, [projectId, onTotalPagesChange])
+  }, [projectId, sourceId, onTotalPagesChange])
 
   // Render page function (not in useCallback to avoid dependency issues)
   useEffect(() => {

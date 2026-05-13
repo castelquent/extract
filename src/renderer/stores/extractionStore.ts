@@ -45,6 +45,14 @@ interface ExtractionState {
   saveExtraction: (projectId: string) => Promise<boolean>
   exportImages: (projectId: string) => Promise<boolean>
 
+  // v2: generate articles directly into the filesystem hierarchy
+  // (no per-project data.json — each article gets its own folder).
+  generateV2Articles: (
+    projectId: string,
+    sourceId: string,
+    dossierId: string | null
+  ) => Promise<boolean>
+
   // Actions - State
   setExporting: (exporting: boolean) => void
   clearError: () => void
@@ -377,6 +385,40 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
     } catch (err) {
       toast.error("Erreur lors de l'export des images")
       set({ error: "Erreur lors de l'export des images", exporting: false })
+      return false
+    }
+  },
+
+  generateV2Articles: async (projectId, sourceId, dossierId) => {
+    const { articles } = get()
+    if (articles.length === 0) return false
+    set({ exporting: true, error: null })
+    try {
+      // Create articles serially: each call runs pdf_to_image.py to produce
+      // the extract.pdf. Running them in parallel would race on the temp dir
+      // and the Python process pool, so serial is safer.
+      for (const article of articles) {
+        // Collect the unique page numbers covered by the article's zones,
+        // sorted ascending — used for display elsewhere ("12p").
+        const pages = Array.from(new Set(article.zones.map((z) => z.page))).sort(
+          (a, b) => a - b
+        )
+        await window.api.v2_articlesCreate(projectId, {
+          sourceId,
+          dossierId,
+          zones: article.zones,
+          pages,
+        })
+      }
+      // Clear the working buffer so the page exits cleanly without unsaved-modal.
+      const empty: typeof articles = []
+      set({ articles: empty, savedArticles: empty, exporting: false, currentArticleId: null, selectedZoneIndex: null })
+      toast.success(`${articles.length} article(s) générés`)
+      return true
+    } catch (err) {
+      console.error(err)
+      toast.error('Erreur lors de la génération des articles')
+      set({ error: 'Erreur lors de la génération', exporting: false })
       return false
     }
   },

@@ -3,6 +3,7 @@ import { AppLayout } from './components/layout'
 import { ProjectsPage } from './pages/Projects'
 import { ProjectDetailPage } from './pages/Project'
 import { ExtractionPage } from './pages/Extraction'
+import { ExtractionV2Page } from './pages/ExtractionV2'
 import { EditorPage } from './pages/Editor'
 import { TemplatesPage } from './pages/Templates'
 import { SearchPage } from './pages/Search'
@@ -25,6 +26,7 @@ function App() {
           <Route path="/search" element={<SearchPage />} />
           <Route path="/templates" element={<TemplatesPage />} />
           <Route path="/project/:projectId" element={<ProjectDetailPage />} />
+          <Route path="/extraction/:projectId/:sourceId" element={<ExtractionV2Page />} />
           <Route path="/extraction/:projectId" element={<ExtractionPage />} />
           <Route path="/editor/:projectId" element={<EditorPage />} />
         </Route>
