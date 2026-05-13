@@ -568,8 +568,14 @@ export const selectTotalZonesCount = (state: ExtractionState): number =>
 export const selectHasUnsavedChanges = (state: ExtractionState): boolean =>
   JSON.stringify(state.articles) !== JSON.stringify(state.savedArticles)
 
-// A persisted article with at least one filled field is "locked": modifying
-// its zones would invalidate the extract.pdf (and any AI transcription).
-// User must explicitly unlock via the confirmation modal.
+// An element is "locked" as soon as it has been generated on disk
+// (status='extracted' or 'transcribed'). Modifying its zones would
+// invalidate the extract.pdf and silently demote it to draft (hidden from
+// project views) — confusing for the user. The lock forces an explicit
+// confirmation.
+//
+// Draft-persisted elements (status='new': saved during extraction with no
+// PDF yet) are NOT locked — they can be edited freely.
 export const isArticleLocked = (a: WorkingArticle): boolean =>
-  !!a.persistedId && Object.values(a.fields).some((v) => typeof v === 'string' && v.length > 0)
+  !!a.persistedId &&
+  (a.persistedStatus === 'extracted' || a.persistedStatus === 'transcribed')

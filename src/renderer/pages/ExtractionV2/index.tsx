@@ -562,14 +562,17 @@ export function ExtractionV2Page() {
           <AlertDialogHeader>
             <AlertDialogTitle>Déverrouiller cet élément ?</AlertDialogTitle>
             <AlertDialogDescription>
-              Modifier les zones invalide le PDF extrait et la transcription. Les{' '}
-              {unlockTarget
-                ? Object.values(unlockTarget.fields).filter(
-                    (v) => typeof v === 'string' && v.length > 0
-                  ).length
-                : 0}{' '}
-              champ(s) déjà remplis seront supprimés. Cette action n'est appliquée définitivement
-              qu'au prochain Sauvegarder.
+              {(() => {
+                const filledCount = unlockTarget
+                  ? Object.values(unlockTarget.fields).filter(
+                      (v) => typeof v === 'string' && v.length > 0
+                    ).length
+                  : 0
+                if (filledCount > 0) {
+                  return `Modifier les zones invalide le PDF extrait et la transcription. Les ${filledCount} champ(s) déjà remplis seront supprimés. La modification est appliquée au prochain Sauvegarder.`
+                }
+                return "Modifier les zones invalide le PDF extrait. L'élément redeviendra un brouillon (hors vue projet) jusqu'au prochain Générer. La modification est appliquée au prochain Sauvegarder."
+              })()}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -582,7 +585,12 @@ export function ExtractionV2Page() {
               }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Déverrouiller et vider les champs
+              {unlockTarget &&
+              Object.values(unlockTarget.fields).some(
+                (v) => typeof v === 'string' && v.length > 0
+              )
+                ? 'Déverrouiller et vider les champs'
+                : 'Déverrouiller'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
