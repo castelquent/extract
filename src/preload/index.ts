@@ -112,6 +112,8 @@ const api: ElectronAPI & {
   v2_projectsDelete: (projectId) => ipcRenderer.invoke('v2:projects:delete', projectId),
   v2_projectsDuplicate: (projectId) => ipcRenderer.invoke('v2:projects:duplicate', projectId),
   v2_projectsOpenFolder: (projectId) => ipcRenderer.invoke('v2:projects:openFolder', projectId),
+  v2_projectsExportZip: (projectId) => ipcRenderer.invoke('v2:projects:exportZip', projectId),
+  v2_projectsImportZip: () => ipcRenderer.invoke('v2:projects:importZip'),
 
   // Sources v2
   v2_sourcesAdd: (projectId) => ipcRenderer.invoke('v2:sources:add', projectId),

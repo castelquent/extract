@@ -15,6 +15,8 @@ interface ProjectsV2State {
   deleteProject: (projectId: string) => Promise<boolean>
   duplicateProject: (projectId: string) => Promise<ProjectView | null>
   openProjectFolder: (projectId: string) => Promise<void>
+  exportProjectZip: (projectId: string) => Promise<boolean>
+  importProjectZip: () => Promise<ProjectView | null>
   clearError: () => void
 }
 
@@ -106,6 +108,33 @@ export const useProjectsStoreV2 = create<ProjectsV2State>((set, get) => ({
     } catch (err) {
       console.error(err)
       toast.error("Impossible d'ouvrir le dossier")
+    }
+  },
+
+  exportProjectZip: async (projectId) => {
+    try {
+      const ok = await window.api.v2_projectsExportZip(projectId)
+      if (ok) toast.success('Projet exporté')
+      return ok
+    } catch (err) {
+      console.error(err)
+      toast.error("Erreur lors de l'export ZIP")
+      return false
+    }
+  },
+
+  importProjectZip: async () => {
+    try {
+      const project = await window.api.v2_projectsImportZip()
+      if (project) {
+        set((s) => ({ projects: [project, ...s.projects] }))
+        toast.success('Projet importé')
+      }
+      return project
+    } catch (err) {
+      console.error(err)
+      toast.error("Erreur lors de l'import ZIP")
+      return null
     }
   },
 

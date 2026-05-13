@@ -271,6 +271,8 @@ export interface ElectronAPI {
   v2_projectsDelete: (projectId: string) => Promise<boolean>
   v2_projectsDuplicate: (projectId: string) => Promise<ProjectView | null>
   v2_projectsOpenFolder: (projectId: string) => Promise<boolean>
+  v2_projectsExportZip: (projectId: string) => Promise<boolean>
+  v2_projectsImportZip: () => Promise<ProjectView | null>
 
   // Sources v2
   v2_sourcesAdd: (projectId: string) => Promise<SourceView[]>

@@ -10,7 +10,7 @@ import {
   ContextMenuTrigger,
   ContextMenuSeparator,
 } from '@/components/ui'
-import { Copy, Trash2, FileStack, Pencil, FolderOpen, Files, FolderTree } from 'lucide-react'
+import { Copy, FileArchive, Trash2, FileStack, Pencil, FolderOpen, Files, FolderTree } from 'lucide-react'
 import { useTemplatesStore } from '@/stores'
 
 interface ProjectCardProps {
@@ -20,6 +20,7 @@ interface ProjectCardProps {
   onDuplicate: () => void
   onRename: () => void
   onOpenFolder: () => void
+  onExportZip: () => void
 }
 
 export function ProjectCard({
@@ -29,6 +30,7 @@ export function ProjectCard({
   onDuplicate,
   onRename,
   onOpenFolder,
+  onExportZip,
 }: ProjectCardProps) {
   const [thumbnailSrc, setThumbnailSrc] = useState<string | null>(null)
   const { templates } = useTemplatesStore()
@@ -128,6 +130,10 @@ export function ProjectCard({
         <ContextMenuItem onClick={onOpenFolder}>
           <FolderOpen className="h-4 w-4 mr-2" />
           Ouvrir le dossier
+        </ContextMenuItem>
+        <ContextMenuItem onClick={onExportZip}>
+          <FileArchive className="h-4 w-4 mr-2" />
+          Exporter ZIP
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">

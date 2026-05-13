@@ -29,7 +29,7 @@ import {
   DialogTitle,
   Input,
 } from '@/components/ui'
-import { AlertTriangle, CheckCircle, FileText, FolderOpen, Home, Plus, Scissors } from 'lucide-react'
+import { AlertTriangle, CheckCircle, FileText, FolderOpen, Home, Plus, Scissors, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 
 export type ProjectFilter = 'all' | 'extraction' | 'transcription' | 'completed'
@@ -76,6 +76,8 @@ export function ProjectsPage({ filter = 'all' }: ProjectsPageProps) {
     duplicateProject,
     renameProject,
     openProjectFolder,
+    exportProjectZip,
+    importProjectZip,
   } = useProjectsStoreV2()
   const hasAnyApiKey = useSettingsStore(selectHasAnyApiKey)
   const settingsLoaded = useSettingsStore((s) => s.settings !== null)
@@ -156,6 +158,10 @@ export function ProjectsPage({ filter = 'all' }: ProjectsPageProps) {
           </div>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={() => importProjectZip()}>
+            <Upload className="h-4 w-4 mr-2" />
+            Importer ZIP
+          </Button>
           <Button onClick={() => setShowCreateModal(true)}>
             <Plus className="h-4 w-4 mr-2" />
             Nouveau projet
@@ -189,6 +195,7 @@ export function ProjectsPage({ filter = 'all' }: ProjectsPageProps) {
               onDuplicate={() => duplicateProject(project.id)}
               onRename={() => openRenameDialog(project)}
               onOpenFolder={() => openProjectFolder(project.id)}
+              onExportZip={() => exportProjectZip(project.id)}
             />
           ))}
         </div>
