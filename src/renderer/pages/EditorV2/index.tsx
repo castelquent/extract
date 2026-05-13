@@ -140,8 +140,8 @@ export function EditorV2Page() {
       ])
       if (cancelled) return
       setProject(proj)
-      if (proj?.templateId) {
-        const tmpl = await window.api.getTemplate(proj.templateId)
+      if (proj?.defaultTemplateId) {
+        const tmpl = await window.api.getTemplate(proj.defaultTemplateId)
         if (!cancelled) setTemplate(tmpl)
       }
 
@@ -240,7 +240,7 @@ export function EditorV2Page() {
 
     for (let i = 0; i < ids.length; i++) {
       const id = ids[i]
-      const result = await transcribeArticle(id, aiSettings, template)
+      const result = await transcribeArticle(id, aiSettings)
       if (result.success) successCount++
       else {
         errorCount++

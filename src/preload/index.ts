@@ -112,8 +112,8 @@ const api: ElectronAPI & {
   v2_articlesGetExtractData: (projectId, articleId) => ipcRenderer.invoke('v2:articles:getExtractData', projectId, articleId),
   v2_articlesRegenerateExtract: (projectId, articleId) => ipcRenderer.invoke('v2:articles:regenerateExtract', projectId, articleId),
 
-  // Transcription v2
-  v2_transcribe: (projectId, articleId, settings, template) => ipcRenderer.invoke('v2:transcription:transcribe', projectId, articleId, settings, template),
+  // Transcription v2 — prompt built from article schema server-side
+  v2_transcribe: (projectId, articleId, settings) => ipcRenderer.invoke('v2:transcription:transcribe', projectId, articleId, settings),
 
   // Export v2
   v2_exportArticlesPdf: (projectId, articleIds) => ipcRenderer.invoke('v2:export:articlesPdf', projectId, articleIds),

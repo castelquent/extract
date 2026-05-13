@@ -4,13 +4,17 @@
 // v2_articlesCreate which mints a ULID and writes the article folder.
 import { create } from 'zustand'
 import { toast } from 'sonner'
-import type { Zone } from '@shared/types'
+import type { TemplateField, Zone } from '@shared/types'
 
-// In-memory article shape (numeric id is a session-local handle).
+// In-memory article shape (numeric id is a session-local handle). The schema
+// is snapshotted from a Template at creation time — copied here so the
+// article is autonomous (template edits won't mutate it).
 export interface WorkingArticle {
   id: number
   zones: Zone[]
   fields: Record<string, string>
+  schema: TemplateField[]
+  aiContext?: string
 }
 
 interface ExtractionState {
@@ -22,6 +26,15 @@ interface ExtractionState {
   totalPages: number
   exporting: boolean
   error: string | null
+
+  // Default schema/aiContext applied to every new WorkingArticle. Set by the
+  // page from the project's default model. Each article can be overridden via
+  // updateArticle({ schema, aiContext }).
+  defaultSchema: TemplateField[]
+  defaultAiContext?: string
+
+  // Defaults
+  setDefaultTemplate: (schema: TemplateField[], aiContext?: string) => void
 
   // Articles
   setArticles: (articles: WorkingArticle[]) => void
@@ -72,17 +85,27 @@ const initialState = {
   totalPages: 0,
   exporting: false,
   error: null as string | null,
+  defaultSchema: [] as TemplateField[],
+  defaultAiContext: undefined as string | undefined,
 }
 
 export const useExtractionStore = create<ExtractionState>((set, get) => ({
   ...initialState,
 
+  setDefaultTemplate: (schema, aiContext) => set({ defaultSchema: schema, defaultAiContext: aiContext }),
+
   setArticles: (articles) => set({ articles }),
 
   addArticle: () => {
-    const { articles } = get()
+    const { articles, defaultSchema, defaultAiContext } = get()
     const newId = articles.length > 0 ? Math.max(...articles.map((a) => a.id)) + 1 : 1
-    const newArticle: WorkingArticle = { id: newId, zones: [], fields: {} }
+    const newArticle: WorkingArticle = {
+      id: newId,
+      zones: [],
+      fields: {},
+      schema: defaultSchema,
+      aiContext: defaultAiContext,
+    }
     set((state) => ({
       articles: [...state.articles, newArticle],
       currentArticleId: newId,
@@ -116,9 +139,15 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
   },
 
   addZoneAsNewArticle: (zone) => {
-    const { articles } = get()
+    const { articles, defaultSchema, defaultAiContext } = get()
     const newId = articles.length > 0 ? Math.max(...articles.map((a) => a.id)) + 1 : 1
-    const newArticle: WorkingArticle = { id: newId, zones: [zone], fields: {} }
+    const newArticle: WorkingArticle = {
+      id: newId,
+      zones: [zone],
+      fields: {},
+      schema: defaultSchema,
+      aiContext: defaultAiContext,
+    }
     set((state) => ({
       articles: [...state.articles, newArticle],
       currentArticleId: null,
@@ -304,6 +333,8 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
           dossierId,
           zones: article.zones,
           pages,
+          schema: article.schema,
+          aiContext: article.aiContext,
         })
       }
       const empty: WorkingArticle[] = []

@@ -22,6 +22,7 @@ import type {
   ArticleMetadata,
   ArticleMoveTarget,
   ArticleScope,
+  TemplateField,
   Zone,
 } from '@shared/types'
 import {
@@ -121,6 +122,8 @@ export function setupV2ArticleHandlers(): void {
         zones: Zone[]
         pages: number[]
         fields?: Record<string, string>
+        schema: TemplateField[]
+        aiContext?: string
       }
     ): Promise<ArticleMetadata | null> => {
       const id = newId()
@@ -136,6 +139,8 @@ export function setupV2ArticleHandlers(): void {
         pages: payload.pages,
         fields: payload.fields ?? {},
         status: 'new',
+        schema: payload.schema,
+        aiContext: payload.aiContext,
         createdAt: now,
         modifiedAt: now,
       }
@@ -165,7 +170,7 @@ export function setupV2ArticleHandlers(): void {
       _,
       projectId: string,
       articleId: string,
-      patch: Partial<Pick<ArticleMetadata, 'fields' | 'zones' | 'pages' | 'status' | 'sourceId' | 'dossierId'>>
+      patch: Partial<Pick<ArticleMetadata, 'fields' | 'zones' | 'pages' | 'status' | 'sourceId' | 'dossierId' | 'schema' | 'aiContext'>>
     ): Promise<boolean> => {
       const dossierId = locateArticle(projectId, articleId)
       if (dossierId === undefined) return false

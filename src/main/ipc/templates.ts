@@ -84,7 +84,7 @@ const getProjectsUsingTemplate = (templateId: string): { name: string }[] => {
 
       if (existsSync(metadataPath)) {
         const metadata = JSON.parse(readFileSync(metadataPath, 'utf-8')) as ProjectMetadataV2
-        if (metadata.templateId === templateId) {
+        if (metadata.defaultTemplateId === templateId) {
           projects.push({ name: metadata.name })
         }
       }

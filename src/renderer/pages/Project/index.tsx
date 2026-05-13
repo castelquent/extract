@@ -51,7 +51,7 @@ export function ProjectDetailPage() {
     )
   }
 
-  const templateName = templates.find((t) => t.id === project.templateId)?.name
+  const templateName = templates.find((t) => t.id === project.defaultTemplateId)?.name
 
   const startEditingName = () => {
     setDraftName(project.name)

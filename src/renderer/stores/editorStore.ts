@@ -7,7 +7,6 @@ import type {
   AISettings,
   ArticleMetadata,
   ArticleScope,
-  Template,
   TranscriptionResult,
 } from '@shared/types'
 
@@ -34,8 +33,7 @@ interface EditorState {
   deleteArticle: (articleId: string) => Promise<boolean>
   transcribeArticle: (
     articleId: string,
-    settings: AISettings,
-    template: Template
+    settings: AISettings
   ) => Promise<TranscriptionResult>
 }
 
@@ -147,13 +145,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
   },
 
-  transcribeArticle: async (articleId, settings, template) => {
+  transcribeArticle: async (articleId, settings) => {
     const projectId = get().projectId
     if (!projectId) {
       return { success: false, error: 'Aucun projet chargé' }
     }
     try {
-      const result = await window.api.v2_transcribe(projectId, articleId, settings, template)
+      const result = await window.api.v2_transcribe(projectId, articleId, settings)
       if (result.success && result.data?.fields) {
         const fields = result.data.fields
         set((s) => ({

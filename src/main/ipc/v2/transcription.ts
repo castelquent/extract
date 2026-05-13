@@ -8,7 +8,7 @@ import { join } from 'path'
 import type {
   AISettings,
   ArticleMetadata,
-  Template,
+  TemplateField,
   TranscriptionLog,
   TranscriptionResult,
 } from '@shared/types'
@@ -39,12 +39,12 @@ function appendLog(entry: TranscriptionLog): void {
   }
 }
 
-function buildPromptFromTemplate(template: Template): string {
-  const fieldsList = template.fields
+function buildPromptFromSchema(schema: TemplateField[], aiContext?: string): string {
+  const fieldsList = [...schema]
     .sort((a, b) => a.order - b.order)
     .map((f) => (f.aiHint ? `- ${f.name} (${f.aiHint})` : `- ${f.name}`))
     .join('\n')
-  const context = template.aiContext ||
+  const context = aiContext ||
     "Tu es un assistant spécialisé dans l'extraction de texte à partir de documents PDF."
   return `${context}
 
@@ -102,7 +102,7 @@ function textToHtml(text: string): string {
     .join('')
 }
 
-function parseTranscriptionResponse(content: string, template: Template): TranscriptionResult {
+function parseTranscriptionResponse(content: string, schema: TemplateField[]): TranscriptionResult {
   try {
     const refusalPatterns = [
       /^je ne (peux|suis)/i,
@@ -122,7 +122,7 @@ function parseTranscriptionResponse(content: string, template: Template): Transc
     const parsed = JSON.parse(fixed)
 
     const fields: Record<string, string> = {}
-    for (const field of template.fields) {
+    for (const field of schema) {
       const rawValue = parsed[field.name] || ''
       fields[field.name] = field.type === 'richtext' && rawValue ? textToHtml(rawValue) : rawValue
     }
@@ -145,7 +145,7 @@ async function transcribeWithOpenAI(
   base64Pdf: string,
   settings: AISettings,
   prompt: string,
-  template: Template
+  schema: TemplateField[]
 ): Promise<ResultWithUsage> {
   // OpenAI vision currently expects image; for PDF we'd need a different flow.
   // For symmetry with the legacy implementation we pass it as an image; in
@@ -176,7 +176,7 @@ async function transcribeWithOpenAI(
   )
   const content = response.data.choices[0]?.message?.content || ''
   const usage = response.data.usage
-  const result = parseTranscriptionResponse(content, template)
+  const result = parseTranscriptionResponse(content, schema)
   return {
     ...result,
     usage: { input: usage?.prompt_tokens || 0, output: usage?.completion_tokens || 0 },
@@ -187,7 +187,7 @@ async function transcribeWithAnthropic(
   base64Pdf: string,
   settings: AISettings,
   prompt: string,
-  template: Template
+  schema: TemplateField[]
 ): Promise<ResultWithUsage> {
   const response = await axios.post(
     'https://api.anthropic.com/v1/messages',
@@ -218,7 +218,7 @@ async function transcribeWithAnthropic(
   )
   const content = response.data.content[0]?.text || ''
   const usage = response.data.usage
-  const result = parseTranscriptionResponse(content, template)
+  const result = parseTranscriptionResponse(content, schema)
   return {
     ...result,
     usage: { input: usage?.input_tokens || 0, output: usage?.output_tokens || 0 },
@@ -232,8 +232,7 @@ export function setupV2TranscriptionHandlers(): void {
       _,
       projectId: string,
       articleId: string,
-      settings: AISettings,
-      template: Template
+      settings: AISettings
     ): Promise<TranscriptionResult> => {
       try {
         const dossierId = locateArticle(projectId, articleId)
@@ -261,11 +260,12 @@ export function setupV2TranscriptionHandlers(): void {
         }
 
         const base64 = readFileSync(pdfPath).toString('base64')
-        const prompt = buildPromptFromTemplate(template)
+        const schema = article.schema ?? []
+        const prompt = buildPromptFromSchema(schema, article.aiContext)
 
         const result = settings.provider === 'openai'
-          ? await transcribeWithOpenAI(base64, settings, prompt, template)
-          : await transcribeWithAnthropic(base64, settings, prompt, template)
+          ? await transcribeWithOpenAI(base64, settings, prompt, schema)
+          : await transcribeWithAnthropic(base64, settings, prompt, schema)
 
         appendLog({
           date: new Date().toISOString(),

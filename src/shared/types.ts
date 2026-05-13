@@ -41,10 +41,13 @@ export interface Zone {
 }
 
 // --- Project (corpus / theme) ---
+// `defaultTemplateId` is just the model pre-selected when creating a new
+// element. It does NOT constrain element schemas: each element carries its
+// own snapshotted schema (see ArticleMetadata.schema).
 export interface ProjectMetadataV2 {
   id: string
   name: string
-  templateId: string
+  defaultTemplateId: string
   createdAt: string
   modifiedAt: string
 }
@@ -88,6 +91,10 @@ export interface DossierView extends DossierMetadata {
 // --- Article (the portable unit) ---
 export type ArticleStatus = 'new' | 'extracted' | 'transcribed'
 
+// An article carries its own field schema (snapshotted from a Template at
+// creation). Editing a Template afterwards does NOT mutate existing articles.
+// "Apply a model" copies a new schema in via the merge strategy in
+// EditorV2.
 export interface ArticleMetadata {
   id: string
   sourceId: string
@@ -96,6 +103,8 @@ export interface ArticleMetadata {
   pages: number[]
   fields: Record<string, string>
   status: ArticleStatus
+  schema: TemplateField[]
+  aiContext?: string
   createdAt: string
   modifiedAt: string
 }
@@ -237,12 +246,14 @@ export interface ElectronAPI {
       zones: Zone[]
       pages: number[]
       fields?: Record<string, string>
+      schema: TemplateField[]
+      aiContext?: string
     }
   ) => Promise<ArticleMetadata | null>
   v2_articlesUpdate: (
     projectId: string,
     articleId: string,
-    patch: Partial<Pick<ArticleMetadata, 'fields' | 'zones' | 'pages' | 'status' | 'sourceId' | 'dossierId'>>
+    patch: Partial<Pick<ArticleMetadata, 'fields' | 'zones' | 'pages' | 'status' | 'sourceId' | 'dossierId' | 'schema' | 'aiContext'>>
   ) => Promise<boolean>
   v2_articlesDelete: (projectId: string, articleId: string) => Promise<boolean>
   v2_articlesMove: (projectId: string, articleId: string, target: ArticleMoveTarget) => Promise<boolean>
@@ -250,8 +261,8 @@ export interface ElectronAPI {
   v2_articlesGetExtractData: (projectId: string, articleId: string) => Promise<string | null>
   v2_articlesRegenerateExtract: (projectId: string, articleId: string) => Promise<boolean>
 
-  // Transcription
-  v2_transcribe: (projectId: string, articleId: string, settings: AISettings, template: Template) => Promise<TranscriptionResult>
+  // Transcription — prompt is built server-side from article.schema + article.aiContext
+  v2_transcribe: (projectId: string, articleId: string, settings: AISettings) => Promise<TranscriptionResult>
 
   // Export
   v2_exportArticlesPdf: (projectId: string, articleIds: string[]) => Promise<boolean>

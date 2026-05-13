@@ -35,7 +35,7 @@ export function ProjectCard({
   const [thumbnailSrc, setThumbnailSrc] = useState<string | null>(null)
   const { templates } = useTemplatesStore()
 
-  const templateName = templates.find((t) => t.id === project.templateId)?.name
+  const templateName = templates.find((t) => t.id === project.defaultTemplateId)?.name
 
   useEffect(() => {
     if (project.thumbnailPath) {

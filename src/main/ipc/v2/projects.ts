@@ -100,13 +100,13 @@ export function setupV2ProjectHandlers(): void {
 
   ipcMain.handle(
     'v2:projects:create',
-    async (_, name: string, templateId: string): Promise<ProjectView | null> => {
+    async (_, name: string, defaultTemplateId: string): Promise<ProjectView | null> => {
       const id = newId()
       const now = new Date().toISOString()
       const metadata: ProjectMetadataV2 = {
         id,
         name: name.trim() || 'Nouveau projet',
-        templateId: templateId || 'press-article',
+        defaultTemplateId: defaultTemplateId || 'press-article',
         createdAt: now,
         modifiedAt: now,
       }
