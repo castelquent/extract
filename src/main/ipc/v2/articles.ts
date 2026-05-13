@@ -91,6 +91,32 @@ const moveDir = (src: string, dest: string): void => {
   }
 }
 
+// Compute the next order index for an article being added to a dossier
+// (or to the orphans section when dossierId is null). Returns max(order)+1,
+// or 0 when no article in that section has an order yet.
+const nextOrderInDossier = (projectId: string, dossierId: string | null): number => {
+  const articleIds =
+    dossierId === null
+      ? listSubdirs(getOrphansDir(projectId))
+      : listSubdirs(getDossierArticlesDir(projectId, dossierId))
+  let max = -1
+  for (const id of articleIds) {
+    const am = readArticleMetadata(projectId, dossierId, id)
+    if (am && typeof am.order === 'number' && am.order > max) max = am.order
+  }
+  return max + 1
+}
+
+// Tie-breaker sort: by `order` ascending, with `createdAt` ascending as
+// fallback for articles that don't have an order yet (legacy or freshly
+// imported). Mixed lists thus stay roughly stable.
+const compareForList = (a: ArticleMetadata, b: ArticleMetadata): number => {
+  const ao = typeof a.order === 'number' ? a.order : Number.POSITIVE_INFINITY
+  const bo = typeof b.order === 'number' ? b.order : Number.POSITIVE_INFINITY
+  if (ao !== bo) return ao - bo
+  return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+}
+
 export function setupV2ArticleHandlers(): void {
   ipcMain.handle(
     'v2:articles:list',
@@ -100,10 +126,7 @@ export function setupV2ArticleHandlers(): void {
         const am = readArticleMetadata(projectId, dossierId, articleId)
         if (am && matchesScope(am, scope)) result.push(am)
       }
-      // Stable order: createdAt ascending
-      return result.sort((a, b) =>
-        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-      )
+      return result.sort(compareForList)
     }
   )
 
@@ -141,6 +164,7 @@ export function setupV2ArticleHandlers(): void {
         id,
         sourceId: payload.sourceId,
         dossierId: payload.dossierId,
+        order: nextOrderInDossier(projectId, payload.dossierId),
         zones: payload.zones,
         pages: payload.pages,
         fields: payload.fields ?? {},
@@ -257,6 +281,44 @@ export function setupV2ArticleHandlers(): void {
   )
 
   ipcMain.handle(
+    'v2:articles:reorder',
+    async (
+      _,
+      projectId: string,
+      dossierId: string | null,
+      orderedIds: string[]
+    ): Promise<boolean> => {
+      let allOk = true
+      // Re-number every id in the provided list to its index. This also
+      // backfills `order` for articles that didn't have one before.
+      orderedIds.forEach((articleId, index) => {
+        // Confirm the article actually lives in the targeted dossier;
+        // ignore stale ids silently rather than failing the whole batch.
+        const actual = locateArticle(projectId, articleId)
+        if (actual !== dossierId) return
+        const am = readArticleMetadata(projectId, dossierId, articleId)
+        if (!am) {
+          allOk = false
+          return
+        }
+        if (am.order === index) return
+        const updated: ArticleMetadata = {
+          ...am,
+          order: index,
+          modifiedAt: new Date().toISOString(),
+        }
+        const ok = writeJson(
+          getArticleMetadataPath(projectId, dossierId, articleId),
+          updated
+        )
+        if (!ok) allOk = false
+      })
+      if (allOk) touchProject(projectId)
+      return allOk
+    }
+  )
+
+  ipcMain.handle(
     'v2:articles:getExtractData',
     async (_, projectId: string, articleId: string): Promise<string | null> => {
       const dossierId = locateArticle(projectId, articleId)
@@ -349,10 +411,14 @@ async function moveOneArticle(
     return false
   }
 
-  // Rewrite metadata at the new location with updated dossierId
+  // Rewrite metadata at the new location with updated dossierId. Reset
+  // `order` to "append to end of destination" — preserving the old order
+  // wouldn't be meaningful in a different list, and a stale value would
+  // collide with destination siblings.
   const updated: ArticleMetadata = {
     ...current,
     dossierId: destDossierId,
+    order: nextOrderInDossier(destProjectId, destDossierId),
     modifiedAt: new Date().toISOString(),
   }
   writeJson(getArticleMetadataPath(destProjectId, destDossierId, articleId), updated)

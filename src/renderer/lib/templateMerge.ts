@@ -2,31 +2,10 @@
 // values by name, coerces between richtext / text when types change, reports
 // which values would be lost.
 import type { TemplateField } from '@shared/types'
+import { asString, stripHtml } from '@shared/fieldValue'
 
-// Coerce any field value to a string. Field values are typed as string but
-// can arrive non-string at runtime (legacy data, transient drafts).
-export const asString = (v: unknown): string => {
-  if (v == null) return ''
-  return typeof v === 'string' ? v : String(v)
-}
-
-// Strip HTML for graceful richtext → text conversion.
-export const stripHtml = (html: unknown): string => {
-  const str = asString(html)
-  if (!str) return ''
-  return str
-    .replace(/<\/(p|div|li|h[1-6]|br)>/gi, ' ')
-    .replace(/<br\s*\/?>/gi, ' ')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/\s+/g, ' ')
-    .trim()
-}
+// Re-exported so existing imports from '@/lib/templateMerge' keep working.
+export { asString, stripHtml }
 
 // Wrap plain text in <p> for graceful text → richtext conversion.
 export const wrapAsHtml = (text: unknown): string => {

@@ -9,6 +9,7 @@ import {
 } from '@tanstack/react-table'
 import { Download, MoreHorizontal, Sparkles, Trash2, X } from 'lucide-react'
 import type { ArticleMetadata } from '@shared/types'
+import { isFieldFilled } from '@shared/fieldValue'
 import {
   Badge,
   Button,
@@ -55,7 +56,7 @@ export function ArticlesTableV2({
   const getCompletion = (article: ArticleMetadata): { filled: number; total: number } => {
     const schema = article.schema ?? []
     const fields = article.fields ?? {}
-    const filled = schema.filter((f) => fields[f.name]).length
+    const filled = schema.filter((f) => isFieldFilled(f, fields[f.name])).length
     return { filled, total: schema.length }
   }
 

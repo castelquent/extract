@@ -57,7 +57,7 @@ export function AppLayout() {
     <SidebarProvider>
       <NavigationDrawer />
       <SidebarInset>
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable]">
           <Outlet />
         </main>
       </SidebarInset>

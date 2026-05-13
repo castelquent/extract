@@ -123,9 +123,6 @@ export function ArticleItem({
               />
             )}
             Élement {index + 1}
-            {isActive && !locked && (
-              <span className="ml-2 text-xs text-primary font-normal">• actif</span>
-            )}
           </span>
 
           {/* Zone count */}

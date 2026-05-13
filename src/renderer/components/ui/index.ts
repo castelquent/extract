@@ -1,6 +1,7 @@
 // Export all UI components
 export { Button, buttonVariants } from './button'
 export { CircularProgress } from './circular-progress'
+export { Switch } from './switch'
 export { Input } from './input'
 export { Textarea } from './textarea'
 export { Label } from './label'

@@ -32,10 +32,10 @@ export function TranscriptionModal({ open, progress }: TranscriptionModalProps) 
           <DialogTitle className="text-xl">Transcription en cours</DialogTitle>
           <DialogDescription className="text-center">
             {isBulk ? (
-              <>Transcription de {progress.total} articles en cours...</>
+              <>Transcription de {progress.total} élements en cours...</>
             ) : (
               <>
-                L'IA analyse l'image et extrait le contenu de l'article.
+                L'IA analyse l'image et extrait le contenu de l'élément.
                 <br />
                 Veuillez patienter...
               </>

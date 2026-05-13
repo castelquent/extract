@@ -14,6 +14,12 @@ export default defineConfig({
           options.startup()
         },
         vite: {
+          resolve: {
+            alias: {
+              '@main': resolve(__dirname, 'main'),
+              '@shared': resolve(__dirname, 'shared')
+            }
+          },
           build: {
             outDir: 'dist-electron/main',
             rollupOptions: {
@@ -28,6 +34,11 @@ export default defineConfig({
           options.reload()
         },
         vite: {
+          resolve: {
+            alias: {
+              '@shared': resolve(__dirname, 'shared')
+            }
+          },
           build: {
             outDir: 'dist-electron/preload'
           }

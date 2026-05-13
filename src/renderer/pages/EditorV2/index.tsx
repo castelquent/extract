@@ -9,6 +9,7 @@ import type {
   ProjectView,
   TemplateField,
 } from '@shared/types'
+import { isFieldFilled } from '@shared/fieldValue'
 import {
   selectV2CurrentArticle,
   selectV2CurrentFields,
@@ -319,12 +320,44 @@ export function EditorV2Page() {
     if (!projectId || !currentArticleId) return
     setCopyingOcr(true)
     try {
-      // Re-use the legacy extractText handler by pointing to the v2 extract.pdf
-      // — but the legacy handler expects a project-relative imagePath. We
-      // already exposed a more direct flow via the v2 articles extract data
-      // (base64). For OCR text we don't have a v2 handler; fall back to a
-      // toast notice that this feature will return in step 11/12 cleanup.
-      toast.info("Copie OCR à venir avec la refonte de l'export (étape 11+)")
+      // Extract the embedded text layer from the article's extract.pdf and
+      // copy it to the clipboard. "OCR" is a misnomer kept for UI continuity
+      // — this reads the text PyMuPDF already baked into the PDF at
+      // extraction time, no Tesseract pass.
+      const dataUrl = await window.api.v2_articlesGetExtractData(projectId, currentArticleId)
+      if (!dataUrl) {
+        toast.error('Aucun PDF généré pour cet élément')
+        return
+      }
+      const pdfjsLib = await import('pdfjs-dist')
+      const PdfWorker = (await import('pdfjs-dist/build/pdf.worker.min.js?url')).default
+      pdfjsLib.GlobalWorkerOptions.workerSrc = PdfWorker
+      const base64 = dataUrl.split(',')[1] ?? ''
+      const binary = atob(base64)
+      const bytes = new Uint8Array(binary.length)
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+      const doc = await pdfjsLib.getDocument({ data: bytes }).promise
+      const pageTexts: string[] = []
+      for (let p = 1; p <= doc.numPages; p++) {
+        const page = await doc.getPage(p)
+        const tc = await page.getTextContent()
+        const text = tc.items
+          .map((it) => ('str' in it ? it.str : ''))
+          .join(' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+        if (text) pageTexts.push(text)
+      }
+      const full = pageTexts.join('\n\n')
+      if (!full) {
+        toast.error('Aucun texte sélectionnable dans ce PDF')
+        return
+      }
+      await navigator.clipboard.writeText(full)
+      toast.success('Texte du PDF copié')
+    } catch (err) {
+      console.error(err)
+      toast.error('Erreur lors de la copie du texte')
     } finally {
       setCopyingOcr(false)
     }
@@ -384,7 +417,7 @@ export function EditorV2Page() {
   const currentSchema: TemplateField[] = currentArticle?.schema ?? []
   const totalFields = currentSchema.length
   const currentCompletion = currentArticle
-    ? currentSchema.filter((f) => currentArticle.fields?.[f.name]).length
+    ? currentSchema.filter((f) => isFieldFilled(f, currentArticle.fields?.[f.name])).length
     : 0
 
   // Find which template (if any) matches the current article's schema for
@@ -439,6 +472,7 @@ export function EditorV2Page() {
         open={exportModalOpen}
         onClose={() => setExportModalOpen(false)}
         onExport={handleExport}
+        articleCount={exportIds.length}
       />
 
       {currentArticle && (

@@ -17,7 +17,15 @@
       "Bash(npm run *)",
       "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\('main:', p.main\\); console.log\\('build.files:', JSON.stringify\\(p.build?.files, null, 2\\)\\);\")",
       "Bash(dir main *)",
-      "Bash(dir dist-electron\\\\main)"
+      "Bash(dir dist-electron\\\\main)",
+      "WebFetch(domain:ollama.com)",
+      "Bash(git reset *)",
+      "Bash(git clean *)",
+      "WebSearch",
+      "WebFetch(domain:platform.openai.com)",
+      "WebFetch(domain:openai.com)",
+      "WebFetch(domain:openrouter.ai)",
+      "WebFetch(domain:github.com)"
     ]
   }
 }

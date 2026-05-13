@@ -110,6 +110,8 @@ const api: ElectronAPI & {
   v2_articlesDelete: (projectId, articleId) => ipcRenderer.invoke('v2:articles:delete', projectId, articleId),
   v2_articlesMove: (projectId, articleId, target) => ipcRenderer.invoke('v2:articles:move', projectId, articleId, target),
   v2_articlesMoveBulk: (projectId, articleIds, target) => ipcRenderer.invoke('v2:articles:moveBulk', projectId, articleIds, target),
+  v2_articlesReorder: (projectId, dossierId, orderedIds) =>
+    ipcRenderer.invoke('v2:articles:reorder', projectId, dossierId, orderedIds),
   v2_articlesGetExtractData: (projectId, articleId) => ipcRenderer.invoke('v2:articles:getExtractData', projectId, articleId),
   v2_articlesRegenerateExtract: (projectId, articleId) => ipcRenderer.invoke('v2:articles:regenerateExtract', projectId, articleId),
 
@@ -117,9 +119,9 @@ const api: ElectronAPI & {
   v2_transcribe: (projectId, articleId, settings) => ipcRenderer.invoke('v2:transcription:transcribe', projectId, articleId, settings),
 
   // Export v2
-  v2_exportArticlesPdf: (projectId, articleIds) => ipcRenderer.invoke('v2:export:articlesPdf', projectId, articleIds),
-  v2_exportArticlesDocx: (projectId, articleIds) => ipcRenderer.invoke('v2:export:articlesDocx', projectId, articleIds),
-  v2_exportArticlesTxt: (projectId, articleIds) => ipcRenderer.invoke('v2:export:articlesTxt', projectId, articleIds),
+  v2_exportArticlesPdf: (projectId, articleIds, options) => ipcRenderer.invoke('v2:export:articlesPdf', projectId, articleIds, options),
+  v2_exportArticlesDocx: (projectId, articleIds, options) => ipcRenderer.invoke('v2:export:articlesDocx', projectId, articleIds, options),
+  v2_exportArticlesTxt: (projectId, articleIds, options) => ipcRenderer.invoke('v2:export:articlesTxt', projectId, articleIds, options),
 
   // File watcher notifications (main → renderer)
   v2_onProjectsListChanged: (callback: () => void) => {

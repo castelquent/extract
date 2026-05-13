@@ -37,6 +37,7 @@ interface ProjectState {
   deleteArticle: (articleId: string) => Promise<boolean>
   moveArticle: (articleId: string, target: ArticleMoveTarget) => Promise<boolean>
   moveArticlesBulk: (articleIds: string[], target: ArticleMoveTarget) => Promise<boolean>
+  reorderArticles: (dossierId: string | null, orderedIds: string[]) => Promise<boolean>
 }
 
 const initialState = {
@@ -217,6 +218,35 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     } catch (err) {
       console.error(err)
       toast.error('Erreur lors du déplacement')
+      return false
+    }
+  },
+
+  reorderArticles: async (dossierId, orderedIds) => {
+    const projectId = get().project?.id
+    if (!projectId) return false
+    // Optimistic update: re-stamp local `order` so the UI reflects the new
+    // sequence before the watcher round-trip lands. The backend writes the
+    // same values so the eventual refresh is a no-op for these articles.
+    const idIndex = new Map(orderedIds.map((id, i) => [id, i]))
+    set((s) => ({
+      articles: s.articles.map((a) =>
+        a.dossierId === dossierId && idIndex.has(a.id)
+          ? { ...a, order: idIndex.get(a.id)! }
+          : a
+      ),
+    }))
+    try {
+      const ok = await window.api.v2_articlesReorder(projectId, dossierId, orderedIds)
+      if (!ok) {
+        toast.error('Erreur lors du réordonnancement')
+        await get().refresh()
+      }
+      return ok
+    } catch (err) {
+      console.error(err)
+      toast.error('Erreur lors du réordonnancement')
+      await get().refresh()
       return false
     }
   },

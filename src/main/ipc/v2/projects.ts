@@ -3,6 +3,7 @@ import { ipcMain, shell } from 'electron'
 import { existsSync, readFileSync, rmSync, copyFileSync, readdirSync } from 'fs'
 import { join } from 'path'
 import type { ProjectMetadataV2, ProjectView } from '@shared/types'
+import { isFieldFilled } from '@shared/fieldValue'
 import {
   ensureDir,
   getProjectDir,
@@ -40,7 +41,7 @@ const buildProjectView = (projectId: string): ProjectView | null => {
     articlesTotal += 1
     const schema = am.schema ?? []
     const fields = am.fields ?? {}
-    if (schema.length > 0 && schema.every((f) => fields[f.name])) {
+    if (schema.length > 0 && schema.every((f) => isFieldFilled(f, fields[f.name]))) {
       articlesFilled += 1
     }
   }

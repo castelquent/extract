@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useProjectStore, useTemplatesStore } from '@/stores'
+import { isFieldFilled } from '@shared/fieldValue'
 import {
   Button,
   CircularProgress,
@@ -24,9 +25,10 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/ui'
-import { FileText, FolderOpen, Plus, Settings } from 'lucide-react'
+import { Download, FileText, FolderOpen, Plus, Settings } from 'lucide-react'
 import { ArticlesView } from './ArticlesView'
 import { SourcesView } from './SourcesView'
+import { ExportModal, ExportFormat } from '../Editor/ExportModal'
 
 export function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>()
@@ -39,6 +41,7 @@ export function ProjectDetailPage() {
   const [draftTemplateId, setDraftTemplateId] = useState('')
   const [newDossierOpen, setNewDossierOpen] = useState(false)
   const [newDossierName, setNewDossierName] = useState('')
+  const [exportOpen, setExportOpen] = useState(false)
 
   useEffect(() => {
     if (!projectId) return
@@ -50,18 +53,22 @@ export function ProjectDetailPage() {
     if (templates.length === 0) loadTemplates()
   }, [templates.length, loadTemplates])
 
-  if (loading || !project) {
-    if (!loading && !project) {
+  // Only show the spinner on the initial load (project still null). Once
+  // we have a project, subsequent refreshes (watcher-triggered after a
+  // metadata write, e.g. a DnD reorder) keep the current UI on-screen so
+  // it doesn't flash to "Chargement..." every time something is saved.
+  if (!project) {
+    if (loading) {
       return (
-        <div className="p-8 flex flex-col items-center gap-4">
-          <p className="text-muted-foreground">Projet introuvable</p>
-          <Button onClick={() => navigate('/')}>Retour</Button>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-muted-foreground">Chargement...</div>
         </div>
       )
     }
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-muted-foreground">Chargement...</div>
+      <div className="p-8 flex flex-col items-center gap-4">
+        <p className="text-muted-foreground">Projet introuvable</p>
+        <Button onClick={() => navigate('/')}>Retour</Button>
       </div>
     )
   }
@@ -93,6 +100,54 @@ export function ProjectDetailPage() {
     }
   }
 
+  // Group by dossier (in dossiers list order) then orphans, so the exported
+  // document follows the same layout as the project page. Without this we'd
+  // pass `articles.map(a => a.id)` which is sorted by per-dossier `order`
+  // globally → interleaves dossiers.
+  const handleExportAll = async (
+    format: ExportFormat,
+    choices: { includeDossierTitles: boolean }
+  ) => {
+    if (!project) return
+    const { dossiers } = useProjectStore.getState()
+    const compare = (a: typeof articles[number], b: typeof articles[number]) => {
+      const ao = typeof a.order === 'number' ? a.order : Number.POSITIVE_INFINITY
+      const bo = typeof b.order === 'number' ? b.order : Number.POSITIVE_INFINITY
+      if (ao !== bo) return ao - bo
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    }
+    const ids: string[] = []
+    const dossierTitles: { beforeArticleId: string; title: string }[] = []
+    for (const d of dossiers) {
+      const group = articles.filter((a) => a.dossierId === d.id).sort(compare)
+      if (group.length === 0) continue
+      if (choices.includeDossierTitles) {
+        dossierTitles.push({ beforeArticleId: group[0].id, title: d.name })
+      }
+      for (const a of group) ids.push(a.id)
+    }
+    const orphans = articles.filter((a) => a.dossierId === null).sort(compare)
+    if (orphans.length > 0) {
+      if (choices.includeDossierTitles) {
+        dossierTitles.push({ beforeArticleId: orphans[0].id, title: 'Sans dossier' })
+      }
+      for (const a of orphans) ids.push(a.id)
+    }
+    if (ids.length === 0) return
+    const options = choices.includeDossierTitles ? { dossierTitles } : undefined
+    switch (format) {
+      case 'pdf':
+        await window.api.v2_exportArticlesPdf(project.id, ids, options)
+        break
+      case 'docx':
+        await window.api.v2_exportArticlesDocx(project.id, ids, options)
+        break
+      case 'txt':
+        await window.api.v2_exportArticlesTxt(project.id, ids, options)
+        break
+    }
+  }
+
   // Overall fill rate across ready articles' schemas — drafts have no
   // transcription yet so we exclude them.
   let fieldsFilled = 0
@@ -101,7 +156,7 @@ export function ProjectDetailPage() {
     if (a.status !== 'ready') continue
     const schema = a.schema ?? []
     fieldsTotal += schema.length
-    fieldsFilled += schema.filter((f) => a.fields?.[f.name]).length
+    fieldsFilled += schema.filter((f) => isFieldFilled(f, a.fields?.[f.name])).length
   }
   const fillPct = fieldsTotal > 0 ? Math.round((fieldsFilled / fieldsTotal) * 100) : 0
 
@@ -131,16 +186,28 @@ export function ProjectDetailPage() {
             </Button>
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate(`/editor/${project.id}`)}
-              disabled={project.articlesTotal === 0}
-              title={project.articlesTotal === 0 ? 'Aucun élément à transcrire' : 'Transcrire tout le projet'}
-            >
-              <FileText className="h-4 w-4 mr-1" />
-              Transcrire
-            </Button>
+            {project.articlesTotal > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate(`/editor/${project.id}`)}
+                title="Transcrire tout le projet"
+              >
+                <FileText className="h-4 w-4 mr-1" />
+                Transcrire
+              </Button>
+            )}
+            {project.articlesTotal > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setExportOpen(true)}
+                title="Exporter tout le projet"
+              >
+                <Download className="h-4 w-4 mr-1" />
+                Exporter
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={() => setNewDossierOpen(true)}>
               <Plus className="h-4 w-4 mr-1" />
               Nouveau dossier
@@ -265,6 +332,14 @@ export function ProjectDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ExportModal
+        open={exportOpen}
+        onClose={() => setExportOpen(false)}
+        onExport={handleExportAll}
+        articleCount={articles.length}
+        showDossierTitleOption
+      />
     </div>
   )
 }

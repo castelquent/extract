@@ -4,6 +4,21 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -29,6 +44,7 @@ import {
   useSidebar,
 } from '@/components/ui'
 import {
+  Download,
   FileText,
   MoveRight,
   Pencil,
@@ -42,7 +58,9 @@ import type {
   DossierDeleteMode,
   DossierView,
 } from '@shared/types'
+import { isFieldFilled } from '@shared/fieldValue'
 import { MoveDialog } from './MoveDialog'
+import { ExportModal, ExportFormat } from '../Editor/ExportModal'
 
 // Compute X/Y completion ratio from article.fields and article.schema.
 // Returns a Badge: success when complete, secondary otherwise. Drafts are
@@ -50,7 +68,7 @@ import { MoveDialog } from './MoveDialog'
 const completionBadge = (article: ArticleMetadata): React.ReactNode => {
   const schema = article.schema ?? []
   const total = schema.length
-  const filled = schema.filter((f) => article.fields?.[f.name]).length
+  const filled = schema.filter((f) => isFieldFilled(f, article.fields?.[f.name])).length
   if (total === 0) return null
   const done = filled === total
   return (
@@ -69,6 +87,16 @@ const formatShortDate = (iso: string): string => {
 // Shared 5-column grid: checkbox · title (flex) · pages · remplissage · modifié.
 const ROW_GRID = 'grid grid-cols-[28px_minmax(0,1fr)_72px_96px_88px] gap-4 items-center'
 
+// Sort by `order` ascending, falling back to `createdAt` for articles that
+// don't have an order yet (legacy or pre-DnD). Mirrors the backend sort
+// in v2:articles:list so the renderer stays consistent before/after refresh.
+const compareArticles = (a: ArticleMetadata, b: ArticleMetadata): number => {
+  const ao = typeof a.order === 'number' ? a.order : Number.POSITIVE_INFINITY
+  const bo = typeof b.order === 'number' ? b.order : Number.POSITIVE_INFINITY
+  if (ao !== bo) return ao - bo
+  return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+}
+
 function ArticleRow({
   article,
   selected,
@@ -83,12 +111,33 @@ function ArticleRow({
   onDelete: () => void
 }) {
   const title = (article.fields['Titre'] ?? article.fields['title'] ?? '').trim() || 'Sans titre'
+  // dnd-kit sortable. We pass `dossierId` as data so DndContext.onDragEnd
+  // can tell intra- vs cross-section drags apart (cross-section is ignored).
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: article.id, data: { dossierId: article.dossierId } })
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : undefined,
+  }
+
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <div
-          className={`${ROW_GRID} px-3 py-2.5 border-b border-border/40 last:border-b-0 hover:bg-muted/40 cursor-pointer`}
+          ref={setNodeRef}
+          style={style}
+          className={`${ROW_GRID} px-3 py-2.5 border-b border-border/40 last:border-b-0 hover:bg-muted/40 cursor-pointer ${isDragging ? 'relative z-10 bg-muted/40 shadow-sm' : ''}`}
           onClick={onOpen}
+          {...attributes}
+          {...listeners}
         >
           <Checkbox
             checked={selected}
@@ -129,6 +178,7 @@ function DossierSection({
   articles,
   selectedIds,
   toggleArticle,
+  onToggleAllInSection,
   onOpenArticle,
   onDeleteArticle,
   onRenameDossier,
@@ -139,6 +189,9 @@ function DossierSection({
   articles: ArticleMetadata[]
   selectedIds: Set<string>
   toggleArticle: (id: string) => void
+  // Called when the section's header checkbox is clicked. `select=true` means
+  // "select all articles in this section", false means "deselect".
+  onToggleAllInSection: (articleIds: string[], select: boolean) => void
   onOpenArticle: (id: string) => void
   onDeleteArticle: (id: string) => void
   onRenameDossier?: (id: string) => void
@@ -147,6 +200,17 @@ function DossierSection({
   onEditScope: () => void
 }) {
   const label = dossier ? dossier.name : 'Sans dossier'
+
+  const selectedInSection = articles.reduce(
+    (n, a) => (selectedIds.has(a.id) ? n + 1 : n),
+    0
+  )
+  const headerCheckState: boolean | 'indeterminate' =
+    selectedInSection === 0
+      ? false
+      : selectedInSection === articles.length
+        ? true
+        : 'indeterminate'
 
   return (
     <section className="mb-10">
@@ -161,8 +225,7 @@ function DossierSection({
             disabled={articles.length === 0}
             title={articles.length === 0 ? 'Aucun élément à transcrire' : 'Ouvrir dans l’éditeur'}
           >
-            <FileText className="h-3.5 w-3.5 mr-1" />
-            Transcrire
+            <FileText className="h-3.5 w-3.5" />
           </Button>
           {dossier && onRenameDossier && (
             <Button
@@ -188,7 +251,7 @@ function DossierSection({
       </div>
 
       {articles.length === 0 ? (
-        <div className="text-sm text-muted-foreground py-3 border-t border-border/60">
+        <div className="text-sm text-muted-foreground py-3 border-t border-border/60 px-6">
           Aucun élément
         </div>
       ) : (
@@ -196,12 +259,25 @@ function DossierSection({
           <div
             className={`${ROW_GRID} px-3 py-2 text-[11px] uppercase tracking-wide text-muted-foreground border-b border-border/60`}
           >
-            <div />
+            <Checkbox
+              checked={headerCheckState}
+              onCheckedChange={(v) =>
+                onToggleAllInSection(
+                  articles.map((a) => a.id),
+                  v === true
+                )
+              }
+              aria-label="Tout sélectionner dans cette section"
+            />
             <div>Titre</div>
             <div className="text-right">Pages</div>
             <div className="text-center">Remplissage</div>
             <div className="text-right">Modifié</div>
           </div>
+          <SortableContext
+            items={articles.map((a) => a.id)}
+            strategy={verticalListSortingStrategy}
+          >
           {articles.map((a) => (
             <ArticleRow
               key={a.id}
@@ -212,6 +288,7 @@ function DossierSection({
               onDelete={() => onDeleteArticle(a.id)}
             />
           ))}
+          </SortableContext>
         </div>
       )}
     </section>
@@ -227,6 +304,7 @@ export function ArticlesView({ projectId }: { projectId: string }) {
     deleteDossier,
     deleteArticle,
     moveArticlesBulk,
+    reorderArticles,
   } = useProjectStore()
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -237,13 +315,50 @@ export function ArticlesView({ projectId }: { projectId: string }) {
     useState<DossierDeleteMode>('orphan-articles')
   const [moveOpen, setMoveOpen] = useState(false)
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+  const [exportOpen, setExportOpen] = useState(false)
 
   const orphanArticles = useMemo(
-    () => articles.filter((a) => a.dossierId === null).sort((a, b) =>
-      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-    ),
+    () => articles.filter((a) => a.dossierId === null).sort(compareArticles),
     [articles]
   )
+
+  // Precomputed per-dossier ordered lists, reused for rendering and for the
+  // DnD handler so the new index math is consistent with what the user sees.
+  const articlesByDossier = useMemo(() => {
+    const map = new Map<string, ArticleMetadata[]>()
+    for (const d of dossiers) {
+      map.set(
+        d.id,
+        articles.filter((a) => a.dossierId === d.id).sort(compareArticles)
+      )
+    }
+    return map
+  }, [dossiers, articles])
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  )
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const activeDossierId = active.data.current?.dossierId as string | null | undefined
+    const overDossierId = over.data.current?.dossierId as string | null | undefined
+    // Intra-section only — cross-dossier moves go through the explicit
+    // "Déplacer" action (different semantics: changes dossierId on disk).
+    if (activeDossierId === undefined || activeDossierId !== overDossierId) return
+
+    const list =
+      activeDossierId === null
+        ? orphanArticles
+        : articlesByDossier.get(activeDossierId) ?? []
+    const oldIndex = list.findIndex((a) => a.id === active.id)
+    const newIndex = list.findIndex((a) => a.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+
+    const reordered = arrayMove(list, oldIndex, newIndex).map((a) => a.id)
+    void reorderArticles(activeDossierId, reordered)
+  }
 
   void selectArticlesInDossier
   void selectOrphanArticles
@@ -253,6 +368,17 @@ export function ArticlesView({ projectId }: { projectId: string }) {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
       else next.add(id)
+      return next
+    })
+  }
+
+  const toggleArticlesInSection = (articleIds: string[], select: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      for (const id of articleIds) {
+        if (select) next.add(id)
+        else next.delete(id)
+      }
       return next
     })
   }
@@ -306,6 +432,24 @@ export function ArticlesView({ projectId }: { projectId: string }) {
     setBulkDeleteOpen(false)
   }
 
+  const handleExportSelection = async (format: ExportFormat) => {
+    const ids = Array.from(selectedIds)
+    if (ids.length === 0) return
+    // Selection cuts across dossiers and the dossier grouping switch isn't
+    // shown for this scope, so we just send the flat list.
+    switch (format) {
+      case 'pdf':
+        await window.api.v2_exportArticlesPdf(projectId, ids)
+        break
+      case 'docx':
+        await window.api.v2_exportArticlesDocx(projectId, ids)
+        break
+      case 'txt':
+        await window.api.v2_exportArticlesTxt(projectId, ids)
+        break
+    }
+  }
+
   const totalArticles = articles.length
   const selectedCount = selectedIds.size
 
@@ -315,10 +459,11 @@ export function ArticlesView({ projectId }: { projectId: string }) {
   const sidebarOffset = isMobile ? '0px' : sidebarState === 'expanded' ? '16rem' : '3rem'
 
   return (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
     <div className="space-y-3">
       <div className="pt-2">
-        {totalArticles === 0 ? (
-          <div className="border border-dashed rounded-md py-12 text-center text-sm text-muted-foreground">
+        {totalArticles === 0 && dossiers.length === 0 ? (
+          <div className="rounded-md py-12 text-center text-sm text-muted-foreground">
             Aucun élément. Importez une source et extrayez-en des éléments depuis l'onglet Sources.
           </div>
         ) : (
@@ -327,13 +472,10 @@ export function ArticlesView({ projectId }: { projectId: string }) {
               <DossierSection
                 key={dossier.id}
                 dossier={dossier}
-                articles={articles
-                  .filter((a) => a.dossierId === dossier.id)
-                  .sort((a, b) =>
-                    new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-                  )}
+                articles={articlesByDossier.get(dossier.id) ?? []}
                 selectedIds={selectedIds}
                 toggleArticle={toggleArticle}
+                onToggleAllInSection={toggleArticlesInSection}
                 onOpenArticle={handleOpenArticle}
                 onDeleteArticle={handleDeleteArticle}
                 onRenameDossier={startRenameDossier}
@@ -352,6 +494,7 @@ export function ArticlesView({ projectId }: { projectId: string }) {
                 articles={orphanArticles}
                 selectedIds={selectedIds}
                 toggleArticle={toggleArticle}
+                onToggleAllInSection={toggleArticlesInSection}
                 onOpenArticle={handleOpenArticle}
                 onDeleteArticle={handleDeleteArticle}
                 onEditScope={() =>
@@ -383,6 +526,15 @@ export function ArticlesView({ projectId }: { projectId: string }) {
             >
               <FileText className="h-4 w-4 mr-1.5" />
               Transcrire
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 rounded-full px-3"
+              onClick={() => setExportOpen(true)}
+            >
+              <Download className="h-4 w-4 mr-1.5" />
+              Exporter
             </Button>
             <Button
               variant="ghost"
@@ -495,6 +647,13 @@ export function ArticlesView({ projectId }: { projectId: string }) {
         onConfirm={handleMoveConfirm}
       />
 
+      <ExportModal
+        open={exportOpen}
+        onClose={() => setExportOpen(false)}
+        onExport={handleExportSelection}
+        articleCount={selectedCount}
+      />
+
       <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -518,5 +677,6 @@ export function ArticlesView({ projectId }: { projectId: string }) {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+    </DndContext>
   )
 }

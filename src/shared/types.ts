@@ -102,6 +102,10 @@ export interface ArticleMetadata {
   id: string
   sourceId: string
   dossierId: string | null   // null = orphan (no dossier)
+  // Display order within the parent dossier (or orphans section). Optional:
+  // legacy articles without `order` fall back to createdAt sort. Reorder IPC
+  // backfills the whole list when first used. Lower comes first.
+  order?: number
   zones: Zone[]
   pages: number[]
   fields: Record<string, string>
@@ -127,6 +131,15 @@ export interface ArticleScope {
 
 // --- Dossier deletion mode ---
 export type DossierDeleteMode = 'delete-content' | 'orphan-articles'
+
+// --- Export options ---
+// `dossierTitles` marks the article IDs that should be preceded by a full-page
+// dossier title in the rendered output. The renderer flattens its
+// grouped-by-dossier list into `articleIds` and emits one marker per group
+// boundary so the backend can insert the heading at the right spot.
+export interface ExportOptions {
+  dossierTitles?: { beforeArticleId: string; title: string }[]
+}
 
 // --- Move target for articles ---
 export interface ArticleMoveTarget {
@@ -274,6 +287,15 @@ export interface ElectronAPI {
   v2_articlesDelete: (projectId: string, articleId: string) => Promise<boolean>
   v2_articlesMove: (projectId: string, articleId: string, target: ArticleMoveTarget) => Promise<boolean>
   v2_articlesMoveBulk: (projectId: string, articleIds: string[], target: ArticleMoveTarget) => Promise<boolean>
+  // Persist a new order for articles in a single dossier (or orphans when
+  // dossierId is null). orderedIds must contain ALL articles in that section
+  // so the whole list gets re-numbered (0..N-1), which also backfills
+  // articles that never had an `order` field.
+  v2_articlesReorder: (
+    projectId: string,
+    dossierId: string | null,
+    orderedIds: string[]
+  ) => Promise<boolean>
   v2_articlesGetExtractData: (projectId: string, articleId: string) => Promise<string | null>
   v2_articlesRegenerateExtract: (projectId: string, articleId: string) => Promise<boolean>
 
@@ -281,9 +303,21 @@ export interface ElectronAPI {
   v2_transcribe: (projectId: string, articleId: string, settings: AISettings) => Promise<TranscriptionResult>
 
   // Export
-  v2_exportArticlesPdf: (projectId: string, articleIds: string[]) => Promise<boolean>
-  v2_exportArticlesDocx: (projectId: string, articleIds: string[]) => Promise<boolean>
-  v2_exportArticlesTxt: (projectId: string, articleIds: string[]) => Promise<boolean>
+  v2_exportArticlesPdf: (
+    projectId: string,
+    articleIds: string[],
+    options?: ExportOptions
+  ) => Promise<boolean>
+  v2_exportArticlesDocx: (
+    projectId: string,
+    articleIds: string[],
+    options?: ExportOptions
+  ) => Promise<boolean>
+  v2_exportArticlesTxt: (
+    projectId: string,
+    articleIds: string[],
+    options?: ExportOptions
+  ) => Promise<boolean>
 
   // File watcher notifications
   v2_onProjectsListChanged: (callback: () => void) => () => void
