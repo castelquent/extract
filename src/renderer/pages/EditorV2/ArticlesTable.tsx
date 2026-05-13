@@ -27,7 +27,6 @@ import {
 
 interface ArticlesTableV2Props {
   articles: ArticleMetadata[]
-  totalFields: number
   currentArticleId: string | null
   draftIds: Set<string>
   onSelectArticle: (articleId: string) => void
@@ -40,7 +39,6 @@ interface ArticlesTableV2Props {
 
 export function ArticlesTableV2({
   articles,
-  totalFields,
   currentArticleId,
   draftIds,
   onSelectArticle,
@@ -52,9 +50,13 @@ export function ArticlesTableV2({
 }: ArticlesTableV2Props) {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
 
-  const getArticleCompletion = (article: ArticleMetadata): number => {
-    if (!article.fields) return 0
-    return Object.values(article.fields).filter(Boolean).length
+  // Each element carries its own schema — completion is filled-fields-in-schema
+  // out of schema.length, computed per-row.
+  const getCompletion = (article: ArticleMetadata): { filled: number; total: number } => {
+    const schema = article.schema ?? []
+    const fields = article.fields ?? {}
+    const filled = schema.filter((f) => fields[f.name]).length
+    return { filled, total: schema.length }
   }
 
   const columns: ColumnDef<ArticleMetadata>[] = [
@@ -94,7 +96,14 @@ export function ArticlesTableV2({
             className="text-left hover:underline font-medium truncate max-w-[200px] block"
           >
             {displayName}
-            {hasDraft && <span className="ml-1 text-amber-500">●</span>}
+            {hasDraft && (
+              <span
+                className="ml-1 text-amber-500"
+                title="Modifications non sauvegardées"
+              >
+                ●
+              </span>
+            )}
           </button>
         )
       },
@@ -103,10 +112,11 @@ export function ArticlesTableV2({
       id: 'completion',
       header: 'Champs',
       cell: ({ row }) => {
-        const completion = getArticleCompletion(row.original)
+        const { filled, total } = getCompletion(row.original)
+        const complete = total > 0 && filled === total
         return (
-          <Badge variant={completion === totalFields ? 'success' : 'secondary'}>
-            {completion}/{totalFields}
+          <Badge variant={complete ? 'success' : 'secondary'}>
+            {filled}/{total}
           </Badge>
         )
       },

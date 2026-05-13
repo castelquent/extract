@@ -594,7 +594,6 @@ export function EditorV2Page() {
                 <ScrollArea className="flex-1">
                   <ArticlesTableV2
                     articles={articles}
-                    totalFields={totalFields}
                     currentArticleId={currentArticleId}
                     draftIds={new Set(Object.keys(drafts))}
                     onSelectArticle={(id) => {
