@@ -9,8 +9,9 @@
 // imports, batch article creation, etc.).
 import { app, type BrowserWindow } from 'electron'
 import chokidar, { type FSWatcher } from 'chokidar'
-import { existsSync, mkdirSync } from 'fs'
+import { existsSync, mkdirSync, readdirSync } from 'fs'
 import { join, relative, sep } from 'path'
+import { rebuildProject, removeProjectFromIndex, idx } from './ipc/v2/_index'
 
 const DEBOUNCE_MS = 250
 
@@ -34,18 +35,42 @@ const projectIdForPath = (path: string, projectsRoot: string): string | null => 
   return first || null
 }
 
-const scheduleListEvent = (win: BrowserWindow | null): void => {
+// List-level changes: a project folder appeared or disappeared at the top
+// level. Reconcile the index by detecting newly-present / now-missing projects
+// before notifying the renderer.
+const scheduleListEvent = (projectsRoot: string, win: BrowserWindow | null): void => {
   if (projectsListDebounce) clearTimeout(projectsListDebounce)
   projectsListDebounce = setTimeout(() => {
+    // Detect drops: ids cached but no longer on disk.
+    for (const cachedId of idx.listProjectIds()) {
+      if (!existsSync(join(projectsRoot, cachedId))) removeProjectFromIndex(cachedId)
+    }
+    // Detect new projects: any directory under projects/ not yet in the cache
+    // gets a full rebuild.
+    try {
+      for (const entry of readdirSync(projectsRoot, { withFileTypes: true })) {
+        if (entry.isDirectory() && !idx.getProject(entry.name)) {
+          rebuildProject(entry.name)
+        }
+      }
+    } catch {
+      /* projects root missing; nothing to do */
+    }
     win?.webContents.send('v2:fs:projectsListChanged')
     projectsListDebounce = null
   }, DEBOUNCE_MS)
 }
 
+// Project-level changes: something inside a specific project's tree changed.
+// Rebuild that project's slice of the cache first, then notify the renderer.
+// If the rebuild fails (metadata missing → project folder deleted), drop the
+// project from the cache.
 const scheduleProjectEvent = (projectId: string, win: BrowserWindow | null): void => {
   const existing = projectDebounces.get(projectId)
   if (existing) clearTimeout(existing)
   const timer = setTimeout(() => {
+    const stillExists = rebuildProject(projectId)
+    if (!stillExists) removeProjectFromIndex(projectId)
     win?.webContents.send('v2:fs:projectChanged', projectId)
     projectDebounces.delete(projectId)
   }, DEBOUNCE_MS)
@@ -73,10 +98,10 @@ export function setupFsWatchers(getWindow: () => BrowserWindow | null): void {
       // Any change inside a project folder bumps that project (and counts in
       // the projects list may have changed too).
       scheduleProjectEvent(projectId, win)
-      scheduleListEvent(win)
+      scheduleListEvent(projectsRoot, win)
     } else {
       // Direct child of projects/ added/removed/renamed.
-      scheduleListEvent(win)
+      scheduleListEvent(projectsRoot, win)
     }
   }
 

@@ -10,57 +10,27 @@ import {
   getSourceMetadataPath,
   getSourcePdfPath,
   getSourceThumbnailPath,
-  getSourcesDir,
-  listSubdirs,
   newId,
-  readSourceMetadata,
   writeJson,
 } from '../_fs'
 import { convertImageToPdf, generateThumbnail, getPdfPageCount } from './_python'
 import { touchProject } from './projects'
 import {
-  getDossierArticlesDir,
-  getDossiersDir,
-  getOrphansDir,
-  readArticleMetadata,
-} from '../_fs'
+  idx,
+  patchProjectThumbnail,
+  patchSource,
+  patchSourceThumbnail,
+  removeSourceFromIndex,
+} from './_index'
 
-// Count how many articles reference a given sourceId. By default drafts
-// (status='draft') are excluded — that's the user-facing count shown on the
-// source card. The delete check passes `includeDrafts: true` so it refuses
-// to remove a source still backing in-progress drafts.
-const countArticlesUsingSource = (
-  projectId: string,
-  sourceId: string,
-  { includeDrafts = false }: { includeDrafts?: boolean } = {}
-): number => {
-  let count = 0
-  const accept = (am: { sourceId: string; status: string } | null): boolean => {
-    if (!am) return false
-    if (am.sourceId !== sourceId) return false
-    if (!includeDrafts && am.status === 'draft') return false
-    return true
-  }
-  for (const articleId of listSubdirs(getOrphansDir(projectId))) {
-    if (accept(readArticleMetadata(projectId, null, articleId))) count += 1
-  }
-  for (const dossierId of listSubdirs(getDossiersDir(projectId))) {
-    for (const articleId of listSubdirs(getDossierArticlesDir(projectId, dossierId))) {
-      if (accept(readArticleMetadata(projectId, dossierId, articleId))) count += 1
-    }
-  }
-  return count
-}
-
+// Build the source view from the in-memory index (no file walk).
 const buildSourceView = (projectId: string, sourceId: string): SourceView | null => {
-  const metadata = readSourceMetadata(projectId, sourceId)
-  if (!metadata) return null
+  const entry = idx.getSource(sourceId)
+  if (!entry || entry.projectId !== projectId) return null
   return {
-    ...metadata,
-    thumbnailPath: existsSync(getSourceThumbnailPath(projectId, sourceId))
-      ? getSourceThumbnailPath(projectId, sourceId)
-      : null,
-    articlesCount: countArticlesUsingSource(projectId, sourceId),
+    ...entry.meta,
+    thumbnailPath: entry.hasThumbnail ? getSourceThumbnailPath(projectId, sourceId) : null,
+    articlesCount: idx.countArticlesUsingSource(projectId, sourceId),
   }
 }
 
@@ -105,15 +75,18 @@ const importFileAsSource = async (
     importedAt: new Date().toISOString(),
   }
   writeJson(getSourceMetadataPath(projectId, sourceId), metadata)
+  patchSource(projectId, sourceId, metadata)
 
   // Generate thumbnail for the source
   const sourceThumbPath = getSourceThumbnailPath(projectId, sourceId)
   const thumbOk = await generateThumbnail(sourcePdfPath, sourceThumbPath)
+  if (thumbOk) patchSourceThumbnail(sourceId, true)
 
   // If the project doesn't have its own thumbnail yet, use this source's thumbnail.
   if (thumbOk && !existsSync(getProjectThumbnailPath(projectId))) {
     try {
       copyFileSync(sourceThumbPath, getProjectThumbnailPath(projectId))
+      patchProjectThumbnail(projectId, true)
     } catch {
       /* ignore */
     }
@@ -144,10 +117,9 @@ export function setupV2SourceHandlers(): void {
   })
 
   ipcMain.handle('v2:sources:list', async (_, projectId: string): Promise<SourceView[]> => {
-    const sourceIds = listSubdirs(getSourcesDir(projectId))
     const views: SourceView[] = []
-    for (const id of sourceIds) {
-      const v = buildSourceView(projectId, id)
+    for (const meta of idx.listSourcesInProject(projectId)) {
+      const v = buildSourceView(projectId, meta.id)
       if (v) views.push(v)
     }
     return views.sort((a, b) =>
@@ -174,7 +146,7 @@ export function setupV2SourceHandlers(): void {
 
       // Delete check counts drafts too — we don't want to leave drafts pointing
       // at a deleted source.
-      const articlesCount = countArticlesUsingSource(projectId, sourceId, { includeDrafts: true })
+      const articlesCount = idx.countArticlesUsingSource(projectId, sourceId, { includeDrafts: true })
       if (articlesCount > 0 && !force) {
         return { ok: false, reason: 'has-articles', articlesCount }
       }
@@ -184,6 +156,7 @@ export function setupV2SourceHandlers(): void {
       // as "broken" in the UI.
       try {
         rmSync(dir, { recursive: true, force: true })
+        removeSourceFromIndex(sourceId)
         touchProject(projectId)
         return { ok: true }
       } catch (err) {

@@ -9,35 +9,36 @@ import {
   getProjectDir,
   getProjectMetadataPath,
   getProjectThumbnailPath,
-  getProjectsRoot,
   getDossiersDir,
-  getDossierArticlesDir,
   getOrphansDir,
   getSourcesDir,
-  listSubdirs,
   newId,
-  readArticleMetadata,
   readProjectMetadata,
   writeJson,
 } from '../_fs'
+import {
+  idx,
+  patchProject,
+  rebuildProject,
+  removeProjectFromIndex,
+} from './_index'
 
-// Build a ProjectView for one project (reads metadata + walks dossiers/orphans/sources).
+// Build a ProjectView for one project from the in-memory index. Counts are
+// derived in-memory (zero file reads). Returns null when the project isn't
+// cached (deleted or not yet indexed).
 const buildProjectView = (projectId: string): ProjectView | null => {
-  const metadata = readProjectMetadata(projectId)
-  if (!metadata) return null
+  const entry = idx.getProject(projectId)
+  if (!entry) return null
 
   let articlesToExtract = 0  // status === 'draft' (PDF pending)
-  let articlesTotal = 0       // status === 'ready' (real elements)
+  let articlesTotal = 0       // status === 'ready'
   let articlesFilled = 0      // status === 'ready' AND every schema field has a value
 
-  const countArticle = (dossierId: string | null, articleId: string): void => {
-    const am = readArticleMetadata(projectId, dossierId, articleId)
-    if (!am) return
+  for (const am of idx.listArticlesInProject(projectId, { includeDrafts: true })) {
     if (am.status === 'draft') {
       articlesToExtract += 1
-      return
+      continue
     }
-    // status === 'ready' (or future statuses)
     articlesTotal += 1
     const schema = am.schema ?? []
     const fields = am.fields ?? {}
@@ -46,29 +47,11 @@ const buildProjectView = (projectId: string): ProjectView | null => {
     }
   }
 
-  // Walk orphans
-  for (const articleId of listSubdirs(getOrphansDir(projectId))) {
-    countArticle(null, articleId)
-  }
-
-  // Walk dossiers
-  const dossierIds = listSubdirs(getDossiersDir(projectId))
-  for (const dossierId of dossierIds) {
-    for (const articleId of listSubdirs(getDossierArticlesDir(projectId, dossierId))) {
-      countArticle(dossierId, articleId)
-    }
-  }
-
-  const sourcesCount = listSubdirs(getSourcesDir(projectId)).length
-  const thumbnailPath = existsSync(getProjectThumbnailPath(projectId))
-    ? getProjectThumbnailPath(projectId)
-    : null
-
   return {
-    ...metadata,
-    thumbnailPath,
-    sourcesCount,
-    dossiersCount: dossierIds.length,
+    ...entry.meta,
+    thumbnailPath: entry.hasThumbnail ? getProjectThumbnailPath(projectId) : null,
+    sourcesCount: idx.countSourcesInProject(projectId),
+    dossiersCount: idx.countDossiersInProject(projectId),
     articlesToExtract,
     articlesTotal,
     articlesFilled,
@@ -88,9 +71,8 @@ const copyRecursive = (src: string, dest: string): void => {
 
 export function setupV2ProjectHandlers(): void {
   ipcMain.handle('v2:projects:list', async (): Promise<ProjectView[]> => {
-    const projectIds = listSubdirs(getProjectsRoot())
     const views: ProjectView[] = []
-    for (const id of projectIds) {
+    for (const id of idx.listProjectIds()) {
       const view = buildProjectView(id)
       if (view) views.push(view)
     }
@@ -121,10 +103,10 @@ export function setupV2ProjectHandlers(): void {
       ensureDir(getDossiersDir(id))
       ensureDir(getOrphansDir(id))
       if (!writeJson(getProjectMetadataPath(id), metadata)) {
-        // cleanup half-created project
         try { rmSync(getProjectDir(id), { recursive: true, force: true }) } catch {}
         return null
       }
+      patchProject(id, metadata)
       return buildProjectView(id)
     }
   )
@@ -139,7 +121,9 @@ export function setupV2ProjectHandlers(): void {
         name: name.trim() || metadata.name,
         modifiedAt: new Date().toISOString(),
       }
-      return writeJson(getProjectMetadataPath(projectId), updated)
+      const ok = writeJson(getProjectMetadataPath(projectId), updated)
+      if (ok) patchProject(projectId, updated)
+      return ok
     }
   )
 
@@ -159,7 +143,9 @@ export function setupV2ProjectHandlers(): void {
         defaultTemplateId: patch.defaultTemplateId ?? metadata.defaultTemplateId,
         modifiedAt: new Date().toISOString(),
       }
-      return writeJson(getProjectMetadataPath(projectId), updated)
+      const ok = writeJson(getProjectMetadataPath(projectId), updated)
+      if (ok) patchProject(projectId, updated)
+      return ok
     }
   )
 
@@ -168,6 +154,7 @@ export function setupV2ProjectHandlers(): void {
     if (!existsSync(dir)) return false
     try {
       rmSync(dir, { recursive: true, force: true })
+      removeProjectFromIndex(projectId)
       return true
     } catch (err) {
       console.error('Project delete failed:', err)
@@ -201,6 +188,9 @@ export function setupV2ProjectHandlers(): void {
         modifiedAt: now,
       }
       writeJson(getProjectMetadataPath(newProjectId), updated)
+      // Bulk: a duplicate adds dozens of files. Rebuild the whole project
+      // slice in one shot rather than walking the renderer's IPC chatter.
+      rebuildProject(newProjectId)
       return buildProjectView(newProjectId)
     }
   )
@@ -238,10 +228,12 @@ export function setupV2ProjectHandlers(): void {
 export const touchProject = (projectId: string): void => {
   const metadata = readProjectMetadata(projectId)
   if (!metadata) return
-  writeJson(getProjectMetadataPath(projectId), {
+  const updated: ProjectMetadataV2 = {
     ...metadata,
     modifiedAt: new Date().toISOString(),
-  })
+  }
+  writeJson(getProjectMetadataPath(projectId), updated)
+  patchProject(projectId, updated)
 }
 
 // Re-exported helper for list-after-mutation patterns

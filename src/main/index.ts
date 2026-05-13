@@ -3,6 +3,7 @@ import { join } from 'path'
 import { autoUpdater } from 'electron-updater'
 import { setupIpcHandlers } from './ipc'
 import { setupFsWatchers, teardownFsWatchers } from './watchers'
+import { buildIndex } from './ipc/v2/_index'
 
 let mainWindow: BrowserWindow | null = null
 let forceQuit = false
@@ -74,6 +75,12 @@ ipcMain.on('cancel-close', () => {
 })
 
 app.whenReady().then(() => {
+  // Seed the in-memory index of projects/sources/dossiers/articles BEFORE
+  // the window asks for any data. The walk is sync and cheap (~5ms per
+  // project on a typical corpus). Watcher updates the cache incrementally
+  // afterwards.
+  buildIndex()
+
   createWindow()
 
   // Watch the projects/ tree for changes so the renderer can refresh

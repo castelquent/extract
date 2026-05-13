@@ -15,11 +15,14 @@ import type {
 import {
   getArticleExtractPdfPath,
   getArticleMetadataPath,
-  locateArticle,
   readArticleMetadata,
   writeJson,
 } from '../_fs'
 import { touchProject } from './projects'
+import { idx, patchArticle } from './_index'
+
+const locateArticle = (projectId: string, articleId: string): string | null | undefined =>
+  idx.locateArticle(projectId, articleId)
 
 function getLogsPath(): string {
   return join(app.getPath('userData'), 'logs.json')
@@ -287,6 +290,7 @@ export function setupV2TranscriptionHandlers(): void {
             modifiedAt: new Date().toISOString(),
           }
           writeJson(getArticleMetadataPath(projectId, dossierId, articleId), updated)
+          patchArticle(projectId, articleId, updated)
           touchProject(projectId)
         }
 

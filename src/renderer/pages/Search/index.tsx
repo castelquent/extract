@@ -25,14 +25,27 @@ import { sameSchema } from '@/lib/templateMerge'
 import { SearchResult } from './SearchResult'
 import { ExportModal, ExportFormat } from '../Editor/ExportModal'
 
+// Per-field, precomputed text used by the live filter. We fold + strip
+// once at index-build time so each keystroke only runs `indexOf` on already-
+// prepared strings (the heavy lifting was stripHtml + fold inside the
+// keystroke loop on 547 articles × N fields — ~1-2s of work every keypress).
+interface IndexedField {
+  fieldName: string
+  plain: string   // HTML-stripped, for snippet display
+  folded: string  // length-preserving fold, for indexOf
+}
+
 interface IndexedArticle {
   project: ProjectView
   article: ArticleMetadata
+  searchable: IndexedField[]
 }
 
 interface IndexedDossier {
   project: ProjectView
   dossier: DossierView
+  // Precomputed fold of the dossier name (same rationale).
+  folded: string
 }
 
 interface SearchIndex {
@@ -157,11 +170,17 @@ export function SearchPage() {
   // restores the typed search. We also mirror it to a persisted
   // searchStore so navigating "Recherche" from the sidebar (which can't
   // pass query params) brings the last query back too.
+  //
+  // The filter runs only on submit (Enter / button), not on each keystroke —
+  // searching across 547 articles per keypress is pointless work, and the
+  // user expects a "press search" affordance anyway. `inputValue` mirrors
+  // what's in the input; `query` (URL) only updates on submit.
   const [searchParams, setSearchParams] = useSearchParams()
   const lastQuery = useSearchStore((s) => s.lastQuery)
   const setLastQuery = useSearchStore((s) => s.setLastQuery)
   const query = searchParams.get('q') ?? ''
-  const setQuery = (q: string) => {
+  const [inputValue, setInputValue] = useState(query || lastQuery)
+  const submitQuery = (q: string) => {
     const next = new URLSearchParams(searchParams)
     if (q) next.set('q', q)
     else next.delete('q')
@@ -170,7 +189,8 @@ export function SearchPage() {
   }
 
   // On mount: if the URL has no ?q= but the store remembers one, hydrate
-  // the URL from the store. Keeps the sidebar entry-point feeling sticky.
+  // the URL from the store so we land on the last results. The input is
+  // already pre-filled (initial useState above).
   useEffect(() => {
     if (!searchParams.get('q') && lastQuery) {
       const next = new URLSearchParams(searchParams)
@@ -283,7 +303,18 @@ export function SearchPage() {
           .map(async (project) => {
             try {
               const articles = await window.api.v2_articlesList(project.id)
-              return articles.map((article) => ({ project, article }))
+              return articles.map<IndexedArticle>((article) => {
+                // Precompute (plain, folded) per field once. The filter loop
+                // below only does indexOf on these, no per-keystroke
+                // stripHtml/fold work.
+                const searchable: IndexedField[] = []
+                for (const [fieldName, raw] of Object.entries(article.fields ?? {})) {
+                  const plain = stripHtml(asString(raw))
+                  if (!plain) continue
+                  searchable.push({ fieldName, plain, folded: fold(plain) })
+                }
+                return { project, article, searchable }
+              })
             } catch {
               return [] as IndexedArticle[]
             }
@@ -293,7 +324,11 @@ export function SearchPage() {
         projects.map(async (project) => {
           try {
             const dossiers = await window.api.v2_dossiersList(project.id)
-            return dossiers.map((dossier) => ({ project, dossier }))
+            return dossiers.map<IndexedDossier>((dossier) => ({
+              project,
+              dossier,
+              folded: fold(dossier.name),
+            }))
           } catch {
             return [] as IndexedDossier[]
           }
@@ -353,11 +388,9 @@ export function SearchPage() {
       if (projectFilter.size > 0 && !projectFilter.has(entry.project.id)) continue
       if (dossierFilter.size > 0 && !dossierFilter.has(entry.dossier.id)) continue
       if (fieldFilter.size > 0 || templateFilter.size > 0) continue
-      const name = entry.dossier.name
-      const folded = fold(name)
-      const idx = folded.indexOf(needleFolded)
+      const idx = entry.folded.indexOf(needleFolded)
       if (idx === -1) continue
-      const { snippet, start } = buildSnippet(name, idx, trimmed.length, 80)
+      const { snippet, start } = buildSnippet(entry.dossier.name, idx, trimmed.length, 80)
       collected.push({
         kind: 'dossier',
         project: entry.project,
@@ -381,28 +414,21 @@ export function SearchPage() {
     })
 
     for (const entry of articlesSorted) {
-      const { article, project } = entry
-      if (!article.fields) continue
+      const { article, project, searchable } = entry
       if (projectFilter.size > 0 && !projectFilter.has(project.id)) continue
       if (dossierFilter.size > 0 && (!article.dossierId || !dossierFilter.has(article.dossierId))) continue
       if (templateFilter.size > 0) {
         const tplId = articleTemplateIds.get(article.id) ?? 'none'
         if (!templateFilter.has(tplId)) continue
       }
-      for (const [fieldName, raw] of Object.entries(article.fields)) {
-        if (fieldFilter.size > 0 && !fieldFilter.has(fieldName)) continue
-        // raw can be a string (richtext HTML or plain text) or a number
-        // (legacy / non-coerced AI response for a text field like "Nombre
-        // de paragraphes": 3). Coerce + strip via the shared helpers.
-        const text = stripHtml(asString(raw))
-        if (!text) continue
-        const folded = fold(text)
+      for (const field of searchable) {
+        if (fieldFilter.size > 0 && !fieldFilter.has(field.fieldName)) continue
         const matches: FieldMatch[] = []
         let cursor = 0
-        while (cursor < folded.length) {
-          const idx = folded.indexOf(needleFolded, cursor)
+        while (cursor < field.folded.length) {
+          const idx = field.folded.indexOf(needleFolded, cursor)
           if (idx === -1) break
-          const { snippet, start } = buildSnippet(text, idx, trimmed.length)
+          const { snippet, start } = buildSnippet(field.plain, idx, trimmed.length)
           matches.push({ snippet, matchStart: start, matchLength: trimmed.length })
           cursor = idx + needleFolded.length
         }
@@ -415,7 +441,7 @@ export function SearchPage() {
           project: entry.project,
           article: entry.article,
           dossierName,
-          fieldName,
+          fieldName: field.fieldName,
           matches,
         })
       }
@@ -498,15 +524,31 @@ export function SearchPage() {
         </div>
       </header>
 
-      <div className="relative mb-3">
-        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          ref={inputRef}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Tapez au moins 2 caractères…"
-          className="pl-10 h-11 text-base"
-        />
+      <div className="flex gap-2 mb-3">
+        <div className="relative flex-1">
+          <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            ref={inputRef}
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') submitQuery(inputValue.trim())
+              else if (e.key === 'Escape') {
+                setInputValue('')
+                submitQuery('')
+              }
+            }}
+            placeholder="Tapez votre recherche, puis Entrée…"
+            className="pl-10 h-11 text-base"
+          />
+        </div>
+        <Button
+          onClick={() => submitQuery(inputValue.trim())}
+          disabled={inputValue.trim().length < 2 || inputValue.trim() === query}
+          className="h-11 px-5"
+        >
+          Rechercher
+        </Button>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 mb-3">

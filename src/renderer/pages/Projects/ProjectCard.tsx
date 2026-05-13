@@ -4,13 +4,14 @@ import {
   Card,
   CardContent,
   Badge,
+  CircularProgress,
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuTrigger,
   ContextMenuSeparator,
 } from '@/components/ui'
-import { Copy, FileArchive, Trash2, FileStack, Pencil, FolderOpen, Files, FolderTree } from 'lucide-react'
+import { Copy, FileArchive, Trash2, FileStack, FileText, Pencil, FolderOpen, Files, FolderTree } from 'lucide-react'
 import { useTemplatesStore } from '@/stores'
 
 interface ProjectCardProps {
@@ -45,11 +46,11 @@ export function ProjectCard({
     }
   }, [project.id, project.thumbnailPath])
 
-  const { articlesTotal, articlesToExtract, articlesFilled } = project
-  const isEmptyProject =
-    articlesTotal === 0 && articlesToExtract === 0
-  const isComplete =
-    articlesTotal > 0 && articlesFilled === articlesTotal && articlesToExtract === 0
+  const { articlesTotal, articlesFilled } = project
+  const isEmptyProject = articlesTotal === 0
+  const isComplete = articlesTotal > 0 && articlesFilled === articlesTotal
+  const fillPct =
+    articlesTotal > 0 ? Math.round((articlesFilled / articlesTotal) * 100) : 0
 
   return (
     <ContextMenu>
@@ -59,12 +60,29 @@ export function ProjectCard({
           onClick={onClick}
         >
           <CardContent className="p-4 h-full flex flex-col">
-            <div className="aspect-[4/3] rounded-md mb-4 overflow-hidden flex-shrink-0 bg-muted/30">
+            <div className="relative aspect-[4/3] rounded-md mb-4 overflow-hidden flex-shrink-0 bg-muted/30">
               {thumbnailSrc ? (
                 <img src={thumbnailSrc} alt={project.name} className="w-full h-full object-contain" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm">
                   Aucune source
+                </div>
+              )}
+              {articlesTotal > 0 && (
+                <div
+                  className="absolute bottom-2 right-2 flex rounded-full bg-card shadow-md"
+                  title={`${articlesFilled} / ${articlesTotal} éléments remplis`}
+                >
+                  <CircularProgress
+                    value={fillPct}
+                    size={48}
+                    strokeWidth={4}
+                    showLabel
+                    renderLabel={(v) => `${v}%`}
+                    className="stroke-muted-foreground/25"
+                    progressClassName={isComplete ? 'stroke-emerald-400' : 'stroke-primary'}
+                    labelClassName="text-[11px] font-semibold tabular-nums text-foreground"
+                  />
                 </div>
               )}
             </div>
@@ -81,38 +99,30 @@ export function ProjectCard({
                 )}
               </div>
 
-              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+                <div className="flex items-center gap-3">
+                  <span className="flex items-center gap-1">
+                    <Files className="h-3 w-3" />
+                    {project.sourcesCount} source{project.sourcesCount === 1 ? '' : 's'}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <FolderTree className="h-3 w-3" />
+                    {project.dossiersCount} dossier{project.dossiersCount === 1 ? '' : 's'}
+                  </span>
+                </div>
                 <span className="flex items-center gap-1">
-                  <Files className="h-3 w-3" />
-                  {project.sourcesCount} source{project.sourcesCount === 1 ? '' : 's'}
-                </span>
-                <span className="flex items-center gap-1">
-                  <FolderTree className="h-3 w-3" />
-                  {project.dossiersCount} dossier{project.dossiersCount === 1 ? '' : 's'}
+                  <FileText className="h-3 w-3" />
+                  {articlesTotal} élément{articlesTotal === 1 ? '' : 's'}
                 </span>
               </div>
 
-              <div className="flex items-center gap-2 flex-wrap">
-                {isEmptyProject ? (
+              {isEmptyProject && (
+                <div className="flex items-center gap-2 flex-wrap">
                   <Badge variant="info">Nouveau</Badge>
-                ) : (
-                  <>
-                    {articlesToExtract > 0 && (
-                      <Badge variant="warning">{articlesToExtract} à extraire</Badge>
-                    )}
-                    {articlesTotal > 0 && (
-                      <Badge
-                        variant={isComplete ? 'success' : 'secondary'}
-                        className="tabular-nums"
-                      >
-                        {articlesFilled}/{articlesTotal}
-                      </Badge>
-                    )}
-                  </>
-                )}
-              </div>
+                </div>
+              )}
 
-              <p className="text-xs text-muted-foreground" style={{ marginTop: 'auto' }}>
+              <p className="text-xs text-muted-foreground mt-auto">
                 Modifié le {new Date(project.modifiedAt).toLocaleDateString('fr-FR')}
               </p>
             </div>

@@ -24,6 +24,7 @@ import {
   writeJson,
 } from '../_fs'
 import { buildProjectView } from './projects'
+import { rebuildProject } from './_index'
 
 export function setupV2ZipHandlers(): void {
   ipcMain.handle('v2:projects:exportZip', async (_, projectId: string): Promise<boolean> => {
@@ -97,6 +98,10 @@ export function setupV2ZipHandlers(): void {
         modifiedAt: now,
       }
       writeJson(getProjectMetadataPath(newProjectId), newMetadata)
+      // Bulk import: dozens of files just appeared on disk. Seed the cache
+      // for this project so the IPC list/get calls below return real data
+      // without waiting for the watcher.
+      rebuildProject(newProjectId)
 
       return buildProjectView(newProjectId)
     } catch (err) {

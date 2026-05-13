@@ -1,7 +1,7 @@
 // v2 dossier handlers. A dossier groups articles inside a project.
 import { ipcMain } from 'electron'
 import { existsSync, renameSync, rmSync } from 'fs'
-import type { DossierDeleteMode, DossierMetadata, DossierView } from '@shared/types'
+import type { ArticleMetadata, DossierDeleteMode, DossierMetadata, DossierView } from '@shared/types'
 import {
   ensureDir,
   getArticleDir,
@@ -9,7 +9,6 @@ import {
   getDossierArticlesDir,
   getDossierDir,
   getDossierMetadataPath,
-  getDossiersDir,
   getOrphansDir,
   listSubdirs,
   newId,
@@ -18,18 +17,21 @@ import {
   writeJson,
 } from '../_fs'
 import { touchProject } from './projects'
+import {
+  idx,
+  patchArticle,
+  patchDossier,
+  removeArticleFromIndex,
+  removeDossierFromIndex,
+} from './_index'
 
 const buildDossierView = (projectId: string, dossierId: string): DossierView | null => {
-  const metadata = readDossierMetadata(projectId, dossierId)
-  if (!metadata) return null
-  // Exclude drafts (status='draft') from the user-facing count.
-  const articleIds = listSubdirs(getDossierArticlesDir(projectId, dossierId))
-  let articlesCount = 0
-  for (const articleId of articleIds) {
-    const am = readArticleMetadata(projectId, dossierId, articleId)
-    if (am && am.status !== 'draft') articlesCount += 1
+  const entry = idx.getDossier(dossierId)
+  if (!entry || entry.projectId !== projectId) return null
+  return {
+    ...entry.meta,
+    articlesCount: idx.countArticlesInDossier(projectId, dossierId),
   }
-  return { ...metadata, articlesCount }
 }
 
 export function setupV2DossierHandlers(): void {
@@ -47,16 +49,16 @@ export function setupV2DossierHandlers(): void {
       ensureDir(getDossierDir(projectId, id))
       ensureDir(getDossierArticlesDir(projectId, id))
       if (!writeJson(getDossierMetadataPath(projectId, id), metadata)) return null
+      patchDossier(projectId, id, metadata)
       touchProject(projectId)
       return buildDossierView(projectId, id)
     }
   )
 
   ipcMain.handle('v2:dossiers:list', async (_, projectId: string): Promise<DossierView[]> => {
-    const ids = listSubdirs(getDossiersDir(projectId))
     const views: DossierView[] = []
-    for (const id of ids) {
-      const v = buildDossierView(projectId, id)
+    for (const meta of idx.listDossiersInProject(projectId)) {
+      const v = buildDossierView(projectId, meta.id)
       if (v) views.push(v)
     }
     return views.sort((a, b) =>
@@ -81,7 +83,10 @@ export function setupV2DossierHandlers(): void {
         modifiedAt: new Date().toISOString(),
       }
       const ok = writeJson(getDossierMetadataPath(projectId, dossierId), updated)
-      if (ok) touchProject(projectId)
+      if (ok) {
+        patchDossier(projectId, dossierId, updated)
+        touchProject(projectId)
+      }
       return ok
     }
   )
@@ -109,20 +114,32 @@ export function setupV2DossierHandlers(): void {
             renameSync(srcDir, destDir)
             const am = readArticleMetadata(projectId, null, articleId)
             if (am) {
-              writeJson(getArticleMetadataPath(projectId, null, articleId), {
+              const updated: ArticleMetadata = {
                 ...am,
                 dossierId: null,
                 modifiedAt: new Date().toISOString(),
-              })
+              }
+              writeJson(getArticleMetadataPath(projectId, null, articleId), updated)
+              patchArticle(projectId, articleId, updated)
             }
           } catch (err) {
             console.error('Failed to orphan article', articleId, err)
           }
         }
       }
-      // For 'delete-content', we just rmSync the whole dossier dir (articles included).
+      // For 'delete-content', rmSync removes articles too — collect their
+      // ids from the index BEFORE removing the dossier so we can purge them
+      // from the cache. For 'orphan-articles', the articles have already
+      // been moved out and re-patched above.
+      const articlesToPurge: string[] =
+        mode === 'delete-content'
+          ? idx.listArticlesInProject(projectId, { dossierId, includeDrafts: true }).map((a) => a.id)
+          : []
+
       try {
         rmSync(dir, { recursive: true, force: true })
+        for (const id of articlesToPurge) removeArticleFromIndex(id)
+        removeDossierFromIndex(dossierId)
         touchProject(projectId)
         return true
       } catch (err) {

@@ -169,7 +169,11 @@ export function ProjectsPage({ filter = 'all' }: ProjectsPageProps) {
         </div>
       </header>
 
-      {loading ? (
+      {/* Spinner only on the very first load. Subsequent reloads triggered
+          by the chokidar watcher swap the array atomically without showing
+          the "Chargement..." state, which otherwise flashes whenever a
+          project is created/deleted/imported. */}
+      {loading && projects.length === 0 ? (
         <div className="flex items-center justify-center h-64">
           <div className="text-muted-foreground">Chargement...</div>
         </div>

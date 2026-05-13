@@ -13,16 +13,15 @@ import type {
   TemplateField,
 } from '@shared/types'
 import { isFieldFilled } from '@shared/fieldValue'
-import { locateArticle, readArticleMetadata } from '../_fs'
+import { idx } from './_index'
 
-// Locate + load metadata for a list of article IDs in a project.
+// Load metadata for a list of article IDs in a project. Reads from the
+// in-memory index (no file walk).
 const loadArticles = (projectId: string, articleIds: string[]): ArticleMetadata[] => {
   const result: ArticleMetadata[] = []
   for (const id of articleIds) {
-    const dossierId = locateArticle(projectId, id)
-    if (dossierId === undefined) continue
-    const am = readArticleMetadata(projectId, dossierId, id)
-    if (am) result.push(am)
+    const e = idx.getArticle(id)
+    if (e && e.projectId === projectId) result.push(e.meta)
   }
   return result
 }
@@ -33,10 +32,8 @@ const loadArticles = (projectId: string, articleIds: string[]): ArticleMetadata[
 const loadMultiArticles = (items: MultiExportItem[]): ArticleMetadata[] => {
   const result: ArticleMetadata[] = []
   for (const { projectId, articleId } of items) {
-    const dossierId = locateArticle(projectId, articleId)
-    if (dossierId === undefined) continue
-    const am = readArticleMetadata(projectId, dossierId, articleId)
-    if (am) result.push(am)
+    const e = idx.getArticle(articleId)
+    if (e && e.projectId === projectId) result.push(e.meta)
   }
   return result
 }

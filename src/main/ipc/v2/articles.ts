@@ -30,45 +30,20 @@ import {
   getArticleDir,
   getArticleExtractPdfPath,
   getArticleMetadataPath,
-  getDossierArticlesDir,
-  getDossiersDir,
-  getOrphansDir,
   getSourceDir,
   getSourcePdfPath,
-  listSubdirs,
-  locateArticle,
   newId,
   readArticleMetadata,
   writeJson,
 } from '../_fs'
 import { generateArticleExtract } from './_python'
 import { touchProject } from './projects'
+import { idx, patchArticle, removeArticleFromIndex } from './_index'
 
-// Walk all articles in a project, yielding {dossierId, articleId}.
-const walkArticles = function* (projectId: string): Generator<{ dossierId: string | null; articleId: string }> {
-  for (const articleId of listSubdirs(getOrphansDir(projectId))) {
-    yield { dossierId: null, articleId }
-  }
-  for (const dossierId of listSubdirs(getDossiersDir(projectId))) {
-    for (const articleId of listSubdirs(getDossierArticlesDir(projectId, dossierId))) {
-      yield { dossierId, articleId }
-    }
-  }
-}
-
-// Apply an ArticleScope filter. Drafts (status='draft') are hidden by default;
-// callers must pass `includeDrafts: true` or `status: 'draft'` to see them.
-const matchesScope = (article: ArticleMetadata, scope?: ArticleScope): boolean => {
-  const wantsDrafts = scope?.includeDrafts === true || scope?.status === 'draft'
-  if (!wantsDrafts && article.status === 'draft') return false
-  if (!scope) return true
-  if (scope.dossierId !== undefined && article.dossierId !== scope.dossierId) return false
-  if (scope.sourceId !== undefined && article.sourceId !== scope.sourceId) return false
-  if (scope.articleId !== undefined && article.id !== scope.articleId) return false
-  if (scope.articleIds !== undefined && !scope.articleIds.includes(article.id)) return false
-  if (scope.status !== undefined && article.status !== scope.status) return false
-  return true
-}
+// Cache-backed locator. The on-disk locateArticle in _fs.ts walks dossiers
+// every call; the in-memory index returns the answer directly.
+const locateArticle = (projectId: string, articleId: string): string | null | undefined =>
+  idx.locateArticle(projectId, articleId)
 
 // Recursive directory copy (used for cross-project moves when source must follow).
 const copyDirRecursive = (src: string, dest: string): void => {
@@ -93,49 +68,33 @@ const moveDir = (src: string, dest: string): void => {
 
 // Compute the next order index for an article being added to a dossier
 // (or to the orphans section when dossierId is null). Returns max(order)+1,
-// or 0 when no article in that section has an order yet.
+// or 0 when no article in that section has an order yet. Reads from the
+// in-memory index (avoids N file reads per create/move).
 const nextOrderInDossier = (projectId: string, dossierId: string | null): number => {
-  const articleIds =
-    dossierId === null
-      ? listSubdirs(getOrphansDir(projectId))
-      : listSubdirs(getDossierArticlesDir(projectId, dossierId))
+  const articles = idx.listArticlesInProject(projectId, {
+    dossierId,
+    includeDrafts: true,
+  })
   let max = -1
-  for (const id of articleIds) {
-    const am = readArticleMetadata(projectId, dossierId, id)
-    if (am && typeof am.order === 'number' && am.order > max) max = am.order
+  for (const am of articles) {
+    if (typeof am.order === 'number' && am.order > max) max = am.order
   }
   return max + 1
-}
-
-// Tie-breaker sort: by `order` ascending, with `createdAt` ascending as
-// fallback for articles that don't have an order yet (legacy or freshly
-// imported). Mixed lists thus stay roughly stable.
-const compareForList = (a: ArticleMetadata, b: ArticleMetadata): number => {
-  const ao = typeof a.order === 'number' ? a.order : Number.POSITIVE_INFINITY
-  const bo = typeof b.order === 'number' ? b.order : Number.POSITIVE_INFINITY
-  if (ao !== bo) return ao - bo
-  return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
 }
 
 export function setupV2ArticleHandlers(): void {
   ipcMain.handle(
     'v2:articles:list',
-    async (_, projectId: string, scope?: ArticleScope): Promise<ArticleMetadata[]> => {
-      const result: ArticleMetadata[] = []
-      for (const { dossierId, articleId } of walkArticles(projectId)) {
-        const am = readArticleMetadata(projectId, dossierId, articleId)
-        if (am && matchesScope(am, scope)) result.push(am)
-      }
-      return result.sort(compareForList)
-    }
+    async (_, projectId: string, scope?: ArticleScope): Promise<ArticleMetadata[]> =>
+      idx.listArticlesInProject(projectId, scope)
   )
 
   ipcMain.handle(
     'v2:articles:get',
     async (_, projectId: string, articleId: string): Promise<ArticleMetadata | null> => {
-      const dossierId = locateArticle(projectId, articleId)
-      if (dossierId === undefined) return null
-      return readArticleMetadata(projectId, dossierId, articleId)
+      const e = idx.getArticle(articleId)
+      if (!e || e.projectId !== projectId) return null
+      return e.meta
     }
   )
 
@@ -175,6 +134,7 @@ export function setupV2ArticleHandlers(): void {
         modifiedAt: now,
       }
       writeJson(getArticleMetadataPath(projectId, payload.dossierId, id), metadata)
+      patchArticle(projectId, id, metadata)
 
       // Skip PDF generation when the caller is just persisting in-progress
       // work (Sauvegarder during extraction). Status stays 'draft'.
@@ -190,6 +150,7 @@ export function setupV2ArticleHandlers(): void {
         if (ok) {
           const ready: ArticleMetadata = { ...metadata, status: 'ready', modifiedAt: new Date().toISOString() }
           writeJson(getArticleMetadataPath(projectId, payload.dossierId, id), ready)
+          patchArticle(projectId, id, ready)
           touchProject(projectId)
           return ready
         }
@@ -224,7 +185,10 @@ export function setupV2ArticleHandlers(): void {
         modifiedAt: new Date().toISOString(),
       }
       const ok = writeJson(getArticleMetadataPath(projectId, dossierId, articleId), updated)
-      if (ok) touchProject(projectId)
+      if (ok) {
+        patchArticle(projectId, articleId, updated)
+        touchProject(projectId)
+      }
       return ok
     }
   )
@@ -237,6 +201,7 @@ export function setupV2ArticleHandlers(): void {
       const dir = getArticleDir(projectId, dossierId, articleId)
       try {
         rmSync(dir, { recursive: true, force: true })
+        removeArticleFromIndex(articleId)
         touchProject(projectId)
         return true
       } catch (err) {
@@ -311,7 +276,8 @@ export function setupV2ArticleHandlers(): void {
           getArticleMetadataPath(projectId, dossierId, articleId),
           updated
         )
-        if (!ok) allOk = false
+        if (ok) patchArticle(projectId, articleId, updated)
+        else allOk = false
       })
       if (allOk) touchProject(projectId)
       return allOk
@@ -352,6 +318,7 @@ export function setupV2ArticleHandlers(): void {
           modifiedAt: new Date().toISOString(),
         }
         writeJson(getArticleMetadataPath(projectId, dossierId, articleId), updated)
+        patchArticle(projectId, articleId, updated)
         touchProject(projectId)
       }
       return ok
@@ -422,6 +389,7 @@ async function moveOneArticle(
     modifiedAt: new Date().toISOString(),
   }
   writeJson(getArticleMetadataPath(destProjectId, destDossierId, articleId), updated)
+  patchArticle(destProjectId, articleId, updated)
 
   touchProject(projectId)
   if (isCrossProject) touchProject(destProjectId)
