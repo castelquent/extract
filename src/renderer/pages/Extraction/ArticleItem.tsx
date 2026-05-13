@@ -1,4 +1,4 @@
-import { Lock, Trash2, Unlock } from 'lucide-react'
+import { FileStack, Lock, Trash2, Unlock } from 'lucide-react'
 import {
   DndContext,
   closestCenter,
@@ -35,7 +35,11 @@ interface ArticleItemProps {
   onReorderZones: (fromIndex: number, toIndex: number) => void
   // Optional: when provided, show an inline model selector for this element.
   templates?: Template[]
+  // Silent swap (used for new/unlocked elements where fields are empty).
   onTemplateChange?: (template: Template) => void
+  // Triggers the merge dialog from the parent — used for persisted-with-fields
+  // elements where a model change must preserve / coerce field values.
+  onChangeModelRequest?: () => void
   // When true, the element is persisted with filled fields. Zone edits + delete
   // are gated behind onUnlockRequest (confirms wiping fields).
   locked?: boolean
@@ -53,10 +57,13 @@ export function ArticleItem({
   onReorderZones,
   templates,
   onTemplateChange,
+  onChangeModelRequest,
   locked,
   onUnlockRequest,
   children,
 }: ArticleItemProps) {
+  const currentTemplateName =
+    templates?.find((t) => t.id === article.templateId)?.name ?? 'Personnalisé'
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -147,30 +154,42 @@ export function ArticleItem({
           )}
         </div>
 
-        {/* Inline model selector — hidden on locked elements (handled by editor) */}
-        {!locked && templates && templates.length > 0 && onTemplateChange && (
-          <div
-            className="mt-2 ml-8"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Select
-              value={article.templateId ?? ''}
-              onValueChange={(id) => {
-                const template = templates.find((t) => t.id === id)
-                if (template) onTemplateChange(template)
-              }}
-            >
-              <SelectTrigger className="h-7 text-xs">
-                <SelectValue placeholder="Modèle" />
-              </SelectTrigger>
-              <SelectContent>
-                {templates.map((t) => (
-                  <SelectItem key={t.id} value={t.id} className="text-xs">
-                    {t.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        {/* Model picker. Locked elements (persisted with filled fields) get a
+            "Changer le modèle…" button that opens the merge dialog. The rest
+            get the inline Select for quick swap. */}
+        {templates && templates.length > 0 && (
+          <div className="mt-2 ml-8" onClick={(e) => e.stopPropagation()}>
+            {locked ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={onChangeModelRequest}
+                title="Le modèle s'applique avec préservation des champs"
+              >
+                <FileStack className="h-3.5 w-3.5 mr-1.5" />
+                Modèle : {currentTemplateName}
+              </Button>
+            ) : onTemplateChange ? (
+              <Select
+                value={article.templateId ?? ''}
+                onValueChange={(id) => {
+                  const template = templates.find((t) => t.id === id)
+                  if (template) onTemplateChange(template)
+                }}
+              >
+                <SelectTrigger className="h-7 text-xs">
+                  <SelectValue placeholder="Modèle" />
+                </SelectTrigger>
+                <SelectContent>
+                  {templates.map((t) => (
+                    <SelectItem key={t.id} value={t.id} className="text-xs">
+                      {t.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : null}
           </div>
         )}
 

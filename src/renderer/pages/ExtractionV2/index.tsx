@@ -40,6 +40,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react'
+import { ApplyTemplateDialog } from '@/components/ApplyTemplateDialog'
 import { PdfViewer } from '../Extraction/PdfViewer'
 import { ZonesOverlay } from '../Extraction/ZonesOverlay'
 import { ArticleItem } from '../Extraction/ArticleItem'
@@ -97,6 +98,7 @@ export function ExtractionV2Page() {
   const [zoomLevel, setZoomLevel] = useState(1)
   const [generateOpen, setGenerateOpen] = useState(false)
   const [unlockTarget, setUnlockTarget] = useState<WorkingArticle | null>(null)
+  const [changeModelTarget, setChangeModelTarget] = useState<WorkingArticle | null>(null)
 
   const ZOOM_MIN = 1
   const ZOOM_MAX = 5
@@ -483,6 +485,7 @@ export function ExtractionV2Page() {
                       }
                       templates={templates}
                       onTemplateChange={(template) => handleTemplateChange(article.id, template)}
+                      onChangeModelRequest={() => setChangeModelTarget(article)}
                       locked={isArticleLocked(article)}
                       onUnlockRequest={() => setUnlockTarget(article)}
                     >
@@ -524,6 +527,25 @@ export function ExtractionV2Page() {
         dossiers={dossiers}
         onConfirm={handleConfirmGenerate}
       />
+
+      {changeModelTarget && (
+        <ApplyTemplateDialog
+          open={!!changeModelTarget}
+          onOpenChange={(open) => !open && setChangeModelTarget(null)}
+          templates={templates}
+          currentTemplateId={changeModelTarget.templateId}
+          currentSchema={changeModelTarget.schema}
+          currentFields={changeModelTarget.fields}
+          onConfirm={(template, mergedFields) => {
+            updateArticle(changeModelTarget.id, {
+              templateId: template.id,
+              schema: template.fields,
+              aiContext: template.aiContext,
+              fields: mergedFields,
+            })
+          }}
+        />
+      )}
 
       <AlertDialog
         open={!!unlockTarget}
