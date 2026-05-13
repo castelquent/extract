@@ -15,6 +15,9 @@ interface ZoneBoxProps {
   onUpdate: (zone: Zone) => void
   onDelete: () => void
   onMoveToArticle: (targetArticleId: number) => void
+  // When true, drag/resize/delete/move-to-article are disabled. Used for
+  // persisted elements with filled fields ("locked").
+  locked?: boolean
 }
 
 export function ZoneBox({
@@ -29,6 +32,7 @@ export function ZoneBox({
   onUpdate,
   onDelete,
   onMoveToArticle,
+  locked,
 }: ZoneBoxProps) {
   // Convert normalized coordinates (0-1) to pixels
   const x = zone.x1 * containerWidth
@@ -86,16 +90,21 @@ export function ZoneBox({
       bounds="parent"
       minWidth={20}
       minHeight={20}
-      enableResizing={{
-        top: true,
-        right: true,
-        bottom: true,
-        left: true,
-        topRight: true,
-        bottomRight: true,
-        bottomLeft: true,
-        topLeft: true,
-      }}
+      disableDragging={locked}
+      enableResizing={
+        locked
+          ? false
+          : {
+              top: true,
+              right: true,
+              bottom: true,
+              left: true,
+              topRight: true,
+              bottomRight: true,
+              bottomLeft: true,
+              topLeft: true,
+            }
+      }
       resizeHandleStyles={{
         top: { cursor: 'n-resize' },
         right: { cursor: 'e-resize' },
@@ -110,16 +119,19 @@ export function ZoneBox({
         zone-box border-2 transition-colors
         ${isSelected
           ? 'border-blue-500 bg-blue-500/30'
-          : 'border-green-500 bg-green-500/20 hover:border-green-400'
+          : locked
+            ? 'border-amber-500 bg-amber-500/15'
+            : 'border-green-500 bg-green-500/20 hover:border-green-400'
         }
       `}
-      style={{ cursor: 'move' }}
+      style={{ cursor: locked ? 'not-allowed' : 'move' }}
     >
       <ZoneContextMenu
         articles={articles}
         currentArticleId={currentArticleId}
         onDelete={onDelete}
         onMoveToArticle={onMoveToArticle}
+        locked={locked}
       >
         <div className="absolute inset-0">
           <div

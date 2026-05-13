@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import type { Zone } from '@shared/types'
-import type { WorkingArticle as Article } from '@/stores/extractionStore'
+import { isArticleLocked, type WorkingArticle as Article } from '@/stores/extractionStore'
 import { ZoneBox } from './ZoneBox'
 
 interface ZonesOverlayProps {
@@ -67,6 +67,7 @@ export function ZonesOverlay({
         zoneIndex,
         articleId: article.id,
         articleNumber: articleIndex + 1,
+        locked: isArticleLocked(article),
       }))
       .filter((item) => item.zone.page === currentPage)
   )
@@ -185,6 +186,7 @@ export function ZonesOverlay({
             onUpdate={(updatedZone) => onZoneUpdated(item.articleId, item.zoneIndex, updatedZone)}
             onDelete={() => onZoneDeleted(item.articleId, item.zoneIndex)}
             onMoveToArticle={(targetId) => onZoneMoveToArticle(item.articleId, item.zoneIndex, targetId)}
+            locked={item.locked}
           />
         )
       })}

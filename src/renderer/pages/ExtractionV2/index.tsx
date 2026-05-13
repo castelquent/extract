@@ -499,6 +499,7 @@ export function ExtractionV2Page() {
                             currentArticleId === article.id && selectedZoneIndex === zoneIndex
                           }
                           articles={articles}
+                          locked={isArticleLocked(article)}
                           onSelect={() => selectZoneInArticle(article.id, zoneIndex)}
                           onDelete={() => removeZoneFromArticle(article.id, zoneIndex)}
                           onMoveToArticle={(targetId) =>

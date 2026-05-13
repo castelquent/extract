@@ -15,6 +15,7 @@ interface ZoneItemProps {
   onDelete: () => void
   onMoveToArticle: (targetArticleId: number) => void
   onJumpToPage: () => void
+  locked?: boolean
 }
 
 export function ZoneItem({
@@ -27,6 +28,7 @@ export function ZoneItem({
   onDelete,
   onMoveToArticle,
   onJumpToPage,
+  locked,
 }: ZoneItemProps) {
   const {
     attributes,
@@ -52,6 +54,7 @@ export function ZoneItem({
       currentArticleId={articleId}
       onDelete={onDelete}
       onMoveToArticle={onMoveToArticle}
+      locked={locked}
     >
       <Badge
         ref={setNodeRef}
