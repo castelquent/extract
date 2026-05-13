@@ -25,7 +25,12 @@ export interface DeleteTemplateResult {
   projectNames?: string[]
 }
 
-// Project types
+// ============================================================
+// LEGACY project/article model (1 project = 1 PDF)
+// Kept temporarily so old IPC handlers and UI still compile
+// during the staged refactor. Removed at step 12.
+// ============================================================
+
 export interface ProjectMetadata {
   id: string
   name: string
@@ -43,15 +48,6 @@ export interface Project extends ProjectMetadata {
   thumbnailPath: string | null
 }
 
-// Article types
-export interface Zone {
-  page: number
-  x1: number
-  y1: number
-  x2: number
-  y2: number
-}
-
 export interface Article {
   id: number
   zones: Zone[]
@@ -63,7 +59,101 @@ export interface ExtractionData {
   articles: Article[]
 }
 
-// AI types
+// ============================================================
+// NEW model: Project > Dossier > Article (with Sources)
+// Filesystem-as-truth. Each entity lives in its own folder
+// under %AppData%/Local/ExtrAct/projects/{projectId}/...
+// ============================================================
+
+// Generic zone, shared between old and new model
+export interface Zone {
+  page: number
+  x1: number
+  y1: number
+  x2: number
+  y2: number
+}
+
+// --- Project (corpus / theme) ---
+export interface ProjectMetadataV2 {
+  id: string
+  name: string
+  templateId: string
+  createdAt: string
+  modifiedAt: string
+}
+
+// Read-only aggregated view returned by projects:list / projects:get
+export interface ProjectView extends ProjectMetadataV2 {
+  thumbnailPath: string | null
+  sourcesCount: number
+  dossiersCount: number
+  articlesTotal: number
+  articlesToExtract: number     // status === 'new'
+  articlesToTranscribe: number  // status === 'extracted'
+  articlesDone: number          // status === 'transcribed'
+}
+
+// --- Source (a PDF imported into a project) ---
+export interface SourceMetadata {
+  id: string
+  originalFilename: string
+  pageCount: number
+  importedAt: string
+}
+
+export interface SourceView extends SourceMetadata {
+  thumbnailPath: string | null
+  articlesCount: number
+}
+
+// --- Dossier (optional grouping of articles inside a project) ---
+export interface DossierMetadata {
+  id: string
+  name: string
+  createdAt: string
+  modifiedAt: string
+}
+
+export interface DossierView extends DossierMetadata {
+  articlesCount: number
+}
+
+// --- Article (the portable unit) ---
+export type ArticleStatus = 'new' | 'extracted' | 'transcribed'
+
+export interface ArticleMetadata {
+  id: string
+  sourceId: string
+  dossierId: string | null   // null = orphan (no dossier)
+  zones: Zone[]
+  pages: number[]
+  fields: Record<string, string>
+  status: ArticleStatus
+  createdAt: string
+  modifiedAt: string
+}
+
+// Filtering scope passed to articles:list
+export interface ArticleScope {
+  dossierId?: string | null   // null = orphans only; undefined = any
+  sourceId?: string
+  status?: ArticleStatus
+}
+
+// --- Dossier deletion mode ---
+export type DossierDeleteMode = 'delete-content' | 'orphan-articles'
+
+// --- Move target for articles ---
+export interface ArticleMoveTarget {
+  dossierId?: string | null              // intra-project: null = orphan
+  targetProjectId?: string                // cross-project (overrides dossierId interpretation)
+  targetDossierId?: string | null         // when targetProjectId set: null = orphan in target
+}
+
+// ============================================================
+// AI / Settings (unchanged)
+// ============================================================
 export type AIProvider = 'openai' | 'anthropic'
 
 export interface AISettings {
@@ -95,7 +185,6 @@ export interface TranscriptionLog {
   error?: string
 }
 
-// Settings types
 export interface Settings {
   ai: AISettings
   app: {
@@ -105,7 +194,9 @@ export interface Settings {
   }
 }
 
-// IPC API types
+// ============================================================
+// IPC API surface — both legacy and new methods coexist during refactor
+// ============================================================
 export interface ElectronAPI {
   // Templates
   getTemplates: () => Promise<Template[]>
@@ -113,7 +204,7 @@ export interface ElectronAPI {
   saveTemplate: (template: Template) => Promise<boolean>
   deleteTemplate: (templateId: string) => Promise<DeleteTemplateResult>
 
-  // Projects
+  // Projects (legacy)
   getProjects: () => Promise<Project[]>
   createProject: (name: string, templateId: string) => Promise<Project | null>
   deleteProject: (projectId: string) => Promise<boolean>
@@ -123,7 +214,7 @@ export interface ElectronAPI {
   exportProjectZip: (projectId: string) => Promise<boolean>
   importProjectZip: () => Promise<Project | null>
 
-  // Extraction
+  // Extraction (legacy)
   saveExtraction: (projectId: string, data: ExtractionData) => Promise<boolean>
   loadExtraction: (projectId: string) => Promise<ExtractionData | null>
   exportImages: (projectId: string, articles: Article[]) => Promise<Article[] | null>
@@ -132,10 +223,11 @@ export interface ElectronAPI {
   getImageData: (projectId: string, imagePath: string) => Promise<string | null>
   getPdfFile: (projectId: string, imagePath: string) => Promise<string | null>
   extractText: (projectId: string, imagePath: string) => Promise<string | null>
-  // Transcription
+
+  // Transcription (legacy)
   transcribe: (projectId: string, imagePath: string, settings: AISettings, template: Template) => Promise<TranscriptionResult>
 
-  // Export
+  // Export (legacy)
   exportPdf: (projectId: string, articles: Article[]) => Promise<boolean>
   exportDocx: (projectId: string, articles: Article[]) => Promise<boolean>
   exportTxt: (projectId: string, articles: Article[]) => Promise<boolean>
@@ -166,6 +258,70 @@ export interface ElectronAPI {
 
   // External shell
   openExternal: (url: string) => Promise<void>
+
+  // ============================================================
+  // NEW v2 surface (Project > Dossier > Article, filesystem-as-truth)
+  // ============================================================
+
+  // Projects v2
+  v2_projectsList: () => Promise<ProjectView[]>
+  v2_projectsGet: (projectId: string) => Promise<ProjectView | null>
+  v2_projectsCreate: (name: string, templateId: string) => Promise<ProjectView | null>
+  v2_projectsRename: (projectId: string, name: string) => Promise<boolean>
+  v2_projectsDelete: (projectId: string) => Promise<boolean>
+  v2_projectsDuplicate: (projectId: string) => Promise<ProjectView | null>
+  v2_projectsOpenFolder: (projectId: string) => Promise<boolean>
+
+  // Sources v2
+  v2_sourcesAdd: (projectId: string) => Promise<SourceView[]>
+  v2_sourcesList: (projectId: string) => Promise<SourceView[]>
+  v2_sourcesGet: (projectId: string, sourceId: string) => Promise<SourceView | null>
+  v2_sourcesDelete: (projectId: string, sourceId: string, force?: boolean) => Promise<{ ok: boolean; reason?: 'has-articles'; articlesCount?: number }>
+  v2_sourcesGetPdfData: (projectId: string, sourceId: string) => Promise<ArrayBuffer | null>
+  v2_sourcesGetThumbnail: (projectId: string, sourceId: string) => Promise<string | null>
+
+  // Dossiers v2
+  v2_dossiersCreate: (projectId: string, name: string) => Promise<DossierView | null>
+  v2_dossiersList: (projectId: string) => Promise<DossierView[]>
+  v2_dossiersGet: (projectId: string, dossierId: string) => Promise<DossierView | null>
+  v2_dossiersRename: (projectId: string, dossierId: string, name: string) => Promise<boolean>
+  v2_dossiersDelete: (projectId: string, dossierId: string, mode: DossierDeleteMode) => Promise<boolean>
+
+  // Articles v2
+  v2_articlesList: (projectId: string, scope?: ArticleScope) => Promise<ArticleMetadata[]>
+  v2_articlesGet: (projectId: string, articleId: string) => Promise<ArticleMetadata | null>
+  v2_articlesCreate: (
+    projectId: string,
+    payload: {
+      sourceId: string
+      dossierId: string | null
+      zones: Zone[]
+      pages: number[]
+      fields?: Record<string, string>
+    }
+  ) => Promise<ArticleMetadata | null>
+  v2_articlesUpdate: (
+    projectId: string,
+    articleId: string,
+    patch: Partial<Pick<ArticleMetadata, 'fields' | 'zones' | 'pages' | 'status' | 'sourceId' | 'dossierId'>>
+  ) => Promise<boolean>
+  v2_articlesDelete: (projectId: string, articleId: string) => Promise<boolean>
+  v2_articlesMove: (projectId: string, articleId: string, target: ArticleMoveTarget) => Promise<boolean>
+  v2_articlesMoveBulk: (projectId: string, articleIds: string[], target: ArticleMoveTarget) => Promise<boolean>
+  v2_articlesGetExtractData: (projectId: string, articleId: string) => Promise<string | null>
+  v2_articlesRegenerateExtract: (projectId: string, articleId: string) => Promise<boolean>
+
+  // Transcription v2 (article-based instead of imagePath)
+  v2_transcribe: (projectId: string, articleId: string, settings: AISettings, template: Template) => Promise<TranscriptionResult>
+
+  // Export v2
+  v2_exportArticlesPdf: (projectId: string, articleIds: string[]) => Promise<boolean>
+  v2_exportArticlesDocx: (projectId: string, articleIds: string[]) => Promise<boolean>
+  v2_exportArticlesTxt: (projectId: string, articleIds: string[]) => Promise<boolean>
+
+  // File watchers v2 (notifications from main → renderer)
+  v2_onProjectsListChanged: (callback: () => void) => () => void
+  v2_onProjectChanged: (callback: (projectId: string) => void) => () => void
 }
 
 declare global {
