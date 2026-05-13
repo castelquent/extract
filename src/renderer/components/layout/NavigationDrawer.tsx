@@ -1,50 +1,84 @@
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Home, Scissors, FileText, FileStack, Settings, PanelLeftClose, PanelLeft, CheckCircle, Search, HelpCircle } from 'lucide-react'
+import {
+  CheckCircle,
+  FileStack,
+  FolderOpen,
+  HelpCircle,
+  Home,
+  PanelLeft,
+  PanelLeftClose,
+  Scissors,
+  Search,
+  Settings,
+  FileText,
+} from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuBadge,
   useSidebar,
 } from '@/components/ui/sidebar'
-import { useProjectsStore, selectExtractionProjects, selectTranscriptionProjects, selectCompletedProjects, useUIStore } from '@/stores'
+import {
+  selectProjectsDone,
+  selectProjectsToExtract,
+  selectProjectsToTranscribe,
+  useProjectsStoreV2,
+  useUIStore,
+} from '@/stores'
+import type { ProjectView } from '@shared/types'
 
-const navItems = [
-  { to: '/', icon: Home, label: 'Accueil', filter: 'all' as const },
-  { to: '/extraction', icon: Scissors, label: 'Extraction', filter: 'extraction' as const },
-  { to: '/transcription', icon: FileText, label: 'Transcription', filter: 'transcription' as const },
-  { to: '/completed', icon: CheckCircle, label: 'Terminés', filter: 'completed' as const },
-  { to: '/search', icon: Search, label: 'Recherche', filter: null },
-  { to: '/templates', icon: FileStack, label: 'Modèles', filter: null },
-]
+const RECENT_LIMIT = 5
 
 export function NavigationDrawer() {
   const location = useLocation()
   const navigate = useNavigate()
   const { openSettings, openHelp, updateStatus } = useUIStore()
   const { toggleSidebar, state } = useSidebar()
-  const projects = useProjectsStore((state) => state.projects)
+  const projects = useProjectsStoreV2((s) => s.projects)
   const isCollapsed = state === 'collapsed'
 
   const hasUpdate = updateStatus === 'available' || updateStatus === 'ready'
 
-  const getCounts = (filter: 'all' | 'extraction' | 'transcription' | 'completed' | null) => {
-    if (filter === null) return 0
-    const state = { projects } as any
-    switch (filter) {
-      case 'extraction':
-        return selectExtractionProjects(state).length
-      case 'transcription':
-        return selectTranscriptionProjects(state).length
-      case 'completed':
-        return selectCompletedProjects(state).length
-      default:
-        return projects.length
-    }
-  }
+  const countsState = { projects } as Parameters<typeof selectProjectsToExtract>[0]
+  const countExtract = selectProjectsToExtract(countsState).length
+  const countTranscribe = selectProjectsToTranscribe(countsState).length
+  const countDone = selectProjectsDone(countsState).length
+
+  const recentProjects = [...projects]
+    .sort((a, b) => new Date(b.modifiedAt).getTime() - new Date(a.modifiedAt).getTime())
+    .slice(0, RECENT_LIMIT)
+
+  const navItems: Array<{
+    to: string
+    icon: React.ElementType
+    label: string
+    count: number
+  }> = [
+    { to: '/', icon: Home, label: 'Tous les projets', count: projects.length },
+    { to: '/search', icon: Search, label: 'Recherche', count: 0 },
+    { to: '/templates', icon: FileStack, label: 'Modèles', count: 0 },
+  ]
+
+  const viewItems: Array<{
+    to: string
+    icon: React.ElementType
+    label: string
+    count: number
+  }> = [
+    { to: '/extraction', icon: Scissors, label: 'À extraire', count: countExtract },
+    { to: '/transcription', icon: FileText, label: 'À transcrire', count: countTranscribe },
+    { to: '/completed', icon: CheckCircle, label: 'Terminés', count: countDone },
+  ]
+
+  const isActiveProject = (project: ProjectView): boolean =>
+    location.pathname === `/project/${project.id}`
 
   return (
     <Sidebar collapsible="icon">
@@ -52,24 +86,65 @@ export function NavigationDrawer() {
         <SidebarMenu>
           {navItems.map((item) => {
             const isActive = location.pathname === item.to
-            const count = getCounts(item.filter)
-
             return (
               <SidebarMenuItem key={item.to}>
-                <SidebarMenuButton
-                  isActive={isActive}
-                  onClick={() => navigate(item.to)}
-                >
+                <SidebarMenuButton isActive={isActive} onClick={() => navigate(item.to)}>
                   <item.icon className="h-4 w-4" />
                   <span>{item.label}</span>
                 </SidebarMenuButton>
-                {count > 0 && (
-                  <SidebarMenuBadge>{count}</SidebarMenuBadge>
-                )}
+                {item.count > 0 && <SidebarMenuBadge>{item.count}</SidebarMenuBadge>}
               </SidebarMenuItem>
             )
           })}
         </SidebarMenu>
+
+        {recentProjects.length > 0 && !isCollapsed && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Récents</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {recentProjects.map((project) => (
+                  <SidebarMenuItem key={project.id}>
+                    <SidebarMenuButton
+                      isActive={isActiveProject(project)}
+                      onClick={() => navigate(`/project/${project.id}`)}
+                    >
+                      <FolderOpen className="h-4 w-4 shrink-0" />
+                      <span className="truncate">{project.name}</span>
+                    </SidebarMenuButton>
+                    {project.articlesToExtract + project.articlesToTranscribe > 0 && (
+                      <SidebarMenuBadge>
+                        {project.articlesToExtract + project.articlesToTranscribe}
+                      </SidebarMenuBadge>
+                    )}
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        {!isCollapsed && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Vues</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {viewItems.map((item) => {
+                  const isActive = location.pathname === item.to
+                  return (
+                    <SidebarMenuItem key={item.to}>
+                      <SidebarMenuButton isActive={isActive} onClick={() => navigate(item.to)}>
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.label}</span>
+                      </SidebarMenuButton>
+                      {item.count > 0 && <SidebarMenuBadge>{item.count}</SidebarMenuBadge>}
+                    </SidebarMenuItem>
+                  )
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border px-2 py-2">
@@ -97,7 +172,7 @@ export function NavigationDrawer() {
           <SidebarMenuItem>
             <SidebarMenuButton onClick={toggleSidebar}>
               {isCollapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
-              <span>{isCollapsed ? "Agrandir" : "Réduire"}</span>
+              <span>{isCollapsed ? 'Agrandir' : 'Réduire'}</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

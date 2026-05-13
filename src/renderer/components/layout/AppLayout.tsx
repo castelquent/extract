@@ -6,14 +6,14 @@ import { NavigationDrawer } from './NavigationDrawer'
 import { SettingsModal } from './SettingsModal'
 import { HelpModal } from './HelpModal'
 import {
-  useProjectsStore,
+  useProjectsStoreV2,
   useTemplatesStore,
   useSettingsStore,
 } from '@/stores'
 
 export function AppLayout() {
   const navigate = useNavigate()
-  const loadProjects = useProjectsStore((state) => state.loadProjects)
+  const loadProjects = useProjectsStoreV2((state) => state.loadProjects)
   const loadTemplates = useTemplatesStore((state) => state.loadTemplates)
   const loadSettings = useSettingsStore((state) => state.loadSettings)
   const settings = useSettingsStore((state) => state.settings)
