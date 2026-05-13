@@ -7,6 +7,7 @@ import { SettingsModal } from './SettingsModal'
 import { HelpModal } from './HelpModal'
 import {
   useProjectsStoreV2,
+  useProjectStore,
   useTemplatesStore,
   useSettingsStore,
 } from '@/stores'
@@ -23,6 +24,27 @@ export function AppLayout() {
     loadTemplates()
     loadSettings()
   }, [loadProjects, loadTemplates, loadSettings])
+
+  // Subscribe to filesystem watcher events so the UI reflects external
+  // changes (manual edits in Explorer, articles moved between projects, etc.)
+  // without polling. Editor drafts are intentionally NOT refreshed here —
+  // we don't want to wipe in-flight edits.
+  useEffect(() => {
+    const unsubList = window.api.v2_onProjectsListChanged(() => {
+      useProjectsStoreV2.getState().loadProjects()
+    })
+    const unsubProject = window.api.v2_onProjectChanged((projectId) => {
+      const projectState = useProjectStore.getState()
+      if (projectState.project?.id === projectId) {
+        projectState.refresh()
+      }
+      useProjectsStoreV2.getState().loadProjects()
+    })
+    return () => {
+      unsubList()
+      unsubProject()
+    }
+  }, [])
 
   // Redirect to onboarding on first launch (once settings have loaded)
   useEffect(() => {

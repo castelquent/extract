@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'path'
 import { autoUpdater } from 'electron-updater'
 import { setupIpcHandlers } from './ipc'
+import { setupFsWatchers, teardownFsWatchers } from './watchers'
 
 let mainWindow: BrowserWindow | null = null
 let forceQuit = false
@@ -75,6 +76,10 @@ ipcMain.on('cancel-close', () => {
 app.whenReady().then(() => {
   createWindow()
 
+  // Watch the projects/ tree for changes so the renderer can refresh
+  // its caches without polling.
+  setupFsWatchers(() => mainWindow)
+
   // Vérifier les mises à jour au démarrage (seulement en production)
   if (!isDev) {
     setTimeout(() => {
@@ -87,6 +92,10 @@ app.whenReady().then(() => {
       createWindow()
     }
   })
+})
+
+app.on('before-quit', () => {
+  teardownFsWatchers().catch(() => undefined)
 })
 
 // Auto-updater events
