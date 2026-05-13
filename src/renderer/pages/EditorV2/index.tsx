@@ -100,6 +100,7 @@ export function EditorV2Page() {
   const [project, setProject] = useState<ProjectView | null>(null)
   const [loading, setLoading] = useState(true)
   const [applyTemplateOpen, setApplyTemplateOpen] = useState(false)
+  const [scopeLabel, setScopeLabel] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [transcribing, setTranscribing] = useState(false)
   const [bulkTranscribeProgress, setBulkTranscribeProgress] =
@@ -144,19 +145,39 @@ export function EditorV2Page() {
     return () => setHasUnsavedChanges(false)
   }, [hasUnsavedChanges, setHasUnsavedChanges])
 
-  // Initial load
+  // Initial load. Reads optional scope from query params:
+  //   ?dossier=ID  → scope to that dossier
+  //   ?orphans=1   → scope to orphan elements (dossierId: null)
+  //   (neither)    → entire project
+  const dossierIdParam = searchParams.get('dossier')
+  const orphansParam = searchParams.get('orphans') === '1'
+
   useEffect(() => {
     if (!projectId) return
     let cancelled = false
     const init = async () => {
       setLoading(true)
-      const [proj, _] = await Promise.all([
+      const scope = dossierIdParam
+        ? { dossierId: dossierIdParam }
+        : orphansParam
+          ? { dossierId: null }
+          : undefined
+      const [proj, , , dossier] = await Promise.all([
         window.api.v2_projectsGet(projectId),
-        loadScope(projectId),
+        loadScope(projectId, scope),
         loadTemplates(),
+        dossierIdParam ? window.api.v2_dossiersGet(projectId, dossierIdParam) : Promise.resolve(null),
       ])
       if (cancelled) return
       setProject(proj)
+
+      if (dossierIdParam && dossier) {
+        setScopeLabel(`Dossier : ${dossier.name}`)
+      } else if (orphansParam) {
+        setScopeLabel('Sans dossier')
+      } else {
+        setScopeLabel(null)
+      }
 
       // Deep-link from search: open the requested article and strip the param.
       const requested = searchParams.get('article')
@@ -175,7 +196,7 @@ export function EditorV2Page() {
       reset()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId])
+  }, [projectId, dossierIdParam, orphansParam])
 
   // Load extract.pdf when current article changes
   useEffect(() => {
@@ -474,7 +495,12 @@ export function EditorV2Page() {
             Projet
           </Button>
           <Separator orientation="vertical" className="h-6" />
-          <h1 className="text-lg font-semibold">{project.name}</h1>
+          <div className="flex flex-col leading-tight">
+            <h1 className="text-lg font-semibold">{project.name}</h1>
+            {scopeLabel && (
+              <span className="text-xs text-muted-foreground">{scopeLabel}</span>
+            )}
+          </div>
           <Badge variant="secondary">
             {articles.length} élément{articles.length > 1 ? 's' : ''}
           </Badge>

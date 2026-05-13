@@ -125,6 +125,7 @@ function DossierSection({
   onDeleteArticle,
   onRenameDossier,
   onDeleteDossier,
+  onEditScope,
 }: {
   dossier: DossierView | null // null = orphans section
   articles: ArticleMetadata[]
@@ -134,6 +135,8 @@ function DossierSection({
   onDeleteArticle: (id: string) => void
   onRenameDossier?: (id: string) => void
   onDeleteDossier?: (id: string) => void
+  // Open the editor scoped to this dossier (or to orphans if dossier is null).
+  onEditScope: () => void
 }) {
   const [open, setOpen] = useState(true)
   const label = dossier ? dossier.name : 'Sans dossier'
@@ -149,6 +152,17 @@ function DossierSection({
             <span className="text-xs text-muted-foreground">({articles.length})</span>
           </button>
         </CollapsibleTrigger>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 text-xs px-2"
+          onClick={onEditScope}
+          disabled={articles.length === 0}
+          title={articles.length === 0 ? 'Aucun élément à éditer' : 'Ouvrir dans l’éditeur'}
+        >
+          <Pencil className="h-3.5 w-3.5 mr-1" />
+          Éditer
+        </Button>
         {dossier && onRenameDossier && (
           <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => onRenameDossier(dossier.id)}>
             <Pencil className="h-3.5 w-3.5" />
@@ -340,6 +354,9 @@ export function ArticlesView({ projectId }: { projectId: string }) {
               setDeleteDossierId(id)
               setDeleteDossierMode('orphan-articles')
             }}
+            onEditScope={() =>
+              navigate(`/editor/${projectId}?dossier=${dossier.id}`)
+            }
           />
         ))}
         {orphanArticles.length > 0 && (
@@ -350,6 +367,9 @@ export function ArticlesView({ projectId }: { projectId: string }) {
             toggleArticle={toggleArticle}
             onOpenArticle={handleOpenArticle}
             onDeleteArticle={handleDeleteArticle}
+            onEditScope={() =>
+              navigate(`/editor/${projectId}?orphans=1`)
+            }
           />
         )}
         {totalArticles === 0 && (
