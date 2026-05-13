@@ -1,0 +1,573 @@
+// v2 Editor page. Operates on string article IDs and reads from the v2
+// filesystem-as-truth hierarchy.
+import { useEffect, useState } from 'react'
+import { useBlocker, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { toast } from 'sonner'
+import type {
+  AIProvider,
+  AISettings,
+  ProjectView,
+  Template,
+} from '@shared/types'
+import {
+  selectV2CurrentArticle,
+  selectV2CurrentFields,
+  selectV2HasUnsavedChanges,
+  useEditorStore,
+  useUIStore,
+} from '@/stores'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  Badge,
+  Button,
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+  ScrollArea,
+  Separator,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui'
+import {
+  ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  ImageIcon,
+  Save,
+} from 'lucide-react'
+import { findModel, getAvailableProviders } from '@/lib/aiModels'
+
+import { Viewer, SpecialZoomLevel } from '@react-pdf-viewer/core'
+import { toolbarPlugin } from '@react-pdf-viewer/toolbar'
+import '@react-pdf-viewer/core/lib/styles/index.css'
+import '@react-pdf-viewer/default-layout/lib/styles/index.css'
+
+import { ArticleForm } from './ArticleForm'
+import { ArticlesTableV2 } from './ArticlesTable'
+import { TranscriptionModal } from '../Editor/TranscriptionModal'
+import { ModelSelectionModal } from '../Editor/ModelSelectionModal'
+import { UnsavedChangesModal } from '../Editor/UnsavedChangesModal'
+import { ExportModal, ExportFormat } from '../Editor/ExportModal'
+
+export function EditorV2Page() {
+  const { projectId } = useParams<{ projectId: string }>()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
+
+  const {
+    articles,
+    currentArticleId,
+    drafts,
+    loadScope,
+    setCurrent,
+    reset,
+    updateField,
+    saveAll,
+    deleteArticle,
+    transcribeArticle,
+  } = useEditorStore()
+
+  const currentArticle = useEditorStore(selectV2CurrentArticle)
+  const currentFields = useEditorStore(selectV2CurrentFields)
+  const hasUnsavedChanges = useEditorStore(selectV2HasUnsavedChanges)
+
+  const [project, setProject] = useState<ProjectView | null>(null)
+  const [template, setTemplate] = useState<Template | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [transcribing, setTranscribing] = useState(false)
+  const [bulkTranscribeProgress, setBulkTranscribeProgress] =
+    useState<{ current: number; total: number } | null>(null)
+  const [activeTab, setActiveTab] = useState('editor')
+  const [currentPdfSrc, setCurrentPdfSrc] = useState<string | null>(null)
+  const [copyingOcr, setCopyingOcr] = useState(false)
+
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+  const [bulkDeleteIds, setBulkDeleteIds] = useState<string[] | null>(null)
+
+  // Model picker for transcription (single or bulk)
+  const [pendingTranscribeIds, setPendingTranscribeIds] = useState<string[] | null>(null)
+  const [defaultModelForModal, setDefaultModelForModal] = useState<string>('')
+  const [availableProvidersForModal, setAvailableProvidersForModal] = useState<Set<AIProvider>>(
+    new Set()
+  )
+
+  const [exportModalOpen, setExportModalOpen] = useState(false)
+  const [exportIds, setExportIds] = useState<string[]>([])
+
+  const toolbarPluginInstance = toolbarPlugin()
+  const { Toolbar } = toolbarPluginInstance
+  const pageLayout = {
+    transformSize: ({ size }: { size: any }) => ({
+      height: size.height + 30,
+      width: size.width + 30,
+    }),
+    buildPageStyles: () => ({
+      alignItems: 'center',
+      display: 'flex',
+      justifyContent: 'center',
+    }),
+  }
+
+  const blocker = useBlocker(hasUnsavedChanges && !loading)
+
+  const { setHasUnsavedChanges, setOnSaveCallback } = useUIStore()
+
+  useEffect(() => {
+    setHasUnsavedChanges(hasUnsavedChanges)
+    return () => setHasUnsavedChanges(false)
+  }, [hasUnsavedChanges, setHasUnsavedChanges])
+
+  // Initial load
+  useEffect(() => {
+    if (!projectId) return
+    let cancelled = false
+    const init = async () => {
+      setLoading(true)
+      const [proj, _] = await Promise.all([
+        window.api.v2_projectsGet(projectId),
+        loadScope(projectId),
+      ])
+      if (cancelled) return
+      setProject(proj)
+      if (proj?.templateId) {
+        const tmpl = await window.api.getTemplate(proj.templateId)
+        if (!cancelled) setTemplate(tmpl)
+      }
+
+      // Deep-link from search: open the requested article and strip the param.
+      const requested = searchParams.get('article')
+      if (requested) {
+        const matches = useEditorStore.getState().articles.find((a) => a.id === requested)
+        if (matches) setCurrent(matches.id)
+        const next = new URLSearchParams(searchParams)
+        next.delete('article')
+        setSearchParams(next, { replace: true })
+      }
+      setLoading(false)
+    }
+    init()
+    return () => {
+      cancelled = true
+      reset()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId])
+
+  // Load extract.pdf when current article changes
+  useEffect(() => {
+    if (!projectId || !currentArticleId) {
+      setCurrentPdfSrc(null)
+      return
+    }
+    window.api
+      .v2_articlesGetExtractData(projectId, currentArticleId)
+      .then(setCurrentPdfSrc)
+      .catch(() => setCurrentPdfSrc(null))
+  }, [projectId, currentArticleId])
+
+  const handleSave = async () => {
+    setSaving(true)
+    await saveAll()
+    setSaving(false)
+  }
+
+  useEffect(() => {
+    setOnSaveCallback(handleSave)
+    return () => setOnSaveCallback(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, drafts])
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault()
+        handleSave()
+        return
+      }
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return
+      }
+      if (!currentArticleId) return
+      const idx = articles.findIndex((a) => a.id === currentArticleId)
+      if (e.key === 'ArrowLeft' && idx > 0) setCurrent(articles[idx - 1].id)
+      if (e.key === 'ArrowRight' && idx < articles.length - 1) setCurrent(articles[idx + 1].id)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [articles, currentArticleId])
+
+  const applyModelOverride = (ai: AISettings, modelOverride?: string): AISettings => {
+    if (!modelOverride) return ai
+    const found = findModel(modelOverride)
+    if (!found) return { ...ai, model: modelOverride }
+    return { ...ai, model: modelOverride, provider: found.provider }
+  }
+
+  const requestTranscribe = async (ids: string[]) => {
+    if (ids.length === 0) return
+    const settings = await window.api.getSettings()
+    setDefaultModelForModal(settings.ai.model)
+    setAvailableProvidersForModal(getAvailableProviders(settings.ai))
+    setPendingTranscribeIds(ids)
+  }
+
+  const executePendingTranscribe = async (modelOverride: string) => {
+    const ids = pendingTranscribeIds
+    setPendingTranscribeIds(null)
+    if (!ids || ids.length === 0 || !template) return
+    const settings = await window.api.getSettings()
+    const aiSettings = applyModelOverride(settings.ai, modelOverride)
+
+    setTranscribing(true)
+    let successCount = 0
+    let errorCount = 0
+    let lastError = ''
+    if (ids.length > 1) setBulkTranscribeProgress({ current: 0, total: ids.length })
+
+    for (let i = 0; i < ids.length; i++) {
+      const id = ids[i]
+      const result = await transcribeArticle(id, aiSettings, template)
+      if (result.success) successCount++
+      else {
+        errorCount++
+        lastError = result.error || 'Erreur inconnue'
+      }
+      if (ids.length > 1) setBulkTranscribeProgress({ current: i + 1, total: ids.length })
+      if (i < ids.length - 1) await new Promise((r) => setTimeout(r, 500))
+    }
+
+    setBulkTranscribeProgress(null)
+    setTranscribing(false)
+
+    if (ids.length > 1) {
+      if (errorCount === 0) {
+        toast.success(`${successCount} article${successCount > 1 ? 's' : ''} transcrit${successCount > 1 ? 's' : ''}`)
+      } else if (successCount === 0) {
+        toast.error(`Échec de la transcription: ${lastError}`)
+      } else {
+        toast.warning(`${successCount} réussi, ${errorCount} échec: ${lastError}`)
+      }
+    } else if (errorCount > 0) {
+      toast.error(lastError)
+    }
+  }
+
+  const handleCopyOcr = async () => {
+    if (!projectId || !currentArticleId) return
+    setCopyingOcr(true)
+    try {
+      // Re-use the legacy extractText handler by pointing to the v2 extract.pdf
+      // — but the legacy handler expects a project-relative imagePath. We
+      // already exposed a more direct flow via the v2 articles extract data
+      // (base64). For OCR text we don't have a v2 handler; fall back to a
+      // toast notice that this feature will return in step 11/12 cleanup.
+      toast.info("Copie OCR à venir avec la refonte de l'export (étape 11+)")
+    } finally {
+      setCopyingOcr(false)
+    }
+  }
+
+  const handleDeleteCurrent = async () => {
+    if (!deleteConfirmId) return
+    const wasLast = articles.length === 1
+    await deleteArticle(deleteConfirmId)
+    setDeleteConfirmId(null)
+    if (wasLast && projectId) navigate(`/project/${projectId}`)
+  }
+
+  const handleBulkDelete = async () => {
+    if (!bulkDeleteIds) return
+    for (const id of bulkDeleteIds) {
+      await deleteArticle(id)
+    }
+    setBulkDeleteIds(null)
+    if (useEditorStore.getState().articles.length === 0 && projectId) {
+      navigate(`/project/${projectId}`)
+    }
+  }
+
+  const handleExport = async (format: ExportFormat) => {
+    if (!projectId || exportIds.length === 0) return
+    switch (format) {
+      case 'pdf':
+        await window.api.v2_exportArticlesPdf(projectId, exportIds)
+        break
+      case 'docx':
+        await window.api.v2_exportArticlesDocx(projectId, exportIds)
+        break
+      case 'txt':
+        await window.api.v2_exportArticlesTxt(projectId, exportIds)
+        break
+    }
+  }
+
+  const openExportSingle = () => {
+    if (!currentArticleId) return
+    setExportIds([currentArticleId])
+    setExportModalOpen(true)
+  }
+
+  const openExportBatch = (ids: string[]) => {
+    setExportIds(ids)
+    setExportModalOpen(true)
+  }
+
+  const openExportAll = () => {
+    setExportIds(articles.map((a) => a.id))
+    setExportModalOpen(true)
+  }
+
+  const totalFields = template?.fields.length || 0
+  const currentCompletion = currentArticle
+    ? template?.fields.filter((f) => currentArticle.fields?.[f.name]).length ?? 0
+    : 0
+
+  const currentIndex = currentArticleId
+    ? articles.findIndex((a) => a.id === currentArticleId)
+    : -1
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-muted-foreground">Chargement...</p>
+      </div>
+    )
+  }
+
+  if (!project) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4">
+        <p className="text-muted-foreground">Projet introuvable</p>
+        <Button onClick={() => navigate('/')}>Retour aux projets</Button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="h-screen flex flex-col">
+      <TranscriptionModal open={transcribing} progress={bulkTranscribeProgress} />
+      <ModelSelectionModal
+        open={pendingTranscribeIds !== null}
+        articleCount={pendingTranscribeIds?.length ?? 0}
+        defaultModel={defaultModelForModal}
+        availableProviders={availableProvidersForModal}
+        onCancel={() => setPendingTranscribeIds(null)}
+        onConfirm={executePendingTranscribe}
+      />
+      <ExportModal
+        open={exportModalOpen}
+        onClose={() => setExportModalOpen(false)}
+        onExport={handleExport}
+      />
+
+      <AlertDialog open={!!bulkDeleteIds} onOpenChange={(open) => !open && setBulkDeleteIds(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer {bulkDeleteIds?.length} article(s) ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBulkDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer l'article ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteCurrent}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <UnsavedChangesModal
+        open={blocker.state === 'blocked'}
+        onSave={async () => {
+          await handleSave()
+          blocker.proceed?.()
+        }}
+        onDiscard={() => blocker.proceed?.()}
+        onCancel={() => blocker.reset?.()}
+      />
+
+      <header className="bg-card border-b px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button variant="outline" size="sm" onClick={() => navigate(`/project/${project.id}`)}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Projet
+          </Button>
+          <Separator orientation="vertical" className="h-6" />
+          <h1 className="text-lg font-semibold">{project.name}</h1>
+          <Badge variant="secondary">
+            {articles.length} article{articles.length > 1 ? 's' : ''}
+          </Badge>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={openExportAll} disabled={articles.length === 0}>
+            <Download className="h-4 w-4 mr-2" />
+            Exporter tout
+          </Button>
+          <Button onClick={handleSave} disabled={saving || !hasUnsavedChanges}>
+            <Save className="h-4 w-4 mr-2" />
+            {saving ? 'Sauvegarde...' : 'Sauvegarder'}
+          </Button>
+        </div>
+      </header>
+
+      <ResizablePanelGroup direction="horizontal" className="flex-1 flex overflow-hidden">
+        <ResizablePanel minSize={20} className="flex-1 bg-muted/30 flex flex-col overflow-hidden">
+          {currentPdfSrc ? (
+            <div className="flex flex-col h-full">
+              <div className="border-b p-1">
+                <Toolbar>
+                  {(slots: any) => {
+                    const { ZoomOut, Zoom, ZoomIn } = slots
+                    return (
+                      <div className="flex items-center justify-center gap-4 h-8">
+                        <div className="flex items-center gap-1">
+                          <ZoomOut />
+                          <div className="w-16"><Zoom /></div>
+                          <ZoomIn />
+                        </div>
+                      </div>
+                    )
+                  }}
+                </Toolbar>
+              </div>
+              <div className="flex-1 overflow-hidden">
+                <Viewer
+                  fileUrl={currentPdfSrc}
+                  plugins={[toolbarPluginInstance]}
+                  pageLayout={pageLayout}
+                  defaultScale={SpecialZoomLevel.PageWidth}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
+              <ImageIcon className="h-16 w-16 mb-4" />
+              <p>Aucun article sélectionné</p>
+            </div>
+          )}
+        </ResizablePanel>
+        <ResizableHandle />
+        <ResizablePanel minSize={20} className="min-w-[375px] border-l bg-card flex flex-col h-full">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 h-full min-h-0">
+            <TabsContent value="editor" className="flex flex-col flex-1 min-h-0 data-[state=inactive]:hidden m-0">
+              <div className="p-4 border-b shrink-0">
+                <div className="flex items-center justify-between">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => currentIndex > 0 && setCurrent(articles[currentIndex - 1].id)}
+                    disabled={currentIndex <= 0}
+                  >
+                    <ChevronLeft className="h-4 w-4 mr-1" />
+                    Précédent
+                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">
+                      {currentIndex >= 0 ? currentIndex + 1 : 0} / {articles.length}
+                    </Badge>
+                    <Badge variant={currentCompletion === totalFields ? 'success' : 'secondary'}>
+                      {currentCompletion}/{totalFields}
+                    </Badge>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      currentIndex < articles.length - 1 && setCurrent(articles[currentIndex + 1].id)
+                    }
+                    disabled={currentIndex >= articles.length - 1}
+                  >
+                    Suivant
+                    <ChevronRight className="h-4 w-4 ml-1" />
+                  </Button>
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto min-h-0">
+                <ArticleForm
+                  key={currentArticleId ?? 'none'}
+                  fields={currentFields}
+                  template={template}
+                  transcribing={transcribing}
+                  copyingOcr={copyingOcr}
+                  onUpdate={(fieldName, value) =>
+                    currentArticleId && updateField(currentArticleId, fieldName, value)
+                  }
+                  onTranscribe={() => currentArticleId && requestTranscribe([currentArticleId])}
+                  onCopyOcr={handleCopyOcr}
+                  onExport={openExportSingle}
+                />
+              </div>
+            </TabsContent>
+            <TabsContent value="summary" className="flex flex-col flex-1 min-h-0 data-[state=inactive]:hidden m-0">
+              <div className="flex flex-col h-full">
+                <div className="p-3 border-b">
+                  <p className="text-sm font-medium">Articles du projet</p>
+                </div>
+                <ScrollArea className="flex-1">
+                  <ArticlesTableV2
+                    articles={articles}
+                    totalFields={totalFields}
+                    currentArticleId={currentArticleId}
+                    draftIds={new Set(Object.keys(drafts))}
+                    onSelectArticle={(id) => {
+                      setCurrent(id)
+                      setActiveTab('editor')
+                    }}
+                    onTranscribe={(id) => requestTranscribe([id])}
+                    onDelete={setDeleteConfirmId}
+                    onBulkTranscribe={(ids) => requestTranscribe(ids)}
+                    onBulkDelete={setBulkDeleteIds}
+                    onBulkExport={openExportBatch}
+                  />
+                </ScrollArea>
+              </div>
+            </TabsContent>
+            <TabsList className="flex-shrink-0 p-7">
+              <TabsTrigger value="editor">Editeur</TabsTrigger>
+              <TabsTrigger value="summary">Sommaire</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </ResizablePanel>
+      </ResizablePanelGroup>
+    </div>
+  )
+}

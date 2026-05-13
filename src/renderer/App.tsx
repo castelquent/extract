@@ -5,6 +5,7 @@ import { ProjectDetailPage } from './pages/Project'
 import { ExtractionPage } from './pages/Extraction'
 import { ExtractionV2Page } from './pages/ExtractionV2'
 import { EditorPage } from './pages/Editor'
+import { EditorV2Page } from './pages/EditorV2'
 import { TemplatesPage } from './pages/Templates'
 import { SearchPage } from './pages/Search'
 import { OnboardingPage } from './pages/Onboarding'
@@ -28,7 +29,8 @@ function App() {
           <Route path="/project/:projectId" element={<ProjectDetailPage />} />
           <Route path="/extraction/:projectId/:sourceId" element={<ExtractionV2Page />} />
           <Route path="/extraction/:projectId" element={<ExtractionPage />} />
-          <Route path="/editor/:projectId" element={<EditorPage />} />
+          <Route path="/editor/:projectId" element={<EditorV2Page />} />
+          <Route path="/editor-legacy/:projectId" element={<EditorPage />} />
         </Route>
       </Routes>
     </>
