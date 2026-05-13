@@ -84,7 +84,6 @@ export function ExtractionV2Page() {
     updateArticle,
     unlockArticle,
     setDefaultTemplate,
-    reset: resetExtraction,
     hydrateFromSource,
     saveArticles,
     generateArticles,
@@ -125,13 +124,19 @@ export function ExtractionV2Page() {
 
   // Load project + templates list on mount. Hydration of existing v2
   // articles happens once both are ready.
+  //
+  // ⚠ We do NOT reset extractionStore on cleanup: React Strict Mode in dev
+  // double-mounts the component. The cleanup runs, then the second mount
+  // skips hydration because hydratedKeyRef (preserved across strict-mode
+  // remounts) still matches the current key — leaving the session unbound.
+  // The next hydrate call (real navigation to a different source) will
+  // overwrite articles and re-bind the session, so persistence is correct.
   useEffect(() => {
     if (!projectId) return
     loadProject(projectId)
     loadTemplates()
     return () => {
       resetProject()
-      resetExtraction()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId])

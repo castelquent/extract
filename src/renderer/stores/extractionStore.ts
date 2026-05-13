@@ -399,7 +399,10 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
 
   saveArticles: async () => {
     const { sessionProjectId, sessionSourceId, articles, savedArticles } = get()
-    if (!sessionProjectId || !sessionSourceId) return false
+    if (!sessionProjectId || !sessionSourceId) {
+      toast.error('Session non liée — rechargez la page')
+      return false
+    }
     if (articles.length === 0 && savedArticles.length === 0) return true
 
     set({ error: null })
