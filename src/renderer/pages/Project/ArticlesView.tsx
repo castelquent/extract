@@ -1,7 +1,12 @@
 // Articles tab of ProjectDetail. Lists all articles in the project, grouped by
 // dossier (one section per dossier, plus a "Sans dossier" section). Supports
 // multi-select + bulk actions (delete, move to dossier, move to project).
-import { useMemo, useState } from 'react'
+//
+// The list is virtualized via @tanstack/react-virtual so that only the rows
+// actually in the viewport pay the React/DnD cost. At 300+ articles, mounting
+// every <ArticleRow> with its own useSortable hook is the main bottleneck —
+// virtualization caps the rendered count at ~20 regardless of total size.
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   DndContext,
@@ -18,6 +23,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { useWindowVirtualizer } from '@tanstack/react-virtual'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -63,8 +69,6 @@ import { MoveDialog } from './MoveDialog'
 import { ExportModal, ExportFormat } from '../Editor/ExportModal'
 
 // Compute X/Y completion ratio from article.fields and article.schema.
-// Returns a Badge: success when complete, secondary otherwise. Drafts are
-// filtered out upstream so we don't render a status badge for them.
 const completionBadge = (article: ArticleMetadata): React.ReactNode => {
   const schema = article.schema ?? []
   const total = schema.length
@@ -87,15 +91,65 @@ const formatShortDate = (iso: string): string => {
 // Shared 5-column grid: checkbox · title (flex) · pages · remplissage · modifié.
 const ROW_GRID = 'grid grid-cols-[28px_minmax(0,1fr)_72px_96px_88px] gap-4 items-center'
 
-// Sort by `order` ascending, falling back to `createdAt` for articles that
-// don't have an order yet (legacy or pre-DnD). Mirrors the backend sort
-// in v2:articles:list so the renderer stays consistent before/after refresh.
+// Sort by `order` ascending, falling back to `createdAt`. Mirrors the backend
+// sort in v2:articles:list.
 const compareArticles = (a: ArticleMetadata, b: ArticleMetadata): number => {
   const ao = typeof a.order === 'number' ? a.order : Number.POSITIVE_INFINITY
   const bo = typeof b.order === 'number' ? b.order : Number.POSITIVE_INFINITY
   if (ao !== bo) return ao - bo
   return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
 }
+
+// ---------- Flat row model ----------
+// The virtualizer needs a flat ordered list. We render dossier section
+// headers, the column header inside each section, and the article rows as
+// distinct "row types" so we can give each a sensible height estimate.
+
+type FlatRow =
+  | {
+      type: 'section-header'
+      key: string
+      dossier: DossierView | null
+      articleIds: string[]
+    }
+  | {
+      type: 'col-header'
+      key: string
+      dossierId: string | null
+      articleIds: string[]
+    }
+  | {
+      type: 'article'
+      key: string
+      article: ArticleMetadata
+    }
+  | {
+      type: 'section-empty'
+      key: string
+      dossier: DossierView | null
+    }
+  | {
+      type: 'section-gap'
+      key: string
+    }
+
+const SECTION_HEADER_HEIGHT = 52
+const COL_HEADER_HEIGHT = 38
+const ARTICLE_ROW_HEIGHT = 44
+const SECTION_GAP_HEIGHT = 32
+const EMPTY_NOTICE_HEIGHT = 56
+
+const estimateRowHeight = (row: FlatRow): number => {
+  switch (row.type) {
+    case 'section-header': return SECTION_HEADER_HEIGHT
+    case 'col-header': return COL_HEADER_HEIGHT
+    case 'article': return ARTICLE_ROW_HEIGHT
+    case 'section-empty': return EMPTY_NOTICE_HEIGHT
+    case 'section-gap': return SECTION_GAP_HEIGHT
+  }
+}
+
+// ---------- Article row (sortable) ----------
 
 function ArticleRow({
   article,
@@ -111,8 +165,6 @@ function ArticleRow({
   onDelete: () => void
 }) {
   const title = (article.fields['Titre'] ?? article.fields['title'] ?? '').trim() || 'Sans titre'
-  // dnd-kit sortable. We pass `dossierId` as data so DndContext.onDragEnd
-  // can tell intra- vs cross-section drags apart (cross-section is ignored).
   const {
     attributes,
     listeners,
@@ -173,127 +225,96 @@ function ArticleRow({
   )
 }
 
-function DossierSection({
+// ---------- Section header (non-sortable) ----------
+
+function SectionHeader({
   dossier,
-  articles,
   selectedIds,
-  toggleArticle,
-  onToggleAllInSection,
-  onOpenArticle,
-  onDeleteArticle,
+  articleIds,
+  onEditScope,
   onRenameDossier,
   onDeleteDossier,
-  onEditScope,
 }: {
-  dossier: DossierView | null // null = orphans section
-  articles: ArticleMetadata[]
+  dossier: DossierView | null
   selectedIds: Set<string>
-  toggleArticle: (id: string) => void
-  // Called when the section's header checkbox is clicked. `select=true` means
-  // "select all articles in this section", false means "deselect".
-  onToggleAllInSection: (articleIds: string[], select: boolean) => void
-  onOpenArticle: (id: string) => void
-  onDeleteArticle: (id: string) => void
-  onRenameDossier?: (id: string) => void
-  onDeleteDossier?: (id: string) => void
-  // Open the editor scoped to this dossier (or to orphans if dossier is null).
+  articleIds: string[]
   onEditScope: () => void
+  onRenameDossier?: () => void
+  onDeleteDossier?: () => void
 }) {
+  void selectedIds
+  void articleIds
   const label = dossier ? dossier.name : 'Sans dossier'
-
-  const selectedInSection = articles.reduce(
-    (n, a) => (selectedIds.has(a.id) ? n + 1 : n),
-    0
-  )
-  const headerCheckState: boolean | 'indeterminate' =
-    selectedInSection === 0
-      ? false
-      : selectedInSection === articles.length
-        ? true
-        : 'indeterminate'
-
   return (
-    <section className="mb-10">
-      <div className="flex items-center justify-between gap-4 mb-3 px-6">
-        <h2 className="text-xl font-semibold tracking-tight">{label}</h2>
-        <div className="flex items-center gap-1">
+    <div className="flex items-center justify-between gap-4 pt-2 pb-3 px-6">
+      <h2 className="text-xl font-semibold tracking-tight">{label}</h2>
+      <div className="flex items-center gap-1">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 text-xs px-2"
+          onClick={onEditScope}
+          disabled={articleIds.length === 0}
+          title={articleIds.length === 0 ? 'Aucun élément à transcrire' : 'Ouvrir dans l’éditeur'}
+        >
+          <FileText className="h-3.5 w-3.5" />
+        </Button>
+        {dossier && onRenameDossier && (
+          <Button variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={onRenameDossier}>
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+        )}
+        {dossier && onDeleteDossier && (
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 text-xs px-2"
-            onClick={onEditScope}
-            disabled={articles.length === 0}
-            title={articles.length === 0 ? 'Aucun élément à transcrire' : 'Ouvrir dans l’éditeur'}
+            className="h-7 text-xs px-2 text-muted-foreground hover:text-destructive"
+            onClick={onDeleteDossier}
           >
-            <FileText className="h-3.5 w-3.5" />
+            <Trash2 className="h-3.5 w-3.5" />
           </Button>
-          {dossier && onRenameDossier && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs px-2"
-              onClick={() => onRenameDossier(dossier.id)}
-            >
-              <Pencil className="h-3.5 w-3.5" />
-            </Button>
-          )}
-          {dossier && onDeleteDossier && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs px-2 text-muted-foreground hover:text-destructive"
-              onClick={() => onDeleteDossier(dossier.id)}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          )}
-        </div>
+        )}
       </div>
-
-      {articles.length === 0 ? (
-        <div className="text-sm text-muted-foreground py-3 border-t border-border/60 px-6">
-          Aucun élément
-        </div>
-      ) : (
-        <div className="border-t border-border/60">
-          <div
-            className={`${ROW_GRID} px-3 py-2 text-[11px] uppercase tracking-wide text-muted-foreground border-b border-border/60`}
-          >
-            <Checkbox
-              checked={headerCheckState}
-              onCheckedChange={(v) =>
-                onToggleAllInSection(
-                  articles.map((a) => a.id),
-                  v === true
-                )
-              }
-              aria-label="Tout sélectionner dans cette section"
-            />
-            <div>Titre</div>
-            <div className="text-right">Pages</div>
-            <div className="text-center">Remplissage</div>
-            <div className="text-right">Modifié</div>
-          </div>
-          <SortableContext
-            items={articles.map((a) => a.id)}
-            strategy={verticalListSortingStrategy}
-          >
-          {articles.map((a) => (
-            <ArticleRow
-              key={a.id}
-              article={a}
-              selected={selectedIds.has(a.id)}
-              onToggle={() => toggleArticle(a.id)}
-              onOpen={() => onOpenArticle(a.id)}
-              onDelete={() => onDeleteArticle(a.id)}
-            />
-          ))}
-          </SortableContext>
-        </div>
-      )}
-    </section>
+    </div>
   )
 }
+
+// ---------- Column header with select-all checkbox ----------
+
+function ColHeader({
+  articleIds,
+  selectedIds,
+  onToggleAll,
+}: {
+  articleIds: string[]
+  selectedIds: Set<string>
+  onToggleAll: (ids: string[], select: boolean) => void
+}) {
+  const selectedInSection = articleIds.reduce((n, id) => (selectedIds.has(id) ? n + 1 : n), 0)
+  const headerCheckState: boolean | 'indeterminate' =
+    selectedInSection === 0
+      ? false
+      : selectedInSection === articleIds.length
+        ? true
+        : 'indeterminate'
+  return (
+    <div
+      className={`${ROW_GRID} px-3 py-2 text-[11px] uppercase tracking-wide text-muted-foreground border-t border-b border-border/60 bg-background`}
+    >
+      <Checkbox
+        checked={headerCheckState}
+        onCheckedChange={(v) => onToggleAll(articleIds, v === true)}
+        aria-label="Tout sélectionner dans cette section"
+      />
+      <div>Titre</div>
+      <div className="text-right">Pages</div>
+      <div className="text-center">Remplissage</div>
+      <div className="text-right">Modifié</div>
+    </div>
+  )
+}
+
+// ---------- ArticlesView ----------
 
 export function ArticlesView({ projectId }: { projectId: string }) {
   const navigate = useNavigate()
@@ -317,23 +338,91 @@ export function ArticlesView({ projectId }: { projectId: string }) {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
 
+  // Pre-sorted per-dossier and orphan lists. Used both for the flat row
+  // build and for the DnD reorder math.
   const orphanArticles = useMemo(
     () => articles.filter((a) => a.dossierId === null).sort(compareArticles),
     [articles]
   )
-
-  // Precomputed per-dossier ordered lists, reused for rendering and for the
-  // DnD handler so the new index math is consistent with what the user sees.
   const articlesByDossier = useMemo(() => {
     const map = new Map<string, ArticleMetadata[]>()
     for (const d of dossiers) {
-      map.set(
-        d.id,
-        articles.filter((a) => a.dossierId === d.id).sort(compareArticles)
-      )
+      map.set(d.id, articles.filter((a) => a.dossierId === d.id).sort(compareArticles))
     }
     return map
   }, [dossiers, articles])
+
+  // The flat, ordered list of rows the virtualizer consumes.
+  const flatRows: FlatRow[] = useMemo(() => {
+    const rows: FlatRow[] = []
+    const pushSection = (dossier: DossierView | null, items: ArticleMetadata[]) => {
+      const ids = items.map((a) => a.id)
+      rows.push({
+        type: 'section-header',
+        key: `h:${dossier?.id ?? 'orphans'}`,
+        dossier,
+        articleIds: ids,
+      })
+      if (items.length === 0) {
+        rows.push({
+          type: 'section-empty',
+          key: `e:${dossier?.id ?? 'orphans'}`,
+          dossier,
+        })
+      } else {
+        rows.push({
+          type: 'col-header',
+          key: `c:${dossier?.id ?? 'orphans'}`,
+          dossierId: dossier?.id ?? null,
+          articleIds: ids,
+        })
+        for (const a of items) {
+          rows.push({ type: 'article', key: `a:${a.id}`, article: a })
+        }
+      }
+      rows.push({ type: 'section-gap', key: `g:${dossier?.id ?? 'orphans'}` })
+    }
+    for (const d of dossiers) pushSection(d, articlesByDossier.get(d.id) ?? [])
+    if (orphanArticles.length > 0) pushSection(null, orphanArticles)
+    return rows
+  }, [dossiers, articlesByDossier, orphanArticles])
+
+  // SortableContext takes the FULL ordered article-id list. dnd-kit picks
+  // up each <ArticleRow>'s useSortable as it mounts; rows scrolled out of
+  // view are simply not registered (their listeners cost nothing).
+  const sortableIds = useMemo(() => {
+    const ids: string[] = []
+    for (const d of dossiers) {
+      const items = articlesByDossier.get(d.id) ?? []
+      for (const a of items) ids.push(a.id)
+    }
+    for (const a of orphanArticles) ids.push(a.id)
+    return ids
+  }, [dossiers, articlesByDossier, orphanArticles])
+
+  // The layout's flex chain isn't height-constrained — neither <main> here
+  // actually clips, the window itself scrolls. So we use useWindowVirtualizer
+  // which subscribes to window scroll/resize directly. scrollMargin tells
+  // it the offset between document top and where our list begins (the
+  // header above us), measured from a sentinel ref.
+  const sentinelRef = useRef<HTMLDivElement>(null)
+  const virtualizer = useWindowVirtualizer({
+    count: flatRows.length,
+    estimateSize: (i) => estimateRowHeight(flatRows[i]),
+    overscan: 8,
+    getItemKey: (i) => flatRows[i].key,
+    scrollMargin: sentinelRef.current?.getBoundingClientRect().top
+      ? sentinelRef.current.getBoundingClientRect().top + window.scrollY
+      : 0,
+  })
+
+  // Re-measure when the row list changes (dossier collapsed/added,
+  // articles created/deleted, etc.) — heights are stable per row type so a
+  // recompute keeps positions accurate.
+  useLayoutEffect(() => {
+    virtualizer.measure()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flatRows.length])
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -435,8 +524,6 @@ export function ArticlesView({ projectId }: { projectId: string }) {
   const handleExportSelection = async (format: ExportFormat) => {
     const ids = Array.from(selectedIds)
     if (ids.length === 0) return
-    // Selection cuts across dossiers and the dossier grouping switch isn't
-    // shown for this scope, so we just send the flat list.
     switch (format) {
       case 'pdf':
         await window.api.v2_exportArticlesPdf(projectId, ids)
@@ -453,58 +540,105 @@ export function ArticlesView({ projectId }: { projectId: string }) {
   const totalArticles = articles.length
   const selectedCount = selectedIds.size
 
-  // Floating bar offset: stay clear of the collapsible sidebar so the pill
-  // centers on the actual content area, not the full viewport.
   const { state: sidebarState, isMobile } = useSidebar()
   const sidebarOffset = isMobile ? '0px' : sidebarState === 'expanded' ? '16rem' : '3rem'
 
+  // ---------- Render ----------
+
+  // Empty state pre-empts the virtualizer entirely (no rows to size).
+  if (totalArticles === 0 && dossiers.length === 0) {
+    return (
+      <div className="rounded-md py-12 text-center text-sm text-muted-foreground">
+        Aucun élément. Importez une source et extrayez-en des éléments depuis l'onglet Sources.
+      </div>
+    )
+  }
+
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-    <div className="space-y-3">
-      <div className="pt-2">
-        {totalArticles === 0 && dossiers.length === 0 ? (
-          <div className="rounded-md py-12 text-center text-sm text-muted-foreground">
-            Aucun élément. Importez une source et extrayez-en des éléments depuis l'onglet Sources.
-          </div>
-        ) : (
-          <>
-            {dossiers.map((dossier) => (
-              <DossierSection
-                key={dossier.id}
-                dossier={dossier}
-                articles={articlesByDossier.get(dossier.id) ?? []}
-                selectedIds={selectedIds}
-                toggleArticle={toggleArticle}
-                onToggleAllInSection={toggleArticlesInSection}
-                onOpenArticle={handleOpenArticle}
-                onDeleteArticle={handleDeleteArticle}
-                onRenameDossier={startRenameDossier}
-                onDeleteDossier={(id) => {
-                  setDeleteDossierId(id)
-                  setDeleteDossierMode('orphan-articles')
+      <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+        {/* Sentinel — its first parent with overflow:auto/scroll is the
+            real scroll container, which we hand to the virtualizer. */}
+        <div ref={sentinelRef} />
+        <div
+          style={{
+            height: virtualizer.getTotalSize(),
+            position: 'relative',
+            width: '100%',
+          }}
+        >
+          {virtualizer.getVirtualItems().map((vi) => {
+            const row = flatRows[vi.index]
+            // useWindowVirtualizer's `start` is in document coordinates
+            // (includes scrollMargin). Our container is already positioned
+            // there by the page flow, so subtract scrollMargin to get the
+            // offset relative to our container.
+            const offset = vi.start - virtualizer.options.scrollMargin
+            return (
+              <div
+                key={vi.key}
+                data-index={vi.index}
+                ref={virtualizer.measureElement}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  transform: `translateY(${offset}px)`,
                 }}
-                onEditScope={() =>
-                  navigate(`/editor/${projectId}?dossier=${dossier.id}`)
-                }
-              />
-            ))}
-            {orphanArticles.length > 0 && (
-              <DossierSection
-                dossier={null}
-                articles={orphanArticles}
-                selectedIds={selectedIds}
-                toggleArticle={toggleArticle}
-                onToggleAllInSection={toggleArticlesInSection}
-                onOpenArticle={handleOpenArticle}
-                onDeleteArticle={handleDeleteArticle}
-                onEditScope={() =>
-                  navigate(`/editor/${projectId}?orphans=1`)
-                }
-              />
-            )}
-          </>
-        )}
-      </div>
+              >
+                {row.type === 'section-header' && (
+                  <SectionHeader
+                    dossier={row.dossier}
+                    selectedIds={selectedIds}
+                    articleIds={row.articleIds}
+                    onEditScope={() =>
+                      navigate(
+                        row.dossier
+                          ? `/editor/${projectId}?dossier=${row.dossier.id}`
+                          : `/editor/${projectId}?orphans=1`
+                      )
+                    }
+                    onRenameDossier={
+                      row.dossier ? () => startRenameDossier(row.dossier!.id) : undefined
+                    }
+                    onDeleteDossier={
+                      row.dossier
+                        ? () => {
+                            setDeleteDossierId(row.dossier!.id)
+                            setDeleteDossierMode('orphan-articles')
+                          }
+                        : undefined
+                    }
+                  />
+                )}
+                {row.type === 'col-header' && (
+                  <ColHeader
+                    articleIds={row.articleIds}
+                    selectedIds={selectedIds}
+                    onToggleAll={toggleArticlesInSection}
+                  />
+                )}
+                {row.type === 'article' && (
+                  <ArticleRow
+                    article={row.article}
+                    selected={selectedIds.has(row.article.id)}
+                    onToggle={() => toggleArticle(row.article.id)}
+                    onOpen={() => handleOpenArticle(row.article.id)}
+                    onDelete={() => handleDeleteArticle(row.article.id)}
+                  />
+                )}
+                {row.type === 'section-empty' && (
+                  <div className="text-sm text-muted-foreground py-3 border-t border-border/60 px-6">
+                    Aucun élément
+                  </div>
+                )}
+                {row.type === 'section-gap' && <div className="h-8" />}
+              </div>
+            )
+          })}
+        </div>
+      </SortableContext>
 
       {selectedCount > 0 && (
         <div
@@ -676,7 +810,6 @@ export function ArticlesView({ projectId }: { projectId: string }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
     </DndContext>
   )
 }
