@@ -124,6 +124,7 @@ export function setupV2ArticleHandlers(): void {
         fields?: Record<string, string>
         schema: TemplateField[]
         aiContext?: string
+        skipExtractGeneration?: boolean
       }
     ): Promise<ArticleMetadata | null> => {
       const id = newId()
@@ -146,13 +147,18 @@ export function setupV2ArticleHandlers(): void {
       }
       writeJson(getArticleMetadataPath(projectId, payload.dossierId, id), metadata)
 
-      // Generate extract.pdf from the source
+      // Skip PDF generation when the caller is just persisting in-progress
+      // work (Sauvegarder during extraction). Status stays 'new'.
+      if (payload.skipExtractGeneration) {
+        touchProject(projectId)
+        return metadata
+      }
+
       const sourcePdf = getSourcePdfPath(projectId, payload.sourceId)
       const outputPdf = getArticleExtractPdfPath(projectId, payload.dossierId, id)
       if (existsSync(sourcePdf)) {
         const ok = await generateArticleExtract(sourcePdf, payload.zones, outputPdf)
         if (ok) {
-          // Bump status to 'extracted' since the PDF is ready
           const extracted: ArticleMetadata = { ...metadata, status: 'extracted', modifiedAt: new Date().toISOString() }
           writeJson(getArticleMetadataPath(projectId, payload.dossierId, id), extracted)
           touchProject(projectId)

@@ -247,6 +247,9 @@ export interface ElectronAPI {
       fields?: Record<string, string>
       schema: TemplateField[]
       aiContext?: string
+      // When true, do NOT run the PDF extraction script (no extract.pdf
+      // generated, status stays 'new'). Used by Sauvegarder in extraction.
+      skipExtractGeneration?: boolean
     }
   ) => Promise<ArticleMetadata | null>
   v2_articlesUpdate: (
