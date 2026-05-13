@@ -6,7 +6,12 @@ import { createWriteStream, existsSync, writeFileSync } from 'fs'
 import PDFDocument from 'pdfkit'
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, PageBreak, VerticalAlign } from 'docx'
 import { convert } from 'html-to-text'
-import type { ArticleMetadata, ExportOptions, TemplateField } from '@shared/types'
+import type {
+  ArticleMetadata,
+  ExportOptions,
+  MultiExportItem,
+  TemplateField,
+} from '@shared/types'
 import { isFieldFilled } from '@shared/fieldValue'
 import { locateArticle, readArticleMetadata } from '../_fs'
 
@@ -20,6 +25,62 @@ const loadArticles = (projectId: string, articleIds: string[]): ArticleMetadata[
     if (am) result.push(am)
   }
   return result
+}
+
+// Multi-project variant: each item already names its own project. Used by
+// the search-results export. Article order in the output matches the input
+// item order — the caller (SearchPage) decides grouping.
+const loadMultiArticles = (items: MultiExportItem[]): ArticleMetadata[] => {
+  const result: ArticleMetadata[] = []
+  for (const { projectId, articleId } of items) {
+    const dossierId = locateArticle(projectId, articleId)
+    if (dossierId === undefined) continue
+    const am = readArticleMetadata(projectId, dossierId, articleId)
+    if (am) result.push(am)
+  }
+  return result
+}
+
+// Split a piece of text into runs around occurrences of `needle` (case-
+// insensitive). Used by the DOCX export to emit yellow-highlight runs.
+const splitOnNeedle = (
+  text: string,
+  needle: string | undefined
+): { text: string; match: boolean }[] => {
+  if (!needle || needle.length === 0) return [{ text, match: false }]
+  const lowerText = text.toLowerCase()
+  const lowerNeedle = needle.toLowerCase()
+  const out: { text: string; match: boolean }[] = []
+  let i = 0
+  while (i < text.length) {
+    const idx = lowerText.indexOf(lowerNeedle, i)
+    if (idx === -1) {
+      if (i < text.length) out.push({ text: text.slice(i), match: false })
+      break
+    }
+    if (idx > i) out.push({ text: text.slice(i, idx), match: false })
+    out.push({ text: text.slice(idx, idx + needle.length), match: true })
+    i = idx + needle.length
+  }
+  return out
+}
+
+// Build TextRuns from a plain string, splitting around highlight matches.
+const runsFromText = (
+  text: string,
+  needle: string | undefined,
+  baseProps: { bold?: boolean; size?: number } = {}
+): TextRun[] => {
+  const segments = splitOnNeedle(text, needle)
+  return segments.map(
+    (seg) =>
+      new TextRun({
+        text: seg.text,
+        bold: baseProps.bold,
+        size: baseProps.size,
+        highlight: seg.match ? 'yellow' : undefined,
+      })
+  )
 }
 
 // Build the ordered list of `(field, plainText)` entries we want to export
@@ -303,6 +364,178 @@ export function setupV2ExportHandlers(): void {
         return true
       } catch (err) {
         console.error('[v2 TXT Export] Error:', err)
+        return false
+      }
+    }
+  )
+
+  // ============================================================
+  // Multi-project exports (search results)
+  // ============================================================
+  //
+  // Article order matches the input items list — caller decides grouping.
+  // The current callers (SearchPage) hand articles in the same order they
+  // appear on screen. `options.highlight` is honoured in DOCX only; PDF
+  // and TXT just render without emphasis (PDFKit can't style inline spans
+  // cleanly; TXT has no markup convention here).
+
+  ipcMain.handle(
+    'v2:export:multiArticlesPdf',
+    async (_, items: MultiExportItem[], _options?: ExportOptions): Promise<boolean> => {
+      void _options
+      const result = await dialog.showSaveDialog({
+        defaultPath: 'recherche.pdf',
+        filters: [{ name: 'PDF', extensions: ['pdf'] }],
+      })
+      if (result.canceled || !result.filePath) return false
+      const articles = loadMultiArticles(items)
+      if (articles.length === 0) return false
+
+      return new Promise((resolve) => {
+        try {
+          const regularFont = getFontPath('regular')
+          const boldFont = getFontPath('bold')
+          if (!regularFont || !boldFont) {
+            console.error('[PDF Export] System fonts not found')
+            resolve(false)
+            return
+          }
+          const doc = new PDFDocument({
+            size: 'A4',
+            margins: { top: 72, bottom: 72, left: 72, right: 72 },
+            autoFirstPage: false,
+            font: regularFont,
+          })
+          doc.registerFont('Regular', regularFont)
+          doc.registerFont('Bold', boldFont)
+          const stream = createWriteStream(result.filePath!)
+          doc.pipe(stream)
+          articles.forEach((article) => {
+            doc.addPage()
+            const entries = orderedFilledEntries(article)
+            entries.forEach(({ field, plain }, fieldIndex) => {
+              if (fieldIndex === 0) {
+                doc.fontSize(18).font('Bold')
+                doc.text(plain, { align: 'center' })
+                doc.moveDown(0.5)
+                doc.moveTo(72, doc.y).lineTo(doc.page.width - 72, doc.y).stroke()
+                doc.moveDown(1)
+              } else {
+                doc.fontSize(10).font('Bold').text(field.name, { continued: false })
+                doc.fontSize(11).font('Regular')
+                doc.text(plain, { align: 'justify', lineGap: 2 })
+                doc.moveDown(0.5)
+              }
+            })
+          })
+          doc.end()
+          stream.on('finish', () => resolve(true))
+          stream.on('error', () => resolve(false))
+        } catch (err) {
+          console.error('[v2 Multi PDF Export] Error:', err)
+          resolve(false)
+        }
+      })
+    }
+  )
+
+  ipcMain.handle(
+    'v2:export:multiArticlesDocx',
+    async (_, items: MultiExportItem[], options?: ExportOptions): Promise<boolean> => {
+      const result = await dialog.showSaveDialog({
+        defaultPath: 'recherche.docx',
+        filters: [{ name: 'Word Document', extensions: ['docx'] }],
+      })
+      if (result.canceled || !result.filePath) return false
+      const articles = loadMultiArticles(items)
+      if (articles.length === 0) return false
+
+      const needle = options?.highlight
+
+      try {
+        const children: Paragraph[] = []
+        articles.forEach((article, index) => {
+          if (index > 0) {
+            children.push(new Paragraph({ children: [new PageBreak()] }))
+          }
+          const entries = orderedFilledEntries(article)
+          entries.forEach(({ field, plain }, fieldIndex) => {
+            if (fieldIndex === 0) {
+              children.push(
+                new Paragraph({
+                  // Heading title: keep H1 styling AND highlight matches.
+                  // Using `children` (runs) is incompatible with the `text`
+                  // shortcut, but `heading` works alongside `children`.
+                  children: runsFromText(plain, needle),
+                  heading: HeadingLevel.HEADING_1,
+                  alignment: AlignmentType.CENTER,
+                  spacing: { after: 200 },
+                })
+              )
+            } else {
+              children.push(
+                new Paragraph({
+                  children: [new TextRun({ text: field.name, bold: true })],
+                  spacing: { before: 200 },
+                })
+              )
+              for (const para of plain.split('\n\n')) {
+                if (para.trim()) {
+                  children.push(
+                    new Paragraph({
+                      children: runsFromText(para.trim(), needle),
+                      alignment: AlignmentType.JUSTIFIED,
+                      spacing: { after: 100 },
+                    })
+                  )
+                }
+              }
+            }
+          })
+        })
+
+        const doc = new Document({
+          sections: [{ properties: {}, children }],
+        })
+        const buffer = await Packer.toBuffer(doc)
+        writeFileSync(result.filePath, buffer)
+        return true
+      } catch (err) {
+        console.error('[v2 Multi DOCX Export] Error:', err)
+        return false
+      }
+    }
+  )
+
+  ipcMain.handle(
+    'v2:export:multiArticlesTxt',
+    async (_, items: MultiExportItem[], _options?: ExportOptions): Promise<boolean> => {
+      void _options
+      const result = await dialog.showSaveDialog({
+        defaultPath: 'recherche.txt',
+        filters: [{ name: 'Text File', extensions: ['txt'] }],
+      })
+      if (result.canceled || !result.filePath) return false
+      const articles = loadMultiArticles(items)
+      if (articles.length === 0) return false
+
+      try {
+        const content = articles
+          .map((article, index) => {
+            const lines: string[] = []
+            if (index > 0) lines.push('', '═'.repeat(60), '')
+            const entries = orderedFilledEntries(article)
+            entries.forEach(({ field, plain }, fieldIndex) => {
+              if (fieldIndex === 0) lines.push(plain.toUpperCase(), '')
+              else lines.push(`[${field.name}]`, plain, '')
+            })
+            return lines.join('\n')
+          })
+          .join('\n')
+        writeFileSync(result.filePath, content, 'utf-8')
+        return true
+      } catch (err) {
+        console.error('[v2 Multi TXT Export] Error:', err)
         return false
       }
     }

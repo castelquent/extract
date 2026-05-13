@@ -16,6 +16,7 @@ export type ExportFormat = 'pdf' | 'docx' | 'txt'
 // the second argument of `onExport`. Defaults are applied at consumer side.
 export interface ExportModalChoices {
   includeDossierTitles: boolean
+  highlightSearchTerm: boolean
 }
 
 interface ExportModalProps {
@@ -30,6 +31,10 @@ interface ExportModalProps {
   // export caller turns it on (per-article and per-selection exports don't
   // know about dossier grouping).
   showDossierTitleOption?: boolean
+  // When set, the modal shows a switch to highlight every occurrence of
+  // this term in the exported document. DOCX implements highlighting
+  // natively; PDF/TXT silently ignore the choice (a note is shown).
+  highlightTerm?: string
 }
 
 export function ExportModal({
@@ -38,11 +43,13 @@ export function ExportModal({
   onExport,
   articleCount = 1,
   showDossierTitleOption = false,
+  highlightTerm,
 }: ExportModalProps) {
   const [includeDossierTitles, setIncludeDossierTitles] = useState(false)
+  const [highlightSearchTerm, setHighlightSearchTerm] = useState(true)
 
   const handleExport = (format: ExportFormat) => {
-    onExport(format, { includeDossierTitles })
+    onExport(format, { includeDossierTitles, highlightSearchTerm })
     onClose()
   }
 
@@ -67,6 +74,23 @@ export function ExportModal({
               checked={includeDossierTitles}
               onCheckedChange={setIncludeDossierTitles}
             />
+          </div>
+        )}
+        {highlightTerm && (
+          <div className="space-y-1 pt-2">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="export-highlight-term" className="cursor-pointer">
+                Surligner « {highlightTerm} »
+              </Label>
+              <Switch
+                id="export-highlight-term"
+                checked={highlightSearchTerm}
+                onCheckedChange={setHighlightSearchTerm}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Surlignage disponible uniquement en DOCX.
+            </p>
           </div>
         )}
         <div className="grid grid-cols-3 gap-3 py-4">

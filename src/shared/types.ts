@@ -137,8 +137,20 @@ export type DossierDeleteMode = 'delete-content' | 'orphan-articles'
 // dossier title in the rendered output. The renderer flattens its
 // grouped-by-dossier list into `articleIds` and emits one marker per group
 // boundary so the backend can insert the heading at the right spot.
+// `highlight` makes the renderer wrap occurrences of the term in a yellow
+// highlight in the output. DOCX implements this natively (TextRun.highlight);
+// PDF currently does not — the term is rendered without emphasis.
 export interface ExportOptions {
   dossierTitles?: { beforeArticleId: string; title: string }[]
+  highlight?: string
+}
+
+// Multi-project export item: identifies one article in a project. Used by
+// the search-results export which spans projects (the single-project
+// `articleIds: string[]` API can't represent this).
+export interface MultiExportItem {
+  projectId: string
+  articleId: string
 }
 
 // --- Move target for articles ---
@@ -316,6 +328,18 @@ export interface ElectronAPI {
   v2_exportArticlesTxt: (
     projectId: string,
     articleIds: string[],
+    options?: ExportOptions
+  ) => Promise<boolean>
+  v2_exportMultiArticlesPdf: (
+    items: MultiExportItem[],
+    options?: ExportOptions
+  ) => Promise<boolean>
+  v2_exportMultiArticlesDocx: (
+    items: MultiExportItem[],
+    options?: ExportOptions
+  ) => Promise<boolean>
+  v2_exportMultiArticlesTxt: (
+    items: MultiExportItem[],
     options?: ExportOptions
   ) => Promise<boolean>
 

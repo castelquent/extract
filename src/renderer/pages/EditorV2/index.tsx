@@ -1,7 +1,7 @@
 // v2 Editor page. Operates on string article IDs and reads from the v2
 // filesystem-as-truth hierarchy.
 import { useEffect, useMemo, useState } from 'react'
-import { useBlocker, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useBlocker, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import type {
   AIProvider,
@@ -76,6 +76,19 @@ export function EditorV2Page() {
   const { projectId } = useParams<{ projectId: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
+  // When the editor was opened from another page (e.g. /search), `state.from`
+  // carries the URL to return to and `state.fromLabel` the button text. We
+  // capture both on first mount only — subsequent `setSearchParams(...,
+  // { replace: true })` calls (e.g. to strip the deep-link `?article=`)
+  // clear `location.state`, so reading from it each render would lose the
+  // info one frame in.
+  const location = useLocation()
+  const [navState] = useState(() => ({
+    to: (location.state as { from?: string } | null)?.from ?? null,
+    label: (location.state as { fromLabel?: string } | null)?.fromLabel ?? 'Projet',
+  }))
+  const backTo = navState.to
+  const backLabel = navState.label
 
   const {
     articles,
@@ -539,9 +552,13 @@ export function EditorV2Page() {
 
       <header className="bg-card border-b px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="outline" size="sm" onClick={() => navigate(`/project/${project.id}`)}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate(backTo ?? `/project/${project.id}`)}
+          >
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Projet
+            {backTo ? backLabel : 'Projet'}
           </Button>
           <Separator orientation="vertical" className="h-6" />
           <div className="flex flex-col leading-tight">

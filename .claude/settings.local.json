@@ -25,7 +25,9 @@
       "WebFetch(domain:platform.openai.com)",
       "WebFetch(domain:openai.com)",
       "WebFetch(domain:openrouter.ai)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(node scripts/migrate-v1-backup.mjs --dry-run)",
+      "Bash(node scripts/migrate-v1-backup.mjs)"
     ]
   }
 }

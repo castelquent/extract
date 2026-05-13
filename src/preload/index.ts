@@ -122,6 +122,9 @@ const api: ElectronAPI & {
   v2_exportArticlesPdf: (projectId, articleIds, options) => ipcRenderer.invoke('v2:export:articlesPdf', projectId, articleIds, options),
   v2_exportArticlesDocx: (projectId, articleIds, options) => ipcRenderer.invoke('v2:export:articlesDocx', projectId, articleIds, options),
   v2_exportArticlesTxt: (projectId, articleIds, options) => ipcRenderer.invoke('v2:export:articlesTxt', projectId, articleIds, options),
+  v2_exportMultiArticlesPdf: (items, options) => ipcRenderer.invoke('v2:export:multiArticlesPdf', items, options),
+  v2_exportMultiArticlesDocx: (items, options) => ipcRenderer.invoke('v2:export:multiArticlesDocx', items, options),
+  v2_exportMultiArticlesTxt: (items, options) => ipcRenderer.invoke('v2:export:multiArticlesTxt', items, options),
 
   // File watcher notifications (main → renderer)
   v2_onProjectsListChanged: (callback: () => void) => {
