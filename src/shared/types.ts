@@ -21,8 +21,7 @@ export interface Template {
 
 export interface DeleteTemplateResult {
   success: boolean
-  reason?: 'in_use' | 'is_default'
-  projectNames?: string[]
+  reason?: 'is_default'
 }
 
 // ============================================================

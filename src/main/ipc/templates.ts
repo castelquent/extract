@@ -1,7 +1,7 @@
 import { ipcMain, app } from 'electron'
 import { join } from 'path'
-import { existsSync, readFileSync, writeFileSync, readdirSync } from 'fs'
-import type { Template, DeleteTemplateResult, ProjectMetadataV2 } from '@shared/types'
+import { existsSync, readFileSync, writeFileSync } from 'fs'
+import type { Template, DeleteTemplateResult } from '@shared/types'
 
 const DEFAULT_TEMPLATES: Template[] = [
   {
@@ -67,35 +67,6 @@ const saveTemplates = (templates: Template[]): boolean => {
   }
 }
 
-const getProjectsUsingTemplate = (templateId: string): { name: string }[] => {
-  const projectsPath = join(app.getPath('userData'), 'projects')
-  const projects: { name: string }[] = []
-
-  if (!existsSync(projectsPath)) {
-    return projects
-  }
-
-  try {
-    const dirs = readdirSync(projectsPath, { withFileTypes: true })
-      .filter(dirent => dirent.isDirectory())
-
-    for (const dir of dirs) {
-      const metadataPath = join(projectsPath, dir.name, 'metadata.json')
-
-      if (existsSync(metadataPath)) {
-        const metadata = JSON.parse(readFileSync(metadataPath, 'utf-8')) as ProjectMetadataV2
-        if (metadata.defaultTemplateId === templateId) {
-          projects.push({ name: metadata.name })
-        }
-      }
-    }
-  } catch (error) {
-    console.error('Error checking projects for template:', error)
-  }
-
-  return projects
-}
-
 export function setupTemplateHandlers(): void {
   // Get all templates
   ipcMain.handle('templates:getAll', async (): Promise<Template[]> => {
@@ -131,24 +102,14 @@ export function setupTemplateHandlers(): void {
     return saveTemplates(templates)
   })
 
-  // Delete template
+  // Delete template — articles snapshot their schema, so a deleted model
+  // never breaks anything. Only default models stay protected.
   ipcMain.handle('templates:delete', async (_, templateId: string): Promise<DeleteTemplateResult> => {
     const templates = loadTemplates()
     const template = templates.find(t => t.id === templateId)
 
-    // Cannot delete default templates
     if (template?.isDefault) {
       return { success: false, reason: 'is_default' }
-    }
-
-    // Check if any project uses this template
-    const projectsUsingTemplate = getProjectsUsingTemplate(templateId)
-    if (projectsUsingTemplate.length > 0) {
-      return {
-        success: false,
-        reason: 'in_use',
-        projectNames: projectsUsingTemplate.map(p => p.name)
-      }
     }
 
     const filtered = templates.filter(t => t.id !== templateId)

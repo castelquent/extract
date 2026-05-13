@@ -84,9 +84,6 @@ export const useTemplatesStore = create<TemplatesState>((set, get) => ({
           templates: state.templates.filter(t => t.id !== templateId)
         }))
         toast.success('Modèle supprimé')
-      } else if (result.reason === 'in_use') {
-        const projectList = result.projectNames?.join(', ') || ''
-        toast.error(`Ce modèle est utilisé par: ${projectList}`)
       } else if (result.reason === 'is_default') {
         toast.error('Impossible de supprimer un modèle par défaut')
       }
