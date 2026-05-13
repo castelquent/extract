@@ -108,11 +108,14 @@ export interface ArticleMetadata {
   modifiedAt: string
 }
 
-// Filtering scope passed to articles:list
+// Filtering scope passed to articles:list. Drafts (status='new') are hidden
+// from every consumer by default — callers in extraction context must opt in
+// via `includeDrafts: true` (or filter explicitly by status='new').
 export interface ArticleScope {
   dossierId?: string | null   // null = orphans only; undefined = any
   sourceId?: string
   status?: ArticleStatus
+  includeDrafts?: boolean
 }
 
 // --- Dossier deletion mode ---

@@ -22,8 +22,14 @@ import { touchProject } from './projects'
 const buildDossierView = (projectId: string, dossierId: string): DossierView | null => {
   const metadata = readDossierMetadata(projectId, dossierId)
   if (!metadata) return null
+  // Exclude drafts (status='new') from the user-facing count.
   const articleIds = listSubdirs(getDossierArticlesDir(projectId, dossierId))
-  return { ...metadata, articlesCount: articleIds.length }
+  let articlesCount = 0
+  for (const articleId of articleIds) {
+    const am = readArticleMetadata(projectId, dossierId, articleId)
+    if (am && am.status !== 'new') articlesCount += 1
+  }
+  return { ...metadata, articlesCount }
 }
 
 export function setupV2DossierHandlers(): void {

@@ -56,8 +56,11 @@ const walkArticles = function* (projectId: string): Generator<{ dossierId: strin
   }
 }
 
-// Apply an ArticleScope filter.
+// Apply an ArticleScope filter. Drafts (status='new') are hidden by default;
+// callers must pass `includeDrafts: true` or `status: 'new'` to see them.
 const matchesScope = (article: ArticleMetadata, scope?: ArticleScope): boolean => {
+  const wantsDrafts = scope?.includeDrafts === true || scope?.status === 'new'
+  if (!wantsDrafts && article.status === 'new') return false
   if (!scope) return true
   if (scope.dossierId !== undefined && article.dossierId !== scope.dossierId) return false
   if (scope.sourceId !== undefined && article.sourceId !== scope.sourceId) return false

@@ -30,13 +30,19 @@ const buildProjectView = (projectId: string): ProjectView | null => {
   let articlesToTranscribe = 0
   let articlesDone = 0
 
+  // Drafts (status='new') are excluded from `articlesTotal` so they don't
+  // pollute "X éléments dans ce projet" headers. They're surfaced separately
+  // via articlesToExtract (= "X à extraire" badges).
   const countArticle = (dossierId: string | null, articleId: string): void => {
     const am = readArticleMetadata(projectId, dossierId, articleId)
     if (!am) return
-    articlesTotal += 1
-    if (am.status === 'new') articlesToExtract += 1
-    else if (am.status === 'extracted') articlesToTranscribe += 1
-    else if (am.status === 'transcribed') articlesDone += 1
+    if (am.status === 'new') {
+      articlesToExtract += 1
+    } else {
+      articlesTotal += 1
+      if (am.status === 'extracted') articlesToTranscribe += 1
+      else if (am.status === 'transcribed') articlesDone += 1
+    }
   }
 
   // Walk orphans

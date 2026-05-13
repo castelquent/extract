@@ -28,6 +28,15 @@ export interface WorkingArticle {
   persistedDossierId?: string | null
 }
 
+// Destination intent passed to generateArticles. The dossier (if any) is
+// created lazily by the store — only if at least one orphan-new article
+// actually needs a home there. Prevents the "empty dossier" leak when
+// nothing ends up being moved.
+export type GenerateTarget =
+  | { kind: 'no-dossier' }
+  | { kind: 'new-dossier'; name: string }
+  | { kind: 'existing-dossier'; dossierId: string }
+
 interface ExtractionState {
   articles: WorkingArticle[]
   savedArticles: WorkingArticle[] // baseline to detect unsaved changes
@@ -96,7 +105,9 @@ interface ExtractionState {
   saveArticles: () => Promise<boolean>
   // generateArticles: save first, then for every 'new' article, optionally
   // move orphans to a chosen dossier and run extract PDF generation.
-  generateArticles: (dossierIdForOrphans: string | null) => Promise<boolean>
+  // Takes an intent (not a dossierId), so the dossier is created lazily
+  // — only if at least one orphan article needs a home.
+  generateArticles: (target: GenerateTarget) => Promise<boolean>
 
   // State
   setExporting: (exporting: boolean) => void
@@ -369,7 +380,9 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
   hydrateFromSource: async (projectId, sourceId, templates) => {
     set({ sessionProjectId: projectId, sessionSourceId: sourceId, error: null })
     try {
-      const existing = await window.api.v2_articlesList(projectId, { sourceId })
+      // includeDrafts: extraction is the one context where status='new'
+      // articles SHOULD be visible (they're the in-progress saved work).
+      const existing = await window.api.v2_articlesList(projectId, { sourceId, includeDrafts: true })
       let counter = 0
       const hydrated: WorkingArticle[] = existing.map((am) => {
         const matched = templates.find((t) => sameSchema(t.fields, am.schema ?? []))
@@ -472,11 +485,32 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
     }
   },
 
-  generateArticles: async (dossierIdForOrphans) => {
+  generateArticles: async (target) => {
     const saved = await get().saveArticles()
     if (!saved) return false
     const { sessionProjectId, articles } = get()
     if (!sessionProjectId) return false
+
+    // Determine if any orphan-new article actually needs a dossier. The
+    // dossier is created lazily — only when at least one article is going
+    // to land in it. Avoids leaking an empty dossier on disk if generation
+    // somehow has nothing to place.
+    const orphansToMove = articles.filter(
+      (a) => a.persistedId && a.persistedStatus === 'new' && a.persistedDossierId === null
+    )
+    let dossierIdForOrphans: string | null = null
+    if (orphansToMove.length > 0) {
+      if (target.kind === 'new-dossier') {
+        const dossier = await window.api.v2_dossiersCreate(sessionProjectId, target.name)
+        if (!dossier) {
+          toast.error('Impossible de créer le dossier')
+          return false
+        }
+        dossierIdForOrphans = dossier.id
+      } else if (target.kind === 'existing-dossier') {
+        dossierIdForOrphans = target.dossierId
+      }
+    }
 
     set({ exporting: true, error: null })
     try {
@@ -486,7 +520,7 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
           next.push(article)
           continue
         }
-        // Move orphan → dossier if user picked one.
+        // Move orphan → dossier if a destination was determined above.
         let dossierId = article.persistedDossierId
         if (article.persistedDossierId === null && dossierIdForOrphans !== null) {
           const moved = await window.api.v2_articlesMove(sessionProjectId, article.persistedId, {

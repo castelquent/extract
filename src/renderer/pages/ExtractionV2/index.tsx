@@ -266,7 +266,7 @@ export function ExtractionV2Page() {
       return
     }
     // Otherwise just regen (modifications on existing dossiered articles).
-    const ok = await generateArticles(null)
+    const ok = await generateArticles({ kind: 'no-dossier' })
     if (ok) navigate(`/project/${projectId}`)
   }
 
@@ -276,15 +276,16 @@ export function ExtractionV2Page() {
     existingDossierId?: string
   }) => {
     if (!projectId || !sourceId) return
-    let dossierId: string | null = null
-    if (target.choice === 'new-dossier' && target.newDossierName) {
-      const dossier = await window.api.v2_dossiersCreate(projectId, target.newDossierName)
-      if (!dossier) return
-      dossierId = dossier.id
-    } else if (target.choice === 'existing-dossier' && target.existingDossierId) {
-      dossierId = target.existingDossierId
-    }
-    const ok = await generateArticles(dossierId)
+    // Pass the dossier intent to the store; it creates the dossier lazily
+    // only if at least one orphan article is going to land in it. Prevents
+    // leaking an empty dossier when nothing needs moving.
+    const generateTarget =
+      target.choice === 'new-dossier' && target.newDossierName
+        ? ({ kind: 'new-dossier', name: target.newDossierName } as const)
+        : target.choice === 'existing-dossier' && target.existingDossierId
+          ? ({ kind: 'existing-dossier', dossierId: target.existingDossierId } as const)
+          : ({ kind: 'no-dossier' } as const)
+    const ok = await generateArticles(generateTarget)
     if (ok) navigate(`/project/${projectId}`)
   }
 

@@ -25,19 +25,28 @@ import {
   readArticleMetadata,
 } from '../_fs'
 
-// Count how many articles in a project reference a given sourceId.
-const countArticlesUsingSource = (projectId: string, sourceId: string): number => {
+// Count how many articles reference a given sourceId. By default drafts
+// (status='new') are excluded — that's the user-facing count shown on the
+// source card. The delete check passes `includeDrafts: true` so it refuses
+// to remove a source still backing in-progress drafts.
+const countArticlesUsingSource = (
+  projectId: string,
+  sourceId: string,
+  { includeDrafts = false }: { includeDrafts?: boolean } = {}
+): number => {
   let count = 0
-  // orphans
-  for (const articleId of listSubdirs(getOrphansDir(projectId))) {
-    const am = readArticleMetadata(projectId, null, articleId)
-    if (am?.sourceId === sourceId) count += 1
+  const accept = (am: { sourceId: string; status: string } | null): boolean => {
+    if (!am) return false
+    if (am.sourceId !== sourceId) return false
+    if (!includeDrafts && am.status === 'new') return false
+    return true
   }
-  // dossiers
+  for (const articleId of listSubdirs(getOrphansDir(projectId))) {
+    if (accept(readArticleMetadata(projectId, null, articleId))) count += 1
+  }
   for (const dossierId of listSubdirs(getDossiersDir(projectId))) {
     for (const articleId of listSubdirs(getDossierArticlesDir(projectId, dossierId))) {
-      const am = readArticleMetadata(projectId, dossierId, articleId)
-      if (am?.sourceId === sourceId) count += 1
+      if (accept(readArticleMetadata(projectId, dossierId, articleId))) count += 1
     }
   }
   return count
@@ -163,7 +172,9 @@ export function setupV2SourceHandlers(): void {
       const dir = getSourceDir(projectId, sourceId)
       if (!existsSync(dir)) return { ok: false }
 
-      const articlesCount = countArticlesUsingSource(projectId, sourceId)
+      // Delete check counts drafts too — we don't want to leave drafts pointing
+      // at a deleted source.
+      const articlesCount = countArticlesUsingSource(projectId, sourceId, { includeDrafts: true })
       if (articlesCount > 0 && !force) {
         return { ok: false, reason: 'has-articles', articlesCount }
       }
