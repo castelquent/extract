@@ -69,7 +69,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       })
     } catch (err) {
       console.error(err)
-      toast.error('Erreur lors du chargement des articles')
+      toast.error('Erreur lors du chargement des éléments')
       set({ loading: false, error: 'Erreur lors du chargement des articles' })
     }
   },
@@ -125,7 +125,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const ok = await get().saveArticle(id)
       if (!ok) allOk = false
     }
-    if (allOk) toast.success(`${ids.length} article(s) sauvegardé(s)`)
+    if (allOk) toast.success(`${ids.length} élément(s) sauvegardé(s)`)
     return allOk
   },
 
@@ -142,7 +142,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             s.currentArticleId === articleId ? remaining[0]?.id ?? null : s.currentArticleId
           return { articles: remaining, drafts, currentArticleId: newCurrent }
         })
-        toast.success('Article supprimé')
+        toast.success('Élément supprimé')
       }
       return ok
     } catch (err) {

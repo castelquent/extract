@@ -268,7 +268,7 @@ export function EditorV2Page() {
 
     if (ids.length > 1) {
       if (errorCount === 0) {
-        toast.success(`${successCount} article${successCount > 1 ? 's' : ''} transcrit${successCount > 1 ? 's' : ''}`)
+        toast.success(`${successCount} élément${successCount > 1 ? 's' : ''} transcrit${successCount > 1 ? 's' : ''}`)
       } else if (successCount === 0) {
         toast.error(`Échec de la transcription: ${lastError}`)
       } else {
@@ -420,7 +420,7 @@ export function EditorV2Page() {
       <AlertDialog open={!!bulkDeleteIds} onOpenChange={(open) => !open && setBulkDeleteIds(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer {bulkDeleteIds?.length} article(s) ?</AlertDialogTitle>
+            <AlertDialogTitle>Supprimer {bulkDeleteIds?.length} élément(s) ?</AlertDialogTitle>
             <AlertDialogDescription>
               Cette action est irréversible.
             </AlertDialogDescription>
@@ -440,7 +440,7 @@ export function EditorV2Page() {
       <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer l'article ?</AlertDialogTitle>
+            <AlertDialogTitle>Supprimer l'élément ?</AlertDialogTitle>
             <AlertDialogDescription>
               Cette action est irréversible.
             </AlertDialogDescription>
@@ -476,7 +476,7 @@ export function EditorV2Page() {
           <Separator orientation="vertical" className="h-6" />
           <h1 className="text-lg font-semibold">{project.name}</h1>
           <Badge variant="secondary">
-            {articles.length} article{articles.length > 1 ? 's' : ''}
+            {articles.length} élément{articles.length > 1 ? 's' : ''}
           </Badge>
         </div>
 
@@ -524,7 +524,7 @@ export function EditorV2Page() {
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
               <ImageIcon className="h-16 w-16 mb-4" />
-              <p>Aucun article sélectionné</p>
+              <p>Aucun élément sélectionné</p>
             </div>
           )}
         </ResizablePanel>
@@ -589,7 +589,7 @@ export function EditorV2Page() {
             <TabsContent value="summary" className="flex flex-col flex-1 min-h-0 data-[state=inactive]:hidden m-0">
               <div className="flex flex-col h-full">
                 <div className="p-3 border-b">
-                  <p className="text-sm font-medium">Articles du projet</p>
+                  <p className="text-sm font-medium">Éléments du projet</p>
                 </div>
                 <ScrollArea className="flex-1">
                   <ArticlesTableV2

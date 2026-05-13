@@ -105,7 +105,7 @@ export function ProjectDetailPage() {
           <span>·</span>
           <span>{project.dossiersCount} dossier{project.dossiersCount === 1 ? '' : 's'}</span>
           <span>·</span>
-          <span>{project.articlesTotal} article{project.articlesTotal === 1 ? '' : 's'}</span>
+          <span>{project.articlesTotal} élément{project.articlesTotal === 1 ? '' : 's'}</span>
           <span className="flex-1" />
           <Button
             variant="ghost"
@@ -120,7 +120,7 @@ export function ProjectDetailPage() {
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as 'articles' | 'sources')}>
         <TabsList>
-          <TabsTrigger value="articles">Articles</TabsTrigger>
+          <TabsTrigger value="articles">Éléments</TabsTrigger>
           <TabsTrigger value="sources">Sources</TabsTrigger>
         </TabsList>
         <TabsContent value="articles" className="pt-4">

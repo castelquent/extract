@@ -92,7 +92,7 @@ export function MoveDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Déplacer {articleCount} article{articleCount === 1 ? '' : 's'}</DialogTitle>
+          <DialogTitle>Déplacer {articleCount} élément{articleCount === 1 ? '' : 's'}</DialogTitle>
           <DialogDescription>
             Choisissez la destination dans ce projet ou dans un autre projet.
           </DialogDescription>

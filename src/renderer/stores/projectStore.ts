@@ -108,7 +108,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         return true
       } else if (result.reason === 'has-articles') {
         toast.error(
-          `Cette source est utilisée par ${result.articlesCount} article(s). Supprimez-les d'abord.`
+          `Cette source est utilisée par ${result.articlesCount} élément(s). Supprimez-les d'abord.`
         )
       }
       return false
@@ -163,7 +163,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     try {
       const ok = await window.api.v2_dossiersDelete(projectId, dossierId, mode)
       if (ok) {
-        toast.success(mode === 'orphan-articles' ? 'Dossier supprimé, articles rendus orphelins' : 'Dossier et articles supprimés')
+        toast.success(mode === 'orphan-articles' ? 'Dossier supprimé, éléments rendus orphelins' : 'Dossier et éléments supprimés')
         await get().refresh()
       }
       return ok
@@ -185,7 +185,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       return ok
     } catch (err) {
       console.error(err)
-      toast.error("Erreur lors de la suppression de l'article")
+      toast.error("Erreur lors de la suppression de l'élément")
       return false
     }
   },
@@ -210,7 +210,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     try {
       const ok = await window.api.v2_articlesMoveBulk(projectId, articleIds, target)
       if (ok) {
-        toast.success(`${articleIds.length} article(s) déplacé(s)`)
+        toast.success(`${articleIds.length} élément(s) déplacé(s)`)
         await get().refresh()
       }
       return ok

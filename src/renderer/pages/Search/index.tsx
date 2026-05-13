@@ -152,7 +152,7 @@ export function SearchPage() {
         <div>
           <h1 className="text-2xl font-bold">Recherche</h1>
           <p className="text-muted-foreground text-sm">
-            Rechercher dans tous les articles de tous les projets
+            Rechercher dans tous les éléments de tous les projets
           </p>
         </div>
       </header>
@@ -184,7 +184,7 @@ export function SearchPage() {
           </>
         ) : indexedArticles ? (
           <span>
-            {totalArticles} article{totalArticles > 1 ? 's' : ''} indexé
+            {totalArticles} élément{totalArticles > 1 ? 's' : ''} indexé
             {totalArticles > 1 ? 's' : ''}
           </span>
         ) : null}

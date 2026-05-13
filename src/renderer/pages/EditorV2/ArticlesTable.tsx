@@ -82,7 +82,7 @@ export function ArticlesTableV2({
     },
     {
       accessorKey: 'title',
-      header: 'Article',
+      header: 'Élément',
       cell: ({ row }) => {
         const article = row.original
         const displayName =
@@ -190,7 +190,7 @@ export function ArticlesTableV2({
           ) : (
             <TableRow>
               <TableCell colSpan={columns.length} className="h-24 text-center">
-                Aucun article.
+                Aucun élément.
               </TableCell>
             </TableRow>
           )}

@@ -25,7 +25,7 @@ export function ExportModal({ open, onClose, onExport }: ExportModalProps) {
     <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-[400px]">
         <DialogHeader>
-          <DialogTitle>Exporter l'article</DialogTitle>
+          <DialogTitle>Exporter l'élément</DialogTitle>
         </DialogHeader>
         <div className="grid grid-cols-3 gap-3 py-4">
           <Button

@@ -290,7 +290,7 @@ export function ExtractionV2Page() {
             disabled={articles.length === 0 || exporting}
           >
             <FileImage className="h-4 w-4 mr-2" />
-            {exporting ? 'Génération...' : 'Générer les articles'}
+            {exporting ? 'Génération...' : 'Générer les éléments'}
           </Button>
         </div>
       </header>
@@ -345,7 +345,7 @@ export function ExtractionV2Page() {
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-background/90 backdrop-blur-sm rounded-lg px-4 py-2 shadow-lg border z-10">
               <p className="text-sm text-muted-foreground flex items-center gap-2">
                 <MousePointer2 className="h-4 w-4" />
-                Dessinez un rectangle sur le PDF pour créer votre premier article
+                Dessinez un rectangle sur le PDF pour créer votre premier élément
               </p>
             </div>
           )}
@@ -368,7 +368,7 @@ export function ExtractionV2Page() {
             <div className="flex items-center justify-between">
               <h2 className="font-semibold flex items-center gap-2">
                 <Layers className="h-4 w-4" />
-                Articles
+                Éléments
               </h2>
               <Badge variant="outline">{articles.length}</Badge>
             </div>
@@ -380,7 +380,7 @@ export function ExtractionV2Page() {
                 onClick={() => selectArticle(null)}
               >
                 <X className="h-4 w-4 mr-2" />
-                Terminer l'article en cours
+                Terminer l'élément en cours
               </Button>
             )}
           </div>
@@ -393,7 +393,7 @@ export function ExtractionV2Page() {
                     <MousePointer2 className="h-6 w-6 text-muted-foreground" />
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    Sélectionnez des zones sur le PDF pour créer des articles.
+                    Sélectionnez des zones sur le PDF pour créer des éléments.
                   </p>
                 </div>
               ) : (

@@ -47,15 +47,15 @@ const filterConfig: Record<ProjectFilter, { title: string; subtitle: string; ico
   },
   extraction: {
     title: 'Extraction',
-    subtitle: 'Projets avec des articles à extraire',
+    subtitle: 'Projets avec des éléments à extraire',
     icon: Scissors,
-    emptyMessage: 'Aucun article à extraire',
+    emptyMessage: 'Aucun élément à extraire',
   },
   transcription: {
     title: 'Transcription',
-    subtitle: 'Projets avec des articles à transcrire',
+    subtitle: 'Projets avec des éléments à transcrire',
     icon: FileText,
-    emptyMessage: 'Aucun article à transcrire',
+    emptyMessage: 'Aucun élément à transcrire',
   },
   completed: {
     title: 'Terminés',

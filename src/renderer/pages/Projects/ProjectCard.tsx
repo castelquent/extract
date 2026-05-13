@@ -96,7 +96,7 @@ export function ProjectCard({
                 ) : (
                   <>
                     <Badge variant="secondary">
-                      {articlesTotal} article{articlesTotal === 1 ? '' : 's'}
+                      {articlesTotal} élément{articlesTotal === 1 ? '' : 's'}
                     </Badge>
                     {articlesToExtract > 0 && (
                       <Badge variant="warning">{articlesToExtract} à extraire</Badge>

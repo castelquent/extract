@@ -26,7 +26,7 @@ const TOPICS: TopicMeta[] = [
   { id: 'api-keys', label: 'Clés API', icon: KeyRound },
   { id: 'workflow', label: 'Comment ça marche', icon: Workflow },
   { id: 'models', label: 'Modèles IA & coûts', icon: Bot },
-  { id: 'templates', label: 'Templates', icon: FileStack },
+  { id: 'templates', label: 'Modèles', icon: FileStack },
 ]
 
 export function HelpModal() {
@@ -164,8 +164,8 @@ function WorkflowSection() {
           <div className="font-medium mb-1">1. Créer un projet</div>
           <p className="text-sm text-muted-foreground">
             Depuis <em>Accueil</em>, cliquez sur <strong>Nouveau projet</strong>, importez
-            votre PDF et choisissez un <strong>template</strong> (Article de presse,
-            Correspondance, ou un template personnalisé que vous avez créé).
+            votre PDF et choisissez un <strong>modèle</strong> par défaut (Article de presse,
+            Correspondance, ou un modèle personnalisé que vous avez créé).
           </p>
         </li>
         <li className="border rounded-lg p-4">
@@ -180,7 +180,7 @@ function WorkflowSection() {
           <div className="font-medium mb-1">3. Transcrire avec l'IA</div>
           <p className="text-sm text-muted-foreground">
             Dans <em>Transcription</em>, lancez la transcription sur un élément ou en
-            masse. L'IA remplit automatiquement les champs définis par le template
+            masse. L'IA remplit automatiquement les champs définis par le modèle
             (titre, auteur, contenu, etc.). Vous pouvez ensuite corriger à la main.
           </p>
         </li>
@@ -237,7 +237,7 @@ function ModelsSection() {
         <h4 className="font-medium mb-2">Combien ça coûte ?</h4>
         <p className="text-sm text-muted-foreground">
           Le coût dépend du modèle et de la longueur du document. Comptez de quelques
-          centimes pour un article court avec un modèle économique, à une dizaine de
+          centimes pour un élément court avec un modèle économique, à une dizaine de
           centimes pour un long document avec un modèle premium. Les
           <strong> Paramètres &gt; Logs</strong> affichent le coût réel cumulé de
           chacune de vos transcriptions.
@@ -251,27 +251,27 @@ function TemplatesSection() {
   return (
     <div className="space-y-4">
       <div>
-        <h3 className="text-lg font-medium mb-2">Templates</h3>
+        <h3 className="text-lg font-medium mb-2">Modèles</h3>
         <p className="text-sm text-muted-foreground">
-          Un <strong>template</strong> définit la structure des informations à
+          Un <strong>modèle</strong> définit la structure des informations à
           extraire : quels champs remplir, leur type, et comment guider l'IA.
         </p>
       </div>
 
       <div className="border rounded-lg p-4">
-        <h4 className="font-medium mb-2">Templates par défaut</h4>
+        <h4 className="font-medium mb-2">Modèles par défaut</h4>
         <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
           <li><strong>Article de presse</strong> — Titre, Auteur, Contenu.</li>
           <li><strong>Correspondance</strong> — Titre, Date, Expéditeur, Destinataire, Contenu.</li>
         </ul>
         <p className="text-xs text-muted-foreground mt-2 italic">
-          Ces templates ne sont pas modifiables, mais vous pouvez les dupliquer
+          Ces modèles ne sont pas modifiables, mais vous pouvez les dupliquer
           depuis la page <em>Modèles</em>.
         </p>
       </div>
 
       <div className="border rounded-lg p-4">
-        <h4 className="font-medium mb-2">Créer un template personnalisé</h4>
+        <h4 className="font-medium mb-2">Créer un modèle personnalisé</h4>
         <ol className="text-sm text-muted-foreground space-y-1.5 list-decimal list-inside">
           <li>Allez dans <strong>Modèles</strong> dans le menu de gauche.</li>
           <li>Cliquez sur <strong>Nouveau modèle</strong>, donnez-lui un nom.</li>
@@ -284,7 +284,7 @@ function TemplatesSection() {
           </li>
           <li>Optionnel : ajoutez une <em>indication IA</em> pour orienter la transcription
             (par exemple <em>"Conserver l'orthographe d'origine du document"</em>).</li>
-          <li>Sauvegardez. Votre template apparaîtra au moment de créer un projet.</li>
+          <li>Sauvegardez. Votre modèle apparaîtra au moment de créer un projet.</li>
         </ol>
         <p className="text-xs text-muted-foreground mt-3 italic">
           Le champ <strong>Titre</strong> est toujours présent et ne peut pas être supprimé.

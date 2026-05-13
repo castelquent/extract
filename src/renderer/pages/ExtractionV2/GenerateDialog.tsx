@@ -77,9 +77,9 @@ export function GenerateDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Générer {articleCount} article{articleCount === 1 ? '' : 's'}</DialogTitle>
+          <DialogTitle>Générer {articleCount} élément{articleCount === 1 ? '' : 's'}</DialogTitle>
           <DialogDescription>
-            Comment organiser les articles générés dans ce projet ?
+            Comment organiser les éléments générés dans ce projet ?
           </DialogDescription>
         </DialogHeader>
 
@@ -141,13 +141,13 @@ export function GenerateDialog({
             <div className="flex-1">
               <span className="text-sm font-medium">Sans dossier</span>
               <p className="text-xs text-muted-foreground">
-                Les articles seront ajoutés directement au projet.
+                Les éléments seront ajoutés directement au projet.
               </p>
             </div>
           </label>
 
           <Label className="block text-xs text-muted-foreground pt-2">
-            La génération produit un PDF par article et peut prendre quelques secondes.
+            La génération produit un PDF par élément et peut prendre quelques secondes.
           </Label>
         </div>
 

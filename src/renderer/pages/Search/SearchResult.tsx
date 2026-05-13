@@ -23,7 +23,7 @@ export function SearchResult({ hit, onClick }: SearchResultProps) {
   const title =
     hit.article.fields?.['Titre']?.trim() ||
     hit.article.fields?.['title']?.trim() ||
-    'Article sans titre'
+    'Élément sans titre'
 
   return (
     <button

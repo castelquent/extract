@@ -67,7 +67,7 @@ export function CreateProjectModal({ open, onOpenChange, onCreate }: CreateProje
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="project-template">Modèle</Label>
+            <Label htmlFor="project-template">Modèle par défaut</Label>
             <Select value={templateId} onValueChange={setTemplateId}>
               <SelectTrigger>
                 <SelectValue placeholder="Choisir un modèle" />
@@ -81,7 +81,7 @@ export function CreateProjectModal({ open, onOpenChange, onCreate }: CreateProje
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              Le modèle définit les champs disponibles pour chaque article. Vous pourrez ajouter des PDFs après la création.
+              Modèle pré-sélectionné lors de la création d'un nouvel élément. Modifiable par élément. Vous pourrez ajouter des PDFs après la création.
             </p>
           </div>
 

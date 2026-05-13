@@ -159,7 +159,7 @@ function DossierSection({
       <CollapsibleContent>
         <div className="pl-6">
           {articles.length === 0 ? (
-            <div className="text-xs text-muted-foreground py-1.5 px-2">Aucun article</div>
+            <div className="text-xs text-muted-foreground py-1.5 px-2">Aucun élément</div>
           ) : (
             articles.map((a) => (
               <ArticleRow
@@ -284,7 +284,7 @@ export function ArticlesView({ projectId }: { projectId: string }) {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div className="text-sm text-muted-foreground">
-          {totalArticles} article{totalArticles === 1 ? '' : 's'}
+          {totalArticles} élément{totalArticles === 1 ? '' : 's'}
           {selectedCount > 0 && ` · ${selectedCount} sélectionné${selectedCount === 1 ? '' : 's'}`}
         </div>
         <div className="flex gap-2">
@@ -345,7 +345,7 @@ export function ArticlesView({ projectId }: { projectId: string }) {
         )}
         {totalArticles === 0 && (
           <div className="text-center py-8 text-sm text-muted-foreground">
-            Aucun article. Importez une source et extrayez-en des articles depuis l'onglet Sources.
+            Aucun élément. Importez une source et extrayez-en des éléments depuis l'onglet Sources.
           </div>
         )}
       </div>
@@ -400,7 +400,7 @@ export function ArticlesView({ projectId }: { projectId: string }) {
           <AlertDialogHeader>
             <AlertDialogTitle>Supprimer le dossier ?</AlertDialogTitle>
             <AlertDialogDescription>
-              Que faire des articles contenus dans ce dossier ?
+              Que faire des éléments contenus dans ce dossier ?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-2 py-2">
@@ -412,7 +412,7 @@ export function ArticlesView({ projectId }: { projectId: string }) {
                 className="mt-1"
               />
               <span>
-                <span className="font-medium">Garder les articles</span>
+                <span className="font-medium">Garder les éléments</span>
                 <span className="text-muted-foreground"> (ils deviendront orphelins dans le projet)</span>
               </span>
             </label>
@@ -424,7 +424,7 @@ export function ArticlesView({ projectId }: { projectId: string }) {
                 className="mt-1"
               />
               <span>
-                <span className="font-medium text-destructive">Supprimer aussi les articles</span>
+                <span className="font-medium text-destructive">Supprimer aussi les éléments</span>
               </span>
             </label>
           </div>
@@ -455,7 +455,7 @@ export function ArticlesView({ projectId }: { projectId: string }) {
       <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer {selectedCount} article{selectedCount === 1 ? '' : 's'} ?</AlertDialogTitle>
+            <AlertDialogTitle>Supprimer {selectedCount} élément{selectedCount === 1 ? '' : 's'} ?</AlertDialogTitle>
             <AlertDialogDescription>
               Cette action est irréversible.
             </AlertDialogDescription>

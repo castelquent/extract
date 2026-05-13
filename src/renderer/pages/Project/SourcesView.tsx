@@ -58,7 +58,7 @@ function SourceCard({
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <span>{source.pageCount} page{source.pageCount === 1 ? '' : 's'}</span>
               <Badge variant="secondary" className="text-xs">
-                {source.articlesCount} article{source.articlesCount === 1 ? '' : 's'}
+                {source.articlesCount} élément{source.articlesCount === 1 ? '' : 's'}
               </Badge>
             </div>
           </CardContent>
@@ -134,7 +134,7 @@ export function SourcesView({ projectId }: { projectId: string }) {
             <AlertDialogTitle>Supprimer cette source ?</AlertDialogTitle>
             <AlertDialogDescription>
               {deleteTarget && deleteTarget.articlesCount > 0
-                ? `Cette source est utilisée par ${deleteTarget.articlesCount} article(s). Supprimez-les d'abord ou ils auront une source manquante.`
+                ? `Cette source est utilisée par ${deleteTarget.articlesCount} élément(s). Supprimez-les d'abord ou ils auront une source manquante.`
                 : "Cette action est irréversible. Le PDF source sera supprimé."}
             </AlertDialogDescription>
           </AlertDialogHeader>
