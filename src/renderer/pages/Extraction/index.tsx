@@ -23,6 +23,8 @@ import {
   Square,
   Save,
   X,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react'
 import { PdfViewer } from './PdfViewer'
 import { ZonesOverlay } from './ZonesOverlay'
@@ -70,6 +72,40 @@ export function ExtractionPage() {
   // PDF state (local, not in store)
   const [pdfLoaded, setPdfLoaded] = useState(false)
   const [pdfCanvas, setPdfCanvas] = useState<HTMLCanvasElement | null>(null)
+  const [zoomLevel, setZoomLevel] = useState(1)
+
+  const ZOOM_MIN = 1
+  const ZOOM_MAX = 5
+  const ZOOM_STEP = 0.25
+
+  // Reset zoom on page change for a global overview
+  useEffect(() => {
+    setZoomLevel(1)
+  }, [currentPage])
+
+  const handleZoomIn = () => setZoomLevel((z) => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))
+  const handleZoomOut = () => setZoomLevel((z) => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))
+
+  // Ctrl + wheel (or trackpad pinch) to zoom in / out
+  useEffect(() => {
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey) return
+      const container = viewerContainerRef.current
+      if (!container) return
+      const target = e.target as Node | null
+      if (!target || !container.contains(target)) return
+      e.preventDefault()
+      // Scale step by deltaY so trackpad pinch (tiny deltas, many events)
+      // feels smooth and mouse wheel (deltaY ~100) advances by ~0.5.
+      const delta = -e.deltaY * 0.005
+      setZoomLevel((z) => {
+        const next = +(z + delta).toFixed(2)
+        return Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, next))
+      })
+    }
+    window.addEventListener('wheel', onWheel, { passive: false })
+    return () => window.removeEventListener('wheel', onWheel)
+  }, [])
 
   // Dirty state tracking
   const hasUnsavedChanges = useExtractionStore(selectHasUnsavedChanges)
@@ -308,35 +344,69 @@ export function ExtractionPage() {
       {/* Main content */}
       <div className="flex-1 flex overflow-hidden min-h-0">
         {/* PDF Viewer with selection canvas */}
-        <div
-          ref={viewerContainerRef}
-          className="flex-1 bg-muted/30 relative overflow-hidden flex items-center justify-center"
-        >
-          {projectId && (
-            <PdfViewer
-              projectId={projectId}
-              currentPage={currentPage}
-              onTotalPagesChange={setTotalPages}
-              onCanvasReady={setPdfCanvas}
-              containerRef={viewerContainerRef as React.RefObject<HTMLDivElement>}
-            />
+        <div className="flex-1 bg-muted/30 relative">
+          <div
+            ref={viewerContainerRef}
+            className="absolute inset-0 overflow-auto"
+          >
+            <div className="min-w-full min-h-full grid place-items-center p-4">
+              <div className="relative">
+                {projectId && (
+                  <PdfViewer
+                    projectId={projectId}
+                    currentPage={currentPage}
+                    zoomLevel={zoomLevel}
+                    onTotalPagesChange={setTotalPages}
+                    onCanvasReady={setPdfCanvas}
+                    containerRef={viewerContainerRef as React.RefObject<HTMLDivElement>}
+                  />
+                )}
+                <ZonesOverlay
+                  pdfCanvas={pdfCanvas}
+                  currentPage={currentPage}
+                  articles={articles}
+                  currentArticleId={currentArticleId}
+                  selectedZoneIndex={selectedZoneIndex}
+                  onZoneCreated={handleZoneCreated}
+                  onZoneUpdated={updateZoneInArticle}
+                  onZoneDeleted={removeZoneFromArticle}
+                  onZoneSelected={selectZoneInArticle}
+                  onZoneMoveToArticle={moveZone}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Zoom controls */}
+          {pdfLoaded && (
+            <div className="absolute top-4 right-4 flex items-center gap-1 bg-background/90 backdrop-blur-sm rounded-lg shadow-lg border p-1 z-10">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={handleZoomOut}
+                disabled={zoomLevel <= ZOOM_MIN}
+              >
+                <ZoomOut className="h-4 w-4" />
+              </Button>
+              <span className="text-xs font-mono w-10 text-center select-none">
+                {Math.round(zoomLevel * 100)}%
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={handleZoomIn}
+                disabled={zoomLevel >= ZOOM_MAX}
+              >
+                <ZoomIn className="h-4 w-4" />
+              </Button>
+            </div>
           )}
-          <ZonesOverlay
-            pdfCanvas={pdfCanvas}
-            currentPage={currentPage}
-            articles={articles}
-            currentArticleId={currentArticleId}
-            selectedZoneIndex={selectedZoneIndex}
-            onZoneCreated={handleZoneCreated}
-            onZoneUpdated={updateZoneInArticle}
-            onZoneDeleted={removeZoneFromArticle}
-            onZoneSelected={selectZoneInArticle}
-            onZoneMoveToArticle={moveZone}
-          />
 
           {/* Instructions overlay (first-run only) */}
           {pdfLoaded && articles.length === 0 && (
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-background/90 backdrop-blur-sm rounded-lg px-4 py-2 shadow-lg border">
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-background/90 backdrop-blur-sm rounded-lg px-4 py-2 shadow-lg border z-10">
               <p className="text-sm text-muted-foreground flex items-center gap-2">
                 <MousePointer2 className="h-4 w-4" />
                 Dessinez un rectangle sur le PDF pour créer votre premier élément
@@ -349,7 +419,7 @@ export function ExtractionPage() {
             <Button
               variant="secondary"
               size="sm"
-              className="absolute bottom-4 right-4 shadow-lg"
+              className="absolute bottom-4 right-4 shadow-lg z-10"
               onClick={handleSelectEntirePage}
             >
               <Square className="h-4 w-4 mr-2" />

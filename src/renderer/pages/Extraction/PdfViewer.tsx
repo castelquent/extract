@@ -9,6 +9,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = PdfWorker
 interface PdfViewerProps {
   projectId: string
   currentPage: number
+  zoomLevel?: number
   onTotalPagesChange: (total: number) => void
   onCanvasReady: (canvas: HTMLCanvasElement) => void
   containerRef: React.RefObject<HTMLDivElement>
@@ -17,6 +18,7 @@ interface PdfViewerProps {
 export function PdfViewer({
   projectId,
   currentPage,
+  zoomLevel = 1,
   onTotalPagesChange,
   onCanvasReady,
   containerRef
@@ -102,7 +104,7 @@ export function PdfViewer({
         const scaleY = containerHeight / baseViewport.height
         const fitScale = Math.min(scaleX, scaleY) * 0.95
 
-        const viewport = page.getViewport({ scale: fitScale })
+        const viewport = page.getViewport({ scale: fitScale * zoomLevel })
 
         canvas.width = viewport.width
         canvas.height = viewport.height
@@ -128,7 +130,7 @@ export function PdfViewer({
     }
 
     renderPage(currentPage)
-  }, [pdfDoc, currentPage, containerRef, onCanvasReady])
+  }, [pdfDoc, currentPage, zoomLevel, containerRef, onCanvasReady])
 
   // Handle window resize
   useEffect(() => {

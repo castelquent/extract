@@ -161,13 +161,7 @@ export function ZonesOverlay({
   return (
     <div
       ref={containerRef}
-      className="absolute cursor-crosshair"
-      style={{
-        width: containerSize.width,
-        height: containerSize.height,
-        left: '50%',
-        transform: 'translateX(-50%)',
-      }}
+      className="absolute inset-0 cursor-crosshair"
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}

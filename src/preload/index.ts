@@ -1,5 +1,9 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webFrame } from 'electron'
 import type { ElectronAPI } from '@shared/types'
+
+// Disable Electron's built-in zoom (Ctrl+wheel, pinch on trackpad) so the
+// extraction page can implement its own zoom on the PDF viewer.
+webFrame.setVisualZoomLevelLimits(1, 1)
 
 const api: ElectronAPI & {
   onCheckUnsavedChanges: (callback: () => void) => () => void
