@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import type { Zone, Article } from '@shared/types'
+import type { Zone } from '@shared/types'
+import type { WorkingArticle as Article } from '@/stores/extractionStore'
 import { ZoneBox } from './ZoneBox'
 
 interface ZonesOverlayProps {

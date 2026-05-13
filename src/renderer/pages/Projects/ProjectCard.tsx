@@ -39,7 +39,7 @@ export function ProjectCard({
 
   useEffect(() => {
     if (project.thumbnailPath) {
-      window.api.getImageData(project.id, project.thumbnailPath).then(setThumbnailSrc)
+      window.api.v2_projectsGetThumbnail(project.id).then(setThumbnailSrc)
     } else {
       setThumbnailSrc(null)
     }

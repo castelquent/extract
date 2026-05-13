@@ -1,10 +1,9 @@
 import { ChevronRight } from 'lucide-react'
-import type { Project, Article } from '@shared/types'
+import type { ArticleMetadata, ProjectView } from '@shared/types'
 
 interface MatchHit {
-  project: Project
-  articleIndex: number
-  article: Article
+  project: ProjectView
+  article: ArticleMetadata
   fieldName: string
   snippet: string
   matchStart: number
@@ -21,6 +20,11 @@ export function SearchResult({ hit, onClick }: SearchResultProps) {
   const match = hit.snippet.slice(hit.matchStart, hit.matchStart + hit.matchLength)
   const after = hit.snippet.slice(hit.matchStart + hit.matchLength)
 
+  const title =
+    hit.article.fields?.['Titre']?.trim() ||
+    hit.article.fields?.['title']?.trim() ||
+    'Article sans titre'
+
   return (
     <button
       type="button"
@@ -30,7 +34,7 @@ export function SearchResult({ hit, onClick }: SearchResultProps) {
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 text-xs text-muted-foreground">
-            <span className="font-medium text-foreground">Élément {hit.articleIndex + 1}</span>
+            <span className="font-medium text-foreground truncate max-w-[300px]">{title}</span>
             <span>·</span>
             <span>{hit.fieldName}</span>
           </div>

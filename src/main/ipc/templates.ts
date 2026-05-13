@@ -1,7 +1,7 @@
 import { ipcMain, app } from 'electron'
 import { join } from 'path'
 import { existsSync, readFileSync, writeFileSync, readdirSync } from 'fs'
-import type { Template, DeleteTemplateResult, ProjectMetadata } from '@shared/types'
+import type { Template, DeleteTemplateResult, ProjectMetadataV2 } from '@shared/types'
 
 const DEFAULT_TEMPLATES: Template[] = [
   {
@@ -83,7 +83,7 @@ const getProjectsUsingTemplate = (templateId: string): { name: string }[] => {
       const metadataPath = join(projectsPath, dir.name, 'metadata.json')
 
       if (existsSync(metadataPath)) {
-        const metadata = JSON.parse(readFileSync(metadataPath, 'utf-8')) as ProjectMetadata
+        const metadata = JSON.parse(readFileSync(metadataPath, 'utf-8')) as ProjectMetadataV2
         if (metadata.templateId === templateId) {
           projects.push({ name: metadata.name })
         }

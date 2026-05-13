@@ -2,9 +2,7 @@ import { Routes, Route } from 'react-router-dom'
 import { AppLayout } from './components/layout'
 import { ProjectsPage } from './pages/Projects'
 import { ProjectDetailPage } from './pages/Project'
-import { ExtractionPage } from './pages/Extraction'
 import { ExtractionV2Page } from './pages/ExtractionV2'
-import { EditorPage } from './pages/Editor'
 import { EditorV2Page } from './pages/EditorV2'
 import { TemplatesPage } from './pages/Templates'
 import { SearchPage } from './pages/Search'
@@ -28,9 +26,7 @@ function App() {
           <Route path="/templates" element={<TemplatesPage />} />
           <Route path="/project/:projectId" element={<ProjectDetailPage />} />
           <Route path="/extraction/:projectId/:sourceId" element={<ExtractionV2Page />} />
-          <Route path="/extraction/:projectId" element={<ExtractionPage />} />
           <Route path="/editor/:projectId" element={<EditorV2Page />} />
-          <Route path="/editor-legacy/:projectId" element={<EditorPage />} />
         </Route>
       </Routes>
     </>

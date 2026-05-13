@@ -1,26 +1,36 @@
+// In-memory state for the ExtractionV2 page: a working buffer of articles
+// being drawn on a source PDF. Articles use a temporary integer id that lives
+// only for the session — at "Generate" time, each article is persisted via
+// v2_articlesCreate which mints a ULID and writes the article folder.
 import { create } from 'zustand'
 import { toast } from 'sonner'
-import type { Article, Zone } from '@shared/types'
+import type { Zone } from '@shared/types'
+
+// In-memory article shape (numeric id is a session-local handle).
+export interface WorkingArticle {
+  id: number
+  zones: Zone[]
+  fields: Record<string, string>
+}
 
 interface ExtractionState {
-  articles: Article[]
-  savedArticles: Article[] // Pour détecter les changements non sauvegardés
+  articles: WorkingArticle[]
+  savedArticles: WorkingArticle[] // baseline to detect unsaved changes
   currentArticleId: number | null
   selectedZoneIndex: number | null
   currentPage: number
   totalPages: number
-  loading: boolean
   exporting: boolean
   error: string | null
 
-  // Actions - Articles
-  setArticles: (articles: Article[]) => void
+  // Articles
+  setArticles: (articles: WorkingArticle[]) => void
   addArticle: () => number
   removeArticle: (id: number) => void
   selectArticle: (id: number | null) => void
-  updateArticle: (id: number, updates: Partial<Article>) => void
+  updateArticle: (id: number, updates: Partial<WorkingArticle>) => void
 
-  // Actions - Zones
+  // Zones
   addZoneAsNewArticle: (zone: Zone) => void
   addZoneToArticle: (articleId: number, zone: Zone) => void
   updateZone: (zoneIndex: number, zone: Zone) => void
@@ -30,61 +40,49 @@ interface ExtractionState {
   selectZone: (index: number | null) => void
   selectZoneInArticle: (articleId: number, zoneIndex: number) => void
 
-  // Actions - Drag & Drop
+  // Drag & Drop
   mergeArticles: (sourceId: number, targetId: number) => void
   moveZone: (fromArticleId: number, zoneIndex: number, toArticleId: number) => void
   reorderZones: (articleId: number, fromIndex: number, toIndex: number) => void
 
-  // Actions - Navigation
+  // Navigation
   setCurrentPage: (page: number) => void
   setTotalPages: (total: number) => void
   goToPage: (page: number) => void
 
-  // Actions - Persistence
-  loadExtraction: (projectId: string) => Promise<void>
-  saveExtraction: (projectId: string) => Promise<boolean>
-  exportImages: (projectId: string) => Promise<boolean>
-
-  // v2: generate articles directly into the filesystem hierarchy
-  // (no per-project data.json — each article gets its own folder).
+  // Persistence — create v2 articles from the working buffer
   generateV2Articles: (
     projectId: string,
     sourceId: string,
     dossierId: string | null
   ) => Promise<boolean>
 
-  // Actions - State
+  // State
   setExporting: (exporting: boolean) => void
   clearError: () => void
   reset: () => void
 }
 
 const initialState = {
-  articles: [] as Article[],
-  savedArticles: [] as Article[],
-  currentArticleId: null,
-  selectedZoneIndex: null,
+  articles: [] as WorkingArticle[],
+  savedArticles: [] as WorkingArticle[],
+  currentArticleId: null as number | null,
+  selectedZoneIndex: null as number | null,
   currentPage: 1,
   totalPages: 0,
-  loading: false,
   exporting: false,
-  error: null,
+  error: null as string | null,
 }
 
 export const useExtractionStore = create<ExtractionState>((set, get) => ({
   ...initialState,
 
-  // Articles
   setArticles: (articles) => set({ articles }),
 
   addArticle: () => {
     const { articles } = get()
     const newId = articles.length > 0 ? Math.max(...articles.map((a) => a.id)) + 1 : 1
-    const newArticle: Article = {
-      id: newId,
-      zones: [],
-      fields: {},
-    }
+    const newArticle: WorkingArticle = { id: newId, zones: [], fields: {} }
     set((state) => ({
       articles: [...state.articles, newArticle],
       currentArticleId: newId,
@@ -117,15 +115,10 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
     }))
   },
 
-  // Zones
   addZoneAsNewArticle: (zone) => {
     const { articles } = get()
     const newId = articles.length > 0 ? Math.max(...articles.map((a) => a.id)) + 1 : 1
-    const newArticle: Article = {
-      id: newId,
-      zones: [zone],
-      fields: {},
-    }
+    const newArticle: WorkingArticle = { id: newId, zones: [zone], fields: {} }
     set((state) => ({
       articles: [...state.articles, newArticle],
       currentArticleId: null,
@@ -151,7 +144,6 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
   updateZone: (zoneIndex, zone) => {
     const { currentArticleId } = get()
     if (currentArticleId === null) return
-
     set((state) => ({
       articles: state.articles.map((a) =>
         a.id === currentArticleId
@@ -174,11 +166,8 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
   removeZone: (zoneIndex) => {
     const { currentArticleId, articles } = get()
     if (currentArticleId === null) return
-
     const article = articles.find((a) => a.id === currentArticleId)
     if (!article) return
-
-    // If this is the last zone, remove the article entirely
     if (article.zones.length === 1) {
       set((state) => {
         const remaining = state.articles.filter((a) => a.id !== currentArticleId)
@@ -204,8 +193,6 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
     const { articles } = get()
     const article = articles.find((a) => a.id === articleId)
     if (!article) return
-
-    // If this is the last zone, remove the article entirely
     if (article.zones.length === 1) {
       set((state) => {
         const remaining = state.articles.filter((a) => a.id !== articleId)
@@ -232,27 +219,19 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
 
   selectZone: (index) => set({ selectedZoneIndex: index }),
 
-  selectZoneInArticle: (articleId, zoneIndex) => set({
-    currentArticleId: articleId,
-    selectedZoneIndex: zoneIndex,
-  }),
+  selectZoneInArticle: (articleId, zoneIndex) =>
+    set({ currentArticleId: articleId, selectedZoneIndex: zoneIndex }),
 
-  // Drag & Drop
   mergeArticles: (sourceId, targetId) => {
     if (sourceId === targetId) return
-
     const { articles } = get()
     const sourceArticle = articles.find((a) => a.id === sourceId)
     const targetArticle = articles.find((a) => a.id === targetId)
-
     if (!sourceArticle || !targetArticle) return
-
     set((state) => ({
       articles: state.articles
         .map((a) =>
-          a.id === targetId
-            ? { ...a, zones: [...a.zones, ...sourceArticle.zones] }
-            : a
+          a.id === targetId ? { ...a, zones: [...a.zones, ...sourceArticle.zones] } : a
         )
         .filter((a) => a.id !== sourceId),
       currentArticleId: targetId,
@@ -262,18 +241,14 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
 
   moveZone: (fromArticleId, zoneIndex, toArticleId) => {
     if (fromArticleId === toArticleId) return
-
     const { articles } = get()
     const fromArticle = articles.find((a) => a.id === fromArticleId)
     const toArticle = articles.find((a) => a.id === toArticleId)
-
     if (!fromArticle || !toArticle) return
     if (zoneIndex < 0 || zoneIndex >= fromArticle.zones.length) return
-
     const zoneToMove = fromArticle.zones[zoneIndex]
-
     set((state) => {
-      let newArticles = state.articles
+      const newArticles = state.articles
         .map((a) => {
           if (a.id === fromArticleId) {
             return { ...a, zones: a.zones.filter((_, i) => i !== zoneIndex) }
@@ -283,9 +258,7 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
           }
           return a
         })
-        // Remove articles with no zones
         .filter((a) => a.zones.length > 0)
-
       return {
         articles: newArticles,
         currentArticleId: toArticleId,
@@ -296,21 +269,17 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
 
   reorderZones: (articleId, fromIndex, toIndex) => {
     if (fromIndex === toIndex) return
-
     set((state) => ({
       articles: state.articles.map((a) => {
         if (a.id !== articleId) return a
-
         const newZones = [...a.zones]
         const [movedZone] = newZones.splice(fromIndex, 1)
         newZones.splice(toIndex, 0, movedZone)
-
         return { ...a, zones: newZones }
       }),
     }))
   },
 
-  // Navigation
   setCurrentPage: (page) => set({ currentPage: page, selectedZoneIndex: null }),
   setTotalPages: (total) => set({ totalPages: total }),
 
@@ -321,85 +290,12 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
     }
   },
 
-  // Persistence
-  loadExtraction: async (projectId) => {
-    set({ loading: true, error: null })
-    try {
-      const data = await window.api.loadExtraction(projectId)
-      if (data?.articles) {
-        // Deep copy pour savedArticles afin de détecter les changements
-        const articlesCopy = JSON.parse(JSON.stringify(data.articles))
-        set({
-          articles: data.articles,
-          savedArticles: articlesCopy,
-          currentArticleId: data.articles.length > 0 ? data.articles[0].id : null,
-          loading: false,
-        })
-      } else {
-        set({ loading: false, savedArticles: [] })
-      }
-    } catch (err) {
-      toast.error("Erreur lors du chargement de l'extraction")
-      set({ error: "Erreur lors du chargement de l'extraction", loading: false })
-    }
-  },
-
-  saveExtraction: async (projectId) => {
-    const { articles } = get()
-    if (articles.length === 0) {
-      set({ savedArticles: [] })
-      return true
-    }
-
-    try {
-      const success = await window.api.saveExtraction(projectId, { articles })
-      if (success) {
-        // Mettre à jour savedArticles pour refléter l'état sauvegardé
-        const articlesCopy = JSON.parse(JSON.stringify(articles))
-        set({ savedArticles: articlesCopy })
-        toast.success('Extraction sauvegardée')
-      }
-      return success
-    } catch (err) {
-      toast.error("Erreur lors de la sauvegarde de l'extraction")
-      set({ error: "Erreur lors de la sauvegarde de l'extraction" })
-      return false
-    }
-  },
-
-  exportImages: async (projectId) => {
-    const { articles } = get()
-    if (articles.length === 0) return false
-
-    set({ exporting: true, error: null })
-    try {
-      const updatedArticles = await window.api.exportImages(projectId, articles)
-      if (updatedArticles) {
-        // Mettre à jour directement avec les articles retournés (avec imagePath)
-        const articlesCopy = JSON.parse(JSON.stringify(updatedArticles))
-        set({ articles: updatedArticles, savedArticles: articlesCopy })
-        toast.success('Images exportées')
-      }
-      set({ exporting: false })
-      return !!updatedArticles
-    } catch (err) {
-      toast.error("Erreur lors de l'export des images")
-      set({ error: "Erreur lors de l'export des images", exporting: false })
-      return false
-    }
-  },
-
   generateV2Articles: async (projectId, sourceId, dossierId) => {
     const { articles } = get()
     if (articles.length === 0) return false
     set({ exporting: true, error: null })
     try {
-      // Create articles serially: each call runs pdf_to_image.py to produce
-      // the extract.pdf. Running them in parallel would race on the temp dir
-      // and the Python process pool, so serial is safer.
       for (const article of articles) {
-        // Collect the unique page numbers covered by the article's zones,
-        // sorted ascending — used for display elsewhere ("12p").
         const pages = Array.from(new Set(article.zones.map((z) => z.page))).sort(
           (a, b) => a - b
         )
@@ -410,9 +306,14 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
           pages,
         })
       }
-      // Clear the working buffer so the page exits cleanly without unsaved-modal.
-      const empty: typeof articles = []
-      set({ articles: empty, savedArticles: empty, exporting: false, currentArticleId: null, selectedZoneIndex: null })
+      const empty: WorkingArticle[] = []
+      set({
+        articles: empty,
+        savedArticles: empty,
+        exporting: false,
+        currentArticleId: null,
+        selectedZoneIndex: null,
+      })
       toast.success(`${articles.length} article(s) générés`)
       return true
     } catch (err) {
@@ -423,21 +324,20 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
     }
   },
 
-  // State
   setExporting: (exporting) => set({ exporting }),
   clearError: () => set({ error: null }),
   reset: () => set(initialState),
 }))
 
 // Selectors
-export const selectCurrentArticle = (state: ExtractionState) =>
-  state.articles.find((a) => a.id === state.currentArticleId) || null
+export const selectCurrentArticle = (state: ExtractionState): WorkingArticle | null =>
+  state.articles.find((a) => a.id === state.currentArticleId) ?? null
 
-export const selectCurrentZones = (state: ExtractionState) =>
-  selectCurrentArticle(state)?.zones || []
+export const selectCurrentZones = (state: ExtractionState): Zone[] =>
+  selectCurrentArticle(state)?.zones ?? []
 
-export const selectTotalZonesCount = (state: ExtractionState) =>
+export const selectTotalZonesCount = (state: ExtractionState): number =>
   state.articles.reduce((acc, a) => acc + a.zones.length, 0)
 
-export const selectHasUnsavedChanges = (state: ExtractionState) =>
+export const selectHasUnsavedChanges = (state: ExtractionState): boolean =>
   JSON.stringify(state.articles) !== JSON.stringify(state.savedArticles)

@@ -1,21 +1,19 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search as SearchIcon, FileText, Loader2 } from 'lucide-react'
-import type { Project, Article, ExtractionData } from '@shared/types'
-import { Input, ScrollArea, Badge } from '@/components/ui'
-import { useProjectsStore } from '@/stores'
+import { FileText, Loader2, Search as SearchIcon } from 'lucide-react'
+import type { ArticleMetadata, ProjectView } from '@shared/types'
+import { Badge, Input, ScrollArea } from '@/components/ui'
+import { useProjectsStoreV2 } from '@/stores'
 import { SearchResult } from './SearchResult'
 
 interface IndexedArticle {
-  project: Project
-  articleIndex: number
-  article: Article
+  project: ProjectView
+  article: ArticleMetadata
 }
 
 interface MatchHit {
-  project: Project
-  articleIndex: number
-  article: Article
+  project: ProjectView
+  article: ArticleMetadata
   fieldName: string
   snippet: string
   matchStart: number
@@ -24,7 +22,6 @@ interface MatchHit {
 
 const stripHtml = (html: string): string => {
   if (!html) return ''
-  // Quill outputs HTML; replace block boundaries with spaces so words don't collide
   return html
     .replace(/<\/(p|div|li|h[1-6]|br)>/gi, ' ')
     .replace(/<br\s*\/?>/gi, ' ')
@@ -39,70 +36,64 @@ const stripHtml = (html: string): string => {
     .trim()
 }
 
-const buildSnippet = (text: string, matchIndex: number, matchLength: number, ctx = 50): { snippet: string; start: number } => {
+const buildSnippet = (
+  text: string,
+  matchIndex: number,
+  matchLength: number,
+  ctx = 50
+): { snippet: string; start: number } => {
   const start = Math.max(0, matchIndex - ctx)
   const end = Math.min(text.length, matchIndex + matchLength + ctx)
   const prefix = start > 0 ? '…' : ''
   const suffix = end < text.length ? '…' : ''
   const snippet = prefix + text.slice(start, end) + suffix
-  // Adjust match position inside snippet
   const adjusted = (start > 0 ? prefix.length : 0) + (matchIndex - start)
   return { snippet, start: adjusted }
 }
 
 export function SearchPage() {
   const navigate = useNavigate()
-  const projects = useProjectsStore((state) => state.projects)
-  const loadProjects = useProjectsStore((state) => state.loadProjects)
+  const projects = useProjectsStoreV2((s) => s.projects)
+  const loadProjects = useProjectsStoreV2((s) => s.loadProjects)
 
   const [query, setQuery] = useState('')
   const [indexedArticles, setIndexedArticles] = useState<IndexedArticle[] | null>(null)
   const [indexing, setIndexing] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // Focus input on mount
   useEffect(() => {
     inputRef.current?.focus()
   }, [])
 
-  // Ensure projects list is fresh
   useEffect(() => {
     loadProjects()
   }, [loadProjects])
 
-  // Build the in-memory index of all articles across all projects
+  // Build the in-memory index — one v2_articlesList call per project that has
+  // any articles. Skips empty projects.
   useEffect(() => {
     let cancelled = false
-
     const build = async () => {
       if (projects.length === 0) {
         setIndexedArticles([])
         return
       }
       setIndexing(true)
-      const searchable = projects.filter(
-        (p) => p.status !== 'new' && p.status !== 'extracting',
-      )
+      const searchable = projects.filter((p) => p.articlesTotal > 0)
       const results = await Promise.all(
         searchable.map(async (project) => {
           try {
-            const data: ExtractionData | null = await window.api.loadExtraction(project.id)
-            if (!data?.articles) return [] as IndexedArticle[]
-            return data.articles.map((article, articleIndex) => ({
-              project,
-              articleIndex,
-              article,
-            }))
+            const articles = await window.api.v2_articlesList(project.id)
+            return articles.map((article) => ({ project, article }))
           } catch {
             return [] as IndexedArticle[]
           }
-        }),
+        })
       )
       if (cancelled) return
       setIndexedArticles(results.flat())
       setIndexing(false)
     }
-
     build()
     return () => {
       cancelled = true
@@ -138,7 +129,7 @@ export function SearchPage() {
   }, [query, indexedArticles])
 
   const groupedHits = useMemo(() => {
-    const map = new Map<string, { project: Project; hits: MatchHit[] }>()
+    const map = new Map<string, { project: ProjectView; hits: MatchHit[] }>()
     for (const hit of hits) {
       const existing = map.get(hit.project.id)
       if (existing) existing.hits.push(hit)
@@ -148,7 +139,7 @@ export function SearchPage() {
   }, [hits])
 
   const handleOpenResult = (hit: MatchHit) => {
-    navigate(`/editor/${hit.project.id}?article=${hit.articleIndex}`)
+    navigate(`/editor/${hit.project.id}?article=${hit.article.id}`)
   }
 
   const totalArticles = indexedArticles?.length ?? 0
@@ -156,18 +147,16 @@ export function SearchPage() {
 
   return (
     <div className="min-h-screen p-8 flex flex-col">
-      {/* Header */}
       <header className="flex items-center gap-3 mb-6">
         <SearchIcon className="h-8 w-8 text-primary" />
         <div>
           <h1 className="text-2xl font-bold">Recherche</h1>
           <p className="text-muted-foreground text-sm">
-            Rechercher dans tous les éléments de tous les projets
+            Rechercher dans tous les articles de tous les projets
           </p>
         </div>
       </header>
 
-      {/* Search input */}
       <div className="relative mb-4">
         <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
@@ -179,7 +168,6 @@ export function SearchPage() {
         />
       </div>
 
-      {/* Status line */}
       <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4 min-h-[1.5rem]">
         {indexing ? (
           <>
@@ -196,13 +184,12 @@ export function SearchPage() {
           </>
         ) : indexedArticles ? (
           <span>
-            {totalArticles} élément{totalArticles > 1 ? 's' : ''} indexé
+            {totalArticles} article{totalArticles > 1 ? 's' : ''} indexé
             {totalArticles > 1 ? 's' : ''}
           </span>
         ) : null}
       </div>
 
-      {/* Results */}
       <div className="flex-1 min-h-0">
         {!showResults ? (
           <div className="flex flex-col items-center justify-center h-64 text-center text-muted-foreground">
@@ -228,7 +215,7 @@ export function SearchPage() {
                   <div className="space-y-2">
                     {projectHits.map((hit, idx) => (
                       <SearchResult
-                        key={`${hit.project.id}-${hit.articleIndex}-${hit.fieldName}-${idx}`}
+                        key={`${hit.project.id}-${hit.article.id}-${hit.fieldName}-${idx}`}
                         hit={hit}
                         onClick={() => handleOpenResult(hit)}
                       />

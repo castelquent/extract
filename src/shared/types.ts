@@ -26,46 +26,12 @@ export interface DeleteTemplateResult {
 }
 
 // ============================================================
-// LEGACY project/article model (1 project = 1 PDF)
-// Kept temporarily so old IPC handlers and UI still compile
-// during the staged refactor. Removed at step 12.
-// ============================================================
-
-export interface ProjectMetadata {
-  id: string
-  name: string
-  originalFilename: string
-  createdAt: string
-  modifiedAt: string
-  status: 'new' | 'extracting' | 'extracted' | 'in_progress' | 'completed'
-  articlesCount: number
-  filledFields: number
-  totalFields: number
-  templateId: string
-}
-
-export interface Project extends ProjectMetadata {
-  thumbnailPath: string | null
-}
-
-export interface Article {
-  id: number
-  zones: Zone[]
-  fields: Record<string, string>
-  imagePath?: string
-}
-
-export interface ExtractionData {
-  articles: Article[]
-}
-
-// ============================================================
-// NEW model: Project > Dossier > Article (with Sources)
+// v2 model: Project > Dossier > Article (with Sources)
 // Filesystem-as-truth. Each entity lives in its own folder
 // under %AppData%/Local/ExtrAct/projects/{projectId}/...
 // ============================================================
 
-// Generic zone, shared between old and new model
+// Generic PDF zone (article zones still use normalized coordinates)
 export interface Zone {
   page: number
   x1: number
@@ -152,7 +118,7 @@ export interface ArticleMoveTarget {
 }
 
 // ============================================================
-// AI / Settings (unchanged)
+// AI / Settings
 // ============================================================
 export type AIProvider = 'openai' | 'anthropic'
 
@@ -195,7 +161,7 @@ export interface Settings {
 }
 
 // ============================================================
-// IPC API surface — both legacy and new methods coexist during refactor
+// IPC API surface (v2 only)
 // ============================================================
 export interface ElectronAPI {
   // Templates
@@ -203,36 +169,6 @@ export interface ElectronAPI {
   getTemplate: (templateId: string) => Promise<Template | null>
   saveTemplate: (template: Template) => Promise<boolean>
   deleteTemplate: (templateId: string) => Promise<DeleteTemplateResult>
-
-  // Projects (legacy)
-  getProjects: () => Promise<Project[]>
-  createProject: (name: string, templateId: string) => Promise<Project | null>
-  deleteProject: (projectId: string) => Promise<boolean>
-  duplicateProject: (projectId: string) => Promise<Project | null>
-  getProject: (projectId: string) => Promise<Project | null>
-  updateProject: (projectId: string, updates: Partial<ProjectMetadata>) => Promise<boolean>
-  exportProjectZip: (projectId: string) => Promise<boolean>
-  importProjectZip: () => Promise<Project | null>
-
-  // Extraction (legacy)
-  saveExtraction: (projectId: string, data: ExtractionData) => Promise<boolean>
-  loadExtraction: (projectId: string) => Promise<ExtractionData | null>
-  exportImages: (projectId: string, articles: Article[]) => Promise<Article[] | null>
-  getPdfPath: (projectId: string) => Promise<string | null>
-  getPdfData: (projectId: string) => Promise<ArrayBuffer | null>
-  getImageData: (projectId: string, imagePath: string) => Promise<string | null>
-  getPdfFile: (projectId: string, imagePath: string) => Promise<string | null>
-  extractText: (projectId: string, imagePath: string) => Promise<string | null>
-
-  // Transcription (legacy)
-  transcribe: (projectId: string, imagePath: string, settings: AISettings, template: Template) => Promise<TranscriptionResult>
-
-  // Export (legacy)
-  exportPdf: (projectId: string, articles: Article[]) => Promise<boolean>
-  exportDocx: (projectId: string, articles: Article[]) => Promise<boolean>
-  exportTxt: (projectId: string, articles: Article[]) => Promise<boolean>
-  exportZip: (projectId: string) => Promise<boolean>
-  importZip: () => Promise<string | null>
 
   // Settings
   getSettings: () => Promise<Settings>
@@ -260,10 +196,10 @@ export interface ElectronAPI {
   openExternal: (url: string) => Promise<void>
 
   // ============================================================
-  // NEW v2 surface (Project > Dossier > Article, filesystem-as-truth)
+  // v2 surface
   // ============================================================
 
-  // Projects v2
+  // Projects
   v2_projectsList: () => Promise<ProjectView[]>
   v2_projectsGet: (projectId: string) => Promise<ProjectView | null>
   v2_projectsCreate: (name: string, templateId: string) => Promise<ProjectView | null>
@@ -273,8 +209,9 @@ export interface ElectronAPI {
   v2_projectsOpenFolder: (projectId: string) => Promise<boolean>
   v2_projectsExportZip: (projectId: string) => Promise<boolean>
   v2_projectsImportZip: () => Promise<ProjectView | null>
+  v2_projectsGetThumbnail: (projectId: string) => Promise<string | null>
 
-  // Sources v2
+  // Sources
   v2_sourcesAdd: (projectId: string) => Promise<SourceView[]>
   v2_sourcesList: (projectId: string) => Promise<SourceView[]>
   v2_sourcesGet: (projectId: string, sourceId: string) => Promise<SourceView | null>
@@ -282,14 +219,14 @@ export interface ElectronAPI {
   v2_sourcesGetPdfData: (projectId: string, sourceId: string) => Promise<ArrayBuffer | null>
   v2_sourcesGetThumbnail: (projectId: string, sourceId: string) => Promise<string | null>
 
-  // Dossiers v2
+  // Dossiers
   v2_dossiersCreate: (projectId: string, name: string) => Promise<DossierView | null>
   v2_dossiersList: (projectId: string) => Promise<DossierView[]>
   v2_dossiersGet: (projectId: string, dossierId: string) => Promise<DossierView | null>
   v2_dossiersRename: (projectId: string, dossierId: string, name: string) => Promise<boolean>
   v2_dossiersDelete: (projectId: string, dossierId: string, mode: DossierDeleteMode) => Promise<boolean>
 
-  // Articles v2
+  // Articles
   v2_articlesList: (projectId: string, scope?: ArticleScope) => Promise<ArticleMetadata[]>
   v2_articlesGet: (projectId: string, articleId: string) => Promise<ArticleMetadata | null>
   v2_articlesCreate: (
@@ -313,15 +250,15 @@ export interface ElectronAPI {
   v2_articlesGetExtractData: (projectId: string, articleId: string) => Promise<string | null>
   v2_articlesRegenerateExtract: (projectId: string, articleId: string) => Promise<boolean>
 
-  // Transcription v2 (article-based instead of imagePath)
+  // Transcription
   v2_transcribe: (projectId: string, articleId: string, settings: AISettings, template: Template) => Promise<TranscriptionResult>
 
-  // Export v2
+  // Export
   v2_exportArticlesPdf: (projectId: string, articleIds: string[]) => Promise<boolean>
   v2_exportArticlesDocx: (projectId: string, articleIds: string[]) => Promise<boolean>
   v2_exportArticlesTxt: (projectId: string, articleIds: string[]) => Promise<boolean>
 
-  // File watchers v2 (notifications from main → renderer)
+  // File watcher notifications
   v2_onProjectsListChanged: (callback: () => void) => () => void
   v2_onProjectChanged: (callback: (projectId: string) => void) => () => void
 }

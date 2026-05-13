@@ -1,6 +1,7 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import type { Zone, Article } from '@shared/types'
+import type { Zone } from '@shared/types'
+import type { WorkingArticle as Article } from '@/stores/extractionStore'
 import { Badge } from '@/components/ui'
 import { ZoneContextMenu } from './ZoneContextMenu'
 

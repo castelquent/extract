@@ -1,5 +1,5 @@
 import { Trash2, Send } from 'lucide-react'
-import type { Article } from '@shared/types'
+import type { WorkingArticle as Article } from '@/stores/extractionStore'
 import {
   ContextMenu,
   ContextMenuTrigger,

@@ -16,36 +16,6 @@ const api: ElectronAPI & {
   saveTemplate: (template) => ipcRenderer.invoke('templates:save', template),
   deleteTemplate: (templateId) => ipcRenderer.invoke('templates:delete', templateId),
 
-  // Projects
-  getProjects: () => ipcRenderer.invoke('projects:getAll'),
-  createProject: (name, templateId) => ipcRenderer.invoke('projects:create', name, templateId),
-  deleteProject: (projectId) => ipcRenderer.invoke('projects:delete', projectId),
-  duplicateProject: (projectId) => ipcRenderer.invoke('projects:duplicate', projectId),
-  getProject: (projectId) => ipcRenderer.invoke('projects:getById', projectId),
-  updateProject: (projectId, updates) => ipcRenderer.invoke('projects:update', projectId, updates),
-  exportProjectZip: (projectId) => ipcRenderer.invoke('projects:exportZip', projectId),
-  importProjectZip: () => ipcRenderer.invoke('projects:importZip'),
-
-  // Extraction
-  saveExtraction: (projectId, data) => ipcRenderer.invoke('extraction:save', projectId, data),
-  loadExtraction: (projectId) => ipcRenderer.invoke('extraction:load', projectId),
-  exportImages: (projectId, articles) => ipcRenderer.invoke('extraction:exportImages', projectId, articles),
-  getPdfPath: (projectId) => ipcRenderer.invoke('extraction:getPdfPath', projectId),
-  getPdfData: (projectId) => ipcRenderer.invoke('extraction:getPdfData', projectId),
-  getImageData: (projectId, imagePath) => ipcRenderer.invoke('extraction:getImageData', projectId, imagePath),
-  getPdfFile: (projectId, imagePath) => ipcRenderer.invoke('extraction:getPdfFile', projectId, imagePath),
-  extractText: (projectId, imagePath) => ipcRenderer.invoke('extraction:extractText', projectId, imagePath),
-
-  // Transcription
-  transcribe: (projectId, imagePath, settings, template) => ipcRenderer.invoke('transcription:transcribe', projectId, imagePath, settings, template),
-
-  // Export
-  exportPdf: (projectId, articles) => ipcRenderer.invoke('export:pdf', projectId, articles),
-  exportDocx: (projectId, articles) => ipcRenderer.invoke('export:docx', projectId, articles),
-  exportTxt: (projectId, articles) => ipcRenderer.invoke('export:txt', projectId, articles),
-  exportZip: (projectId) => ipcRenderer.invoke('export:zip', projectId),
-  importZip: () => ipcRenderer.invoke('export:importZip'),
-
   // Settings
   getSettings: () => ipcRenderer.invoke('settings:get'),
   saveSettings: (settings) => ipcRenderer.invoke('settings:save', settings),
@@ -114,6 +84,7 @@ const api: ElectronAPI & {
   v2_projectsOpenFolder: (projectId) => ipcRenderer.invoke('v2:projects:openFolder', projectId),
   v2_projectsExportZip: (projectId) => ipcRenderer.invoke('v2:projects:exportZip', projectId),
   v2_projectsImportZip: () => ipcRenderer.invoke('v2:projects:importZip'),
+  v2_projectsGetThumbnail: (projectId) => ipcRenderer.invoke('v2:projects:getThumbnail', projectId),
 
   // Sources v2
   v2_sourcesAdd: (projectId) => ipcRenderer.invoke('v2:sources:add', projectId),

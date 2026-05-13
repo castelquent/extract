@@ -11,7 +11,7 @@ import {
   SortableContext,
   horizontalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import type { Article } from '@shared/types'
+import type { WorkingArticle as Article } from '@/stores/extractionStore'
 import { Card, CardContent, Button, Badge } from '@/components/ui'
 
 interface ArticleItemProps {

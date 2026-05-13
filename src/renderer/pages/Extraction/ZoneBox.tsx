@@ -1,5 +1,6 @@
 import { Rnd } from 'react-rnd'
-import type { Zone, Article } from '@shared/types'
+import type { Zone } from '@shared/types'
+import type { WorkingArticle as Article } from '@/stores/extractionStore'
 import { ZoneContextMenu } from './ZoneContextMenu'
 
 interface ZoneBoxProps {

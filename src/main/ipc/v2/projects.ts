@@ -1,6 +1,6 @@
 // v2 project handlers. Filesystem-as-truth: each project = a folder.
 import { ipcMain, shell } from 'electron'
-import { existsSync, rmSync, copyFileSync, readdirSync } from 'fs'
+import { existsSync, readFileSync, rmSync, copyFileSync, readdirSync } from 'fs'
 import { join } from 'path'
 import type { ProjectMetadataV2, ProjectView } from '@shared/types'
 import {
@@ -189,6 +189,20 @@ export function setupV2ProjectHandlers(): void {
         return result === ''
       } catch {
         return false
+      }
+    }
+  )
+
+  ipcMain.handle(
+    'v2:projects:getThumbnail',
+    async (_, projectId: string): Promise<string | null> => {
+      const thumbPath = getProjectThumbnailPath(projectId)
+      if (!existsSync(thumbPath)) return null
+      try {
+        const buffer = readFileSync(thumbPath)
+        return `data:image/png;base64,${buffer.toString('base64')}`
+      } catch {
+        return null
       }
     }
   )
