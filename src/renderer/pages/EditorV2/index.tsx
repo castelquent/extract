@@ -146,22 +146,31 @@ export function EditorV2Page() {
   }, [hasUnsavedChanges, setHasUnsavedChanges])
 
   // Initial load. Reads optional scope from query params:
-  //   ?dossier=ID  → scope to that dossier
-  //   ?orphans=1   → scope to orphan elements (dossierId: null)
-  //   (neither)    → entire project
+  //   ?only=ID         → scope to a single article (no sidebar siblings)
+  //   ?ids=ID1,ID2,... → scope to an arbitrary selection of articles
+  //   ?dossier=ID      → scope to that dossier
+  //   ?orphans=1       → scope to orphan elements (dossierId: null)
+  //   (neither)        → entire project
   const dossierIdParam = searchParams.get('dossier')
   const orphansParam = searchParams.get('orphans') === '1'
+  const onlyArticleParam = searchParams.get('only')
+  const idsParam = searchParams.get('ids')
 
   useEffect(() => {
     if (!projectId) return
     let cancelled = false
     const init = async () => {
       setLoading(true)
-      const scope = dossierIdParam
-        ? { dossierId: dossierIdParam }
-        : orphansParam
-          ? { dossierId: null }
-          : undefined
+      const idList = idsParam ? idsParam.split(',').filter(Boolean) : null
+      const scope = onlyArticleParam
+        ? { articleId: onlyArticleParam }
+        : idList && idList.length > 0
+          ? { articleIds: idList }
+          : dossierIdParam
+            ? { dossierId: dossierIdParam }
+            : orphansParam
+              ? { dossierId: null }
+              : undefined
       const [proj, , , dossier] = await Promise.all([
         window.api.v2_projectsGet(projectId),
         loadScope(projectId, scope),
@@ -171,7 +180,13 @@ export function EditorV2Page() {
       if (cancelled) return
       setProject(proj)
 
-      if (dossierIdParam && dossier) {
+      if (onlyArticleParam) {
+        const a = useEditorStore.getState().articles[0]
+        const title = a ? (a.fields['Titre'] ?? a.fields['title'] ?? '').trim() : ''
+        setScopeLabel(`Élément : ${title || 'Sans titre'}`)
+      } else if (idList && idList.length > 0) {
+        setScopeLabel('Sélection')
+      } else if (dossierIdParam && dossier) {
         setScopeLabel(`Dossier : ${dossier.name}`)
       } else if (orphansParam) {
         setScopeLabel('Sans dossier')
@@ -196,7 +211,7 @@ export function EditorV2Page() {
       reset()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, dossierIdParam, orphansParam])
+  }, [projectId, dossierIdParam, orphansParam, onlyArticleParam, idsParam])
 
   // Load extract.pdf when current article changes
   useEffect(() => {
@@ -501,9 +516,11 @@ export function EditorV2Page() {
               <span className="text-xs text-muted-foreground">{scopeLabel}</span>
             )}
           </div>
-          <Badge variant="secondary">
-            {articles.length} élément{articles.length > 1 ? 's' : ''}
-          </Badge>
+          {articles.length > 1 && (
+            <Badge variant="secondary" className="tabular-nums">
+              {currentIndex >= 0 ? currentIndex + 1 : 0} / {articles.length}
+            </Badge>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -569,14 +586,9 @@ export function EditorV2Page() {
                     <ChevronLeft className="h-4 w-4 mr-1" />
                     Précédent
                   </Button>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline">
-                      {currentIndex >= 0 ? currentIndex + 1 : 0} / {articles.length}
-                    </Badge>
-                    <Badge variant={currentCompletion === totalFields ? 'success' : 'secondary'}>
-                      {currentCompletion}/{totalFields}
-                    </Badge>
-                  </div>
+                  <Badge variant={currentCompletion === totalFields ? 'success' : 'secondary'}>
+                    {currentCompletion}/{totalFields}
+                  </Badge>
                   <Button
                     variant="outline"
                     size="sm"

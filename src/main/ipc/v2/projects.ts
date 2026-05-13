@@ -142,6 +142,26 @@ export function setupV2ProjectHandlers(): void {
     }
   )
 
+  ipcMain.handle(
+    'v2:projects:update',
+    async (
+      _,
+      projectId: string,
+      patch: { name?: string; defaultTemplateId?: string }
+    ): Promise<boolean> => {
+      const metadata = readProjectMetadata(projectId)
+      if (!metadata) return false
+      const trimmedName = patch.name?.trim()
+      const updated: ProjectMetadataV2 = {
+        ...metadata,
+        name: trimmedName || metadata.name,
+        defaultTemplateId: patch.defaultTemplateId ?? metadata.defaultTemplateId,
+        modifiedAt: new Date().toISOString(),
+      }
+      return writeJson(getProjectMetadataPath(projectId), updated)
+    }
+  )
+
   ipcMain.handle('v2:projects:delete', async (_, projectId: string): Promise<boolean> => {
     const dir = getProjectDir(projectId)
     if (!existsSync(dir)) return false

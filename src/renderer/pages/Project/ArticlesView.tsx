@@ -1,6 +1,6 @@
 // Articles tab of ProjectDetail. Lists all articles in the project, grouped by
-// dossier (collapsible), with a "Sans dossier" section. Supports multi-select
-// + bulk actions (delete, move to dossier, move to project).
+// dossier (one section per dossier, plus a "Sans dossier" section). Supports
+// multi-select + bulk actions (delete, move to dossier, move to project).
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -15,9 +15,6 @@ import {
   Badge,
   Button,
   Checkbox,
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
@@ -29,16 +26,14 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
+  useSidebar,
 } from '@/components/ui'
 import {
-  ChevronDown,
-  ChevronRight,
   FileText,
-  FolderClosed,
   MoveRight,
   Pencil,
-  Plus,
   Trash2,
+  X,
 } from 'lucide-react'
 import { selectArticlesInDossier, selectOrphanArticles, useProjectStore } from '@/stores'
 import type {
@@ -65,6 +60,15 @@ const completionBadge = (article: ArticleMetadata): React.ReactNode => {
   )
 }
 
+const formatShortDate = (iso: string): string => {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+}
+
+// Shared 5-column grid: checkbox · title (flex) · pages · remplissage · modifié.
+const ROW_GRID = 'grid grid-cols-[28px_minmax(0,1fr)_72px_96px_88px] gap-4 items-center'
+
 function ArticleRow({
   article,
   selected,
@@ -83,7 +87,7 @@ function ArticleRow({
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <div
-          className="flex items-center gap-3 py-1.5 px-2 rounded hover:bg-muted/50 cursor-pointer group"
+          className={`${ROW_GRID} px-3 py-2.5 border-b border-border/40 last:border-b-0 hover:bg-muted/40 cursor-pointer`}
           onClick={onOpen}
         >
           <Checkbox
@@ -93,11 +97,15 @@ function ArticleRow({
               onToggle()
             }}
           />
-          <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-          <span className="flex-1 truncate text-sm">{title}</span>
-          {completionBadge(article)}
-          <span className="text-xs text-muted-foreground tabular-nums">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="truncate text-sm">{title}</span>
+          </div>
+          <span className="text-xs text-muted-foreground tabular-nums text-right">
             {article.pages.length}p
+          </span>
+          <div className="flex justify-center">{completionBadge(article)}</div>
+          <span className="text-xs text-muted-foreground tabular-nums text-right">
+            {formatShortDate(article.modifiedAt)}
           </span>
         </div>
       </ContextMenuTrigger>
@@ -138,66 +146,75 @@ function DossierSection({
   // Open the editor scoped to this dossier (or to orphans if dossier is null).
   onEditScope: () => void
 }) {
-  const [open, setOpen] = useState(true)
   const label = dossier ? dossier.name : 'Sans dossier'
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen} className="mb-2">
-      <div className="flex items-center gap-2 py-2 px-2 hover:bg-muted/30 rounded">
-        <CollapsibleTrigger asChild>
-          <button className="flex items-center gap-2 flex-1 text-left">
-            {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-            <FolderClosed className="h-4 w-4 text-muted-foreground" />
-            <span className="font-medium">{label}</span>
-            <span className="text-xs text-muted-foreground">({articles.length})</span>
-          </button>
-        </CollapsibleTrigger>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 text-xs px-2"
-          onClick={onEditScope}
-          disabled={articles.length === 0}
-          title={articles.length === 0 ? 'Aucun élément à éditer' : 'Ouvrir dans l’éditeur'}
-        >
-          <Pencil className="h-3.5 w-3.5 mr-1" />
-          Éditer
-        </Button>
-        {dossier && onRenameDossier && (
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => onRenameDossier(dossier.id)}>
-            <Pencil className="h-3.5 w-3.5" />
-          </Button>
-        )}
-        {dossier && onDeleteDossier && (
+    <section className="mb-10">
+      <div className="flex items-center justify-between gap-4 mb-3 px-6">
+        <h2 className="text-xl font-semibold tracking-tight">{label}</h2>
+        <div className="flex items-center gap-1">
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-            onClick={() => onDeleteDossier(dossier.id)}
+            className="h-7 text-xs px-2"
+            onClick={onEditScope}
+            disabled={articles.length === 0}
+            title={articles.length === 0 ? 'Aucun élément à transcrire' : 'Ouvrir dans l’éditeur'}
           >
-            <Trash2 className="h-3.5 w-3.5" />
+            <FileText className="h-3.5 w-3.5 mr-1" />
+            Transcrire
           </Button>
-        )}
-      </div>
-      <CollapsibleContent>
-        <div className="pl-6">
-          {articles.length === 0 ? (
-            <div className="text-xs text-muted-foreground py-1.5 px-2">Aucun élément</div>
-          ) : (
-            articles.map((a) => (
-              <ArticleRow
-                key={a.id}
-                article={a}
-                selected={selectedIds.has(a.id)}
-                onToggle={() => toggleArticle(a.id)}
-                onOpen={() => onOpenArticle(a.id)}
-                onDelete={() => onDeleteArticle(a.id)}
-              />
-            ))
+          {dossier && onRenameDossier && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs px-2"
+              onClick={() => onRenameDossier(dossier.id)}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+          )}
+          {dossier && onDeleteDossier && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs px-2 text-muted-foreground hover:text-destructive"
+              onClick={() => onDeleteDossier(dossier.id)}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
           )}
         </div>
-      </CollapsibleContent>
-    </Collapsible>
+      </div>
+
+      {articles.length === 0 ? (
+        <div className="text-sm text-muted-foreground py-3 border-t border-border/60">
+          Aucun élément
+        </div>
+      ) : (
+        <div className="border-t border-border/60">
+          <div
+            className={`${ROW_GRID} px-3 py-2 text-[11px] uppercase tracking-wide text-muted-foreground border-b border-border/60`}
+          >
+            <div />
+            <div>Titre</div>
+            <div className="text-right">Pages</div>
+            <div className="text-center">Remplissage</div>
+            <div className="text-right">Modifié</div>
+          </div>
+          {articles.map((a) => (
+            <ArticleRow
+              key={a.id}
+              article={a}
+              selected={selectedIds.has(a.id)}
+              onToggle={() => toggleArticle(a.id)}
+              onOpen={() => onOpenArticle(a.id)}
+              onDelete={() => onDeleteArticle(a.id)}
+            />
+          ))}
+        </div>
+      )}
+    </section>
   )
 }
 
@@ -206,7 +223,6 @@ export function ArticlesView({ projectId }: { projectId: string }) {
   const {
     dossiers,
     articles,
-    createDossier,
     renameDossier,
     deleteDossier,
     deleteArticle,
@@ -214,8 +230,6 @@ export function ArticlesView({ projectId }: { projectId: string }) {
   } = useProjectStore()
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [newDossierOpen, setNewDossierOpen] = useState(false)
-  const [newDossierName, setNewDossierName] = useState('')
   const [renameDossierId, setRenameDossierId] = useState<string | null>(null)
   const [renameDossierName, setRenameDossierName] = useState('')
   const [deleteDossierId, setDeleteDossierId] = useState<string | null>(null)
@@ -244,7 +258,7 @@ export function ArticlesView({ projectId }: { projectId: string }) {
   }
 
   const handleOpenArticle = (id: string) => {
-    navigate(`/editor/${projectId}?article=${id}`)
+    navigate(`/editor/${projectId}?only=${id}`)
   }
 
   const handleDeleteArticle = (id: string) => {
@@ -254,14 +268,6 @@ export function ArticlesView({ projectId }: { projectId: string }) {
       next.delete(id)
       return next
     })
-  }
-
-  const handleCreateDossier = async () => {
-    const created = await createDossier(newDossierName)
-    if (created) {
-      setNewDossierOpen(false)
-      setNewDossierName('')
-    }
   }
 
   const handleRenameDossier = async () => {
@@ -303,104 +309,112 @@ export function ArticlesView({ projectId }: { projectId: string }) {
   const totalArticles = articles.length
   const selectedCount = selectedIds.size
 
+  // Floating bar offset: stay clear of the collapsible sidebar so the pill
+  // centers on the actual content area, not the full viewport.
+  const { state: sidebarState, isMobile } = useSidebar()
+  const sidebarOffset = isMobile ? '0px' : sidebarState === 'expanded' ? '16rem' : '3rem'
+
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="text-sm text-muted-foreground">
-          {totalArticles} élément{totalArticles === 1 ? '' : 's'}
-          {selectedCount > 0 && ` · ${selectedCount} sélectionné${selectedCount === 1 ? '' : 's'}`}
-        </div>
-        <div className="flex gap-2">
-          {selectedCount > 0 && (
-            <>
-              <Button variant="outline" size="sm" onClick={() => setMoveOpen(true)}>
-                <MoveRight className="h-4 w-4 mr-1" />
-                Déplacer
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-destructive border-destructive/30 hover:bg-destructive/10"
-                onClick={() => setBulkDeleteOpen(true)}
-              >
-                <Trash2 className="h-4 w-4 mr-1" />
-                Supprimer
-              </Button>
-            </>
-          )}
-          <Button variant="outline" size="sm" onClick={() => setNewDossierOpen(true)}>
-            <Plus className="h-4 w-4 mr-1" />
-            Nouveau dossier
-          </Button>
-        </div>
-      </div>
-
-      <div className="border rounded-md p-2">
-        {dossiers.map((dossier) => (
-          <DossierSection
-            key={dossier.id}
-            dossier={dossier}
-            articles={articles
-              .filter((a) => a.dossierId === dossier.id)
-              .sort((a, b) =>
-                new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-              )}
-            selectedIds={selectedIds}
-            toggleArticle={toggleArticle}
-            onOpenArticle={handleOpenArticle}
-            onDeleteArticle={handleDeleteArticle}
-            onRenameDossier={startRenameDossier}
-            onDeleteDossier={(id) => {
-              setDeleteDossierId(id)
-              setDeleteDossierMode('orphan-articles')
-            }}
-            onEditScope={() =>
-              navigate(`/editor/${projectId}?dossier=${dossier.id}`)
-            }
-          />
-        ))}
-        {orphanArticles.length > 0 && (
-          <DossierSection
-            dossier={null}
-            articles={orphanArticles}
-            selectedIds={selectedIds}
-            toggleArticle={toggleArticle}
-            onOpenArticle={handleOpenArticle}
-            onDeleteArticle={handleDeleteArticle}
-            onEditScope={() =>
-              navigate(`/editor/${projectId}?orphans=1`)
-            }
-          />
-        )}
-        {totalArticles === 0 && (
-          <div className="text-center py-8 text-sm text-muted-foreground">
+      <div className="pt-2">
+        {totalArticles === 0 ? (
+          <div className="border border-dashed rounded-md py-12 text-center text-sm text-muted-foreground">
             Aucun élément. Importez une source et extrayez-en des éléments depuis l'onglet Sources.
           </div>
+        ) : (
+          <>
+            {dossiers.map((dossier) => (
+              <DossierSection
+                key={dossier.id}
+                dossier={dossier}
+                articles={articles
+                  .filter((a) => a.dossierId === dossier.id)
+                  .sort((a, b) =>
+                    new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+                  )}
+                selectedIds={selectedIds}
+                toggleArticle={toggleArticle}
+                onOpenArticle={handleOpenArticle}
+                onDeleteArticle={handleDeleteArticle}
+                onRenameDossier={startRenameDossier}
+                onDeleteDossier={(id) => {
+                  setDeleteDossierId(id)
+                  setDeleteDossierMode('orphan-articles')
+                }}
+                onEditScope={() =>
+                  navigate(`/editor/${projectId}?dossier=${dossier.id}`)
+                }
+              />
+            ))}
+            {orphanArticles.length > 0 && (
+              <DossierSection
+                dossier={null}
+                articles={orphanArticles}
+                selectedIds={selectedIds}
+                toggleArticle={toggleArticle}
+                onOpenArticle={handleOpenArticle}
+                onDeleteArticle={handleDeleteArticle}
+                onEditScope={() =>
+                  navigate(`/editor/${projectId}?orphans=1`)
+                }
+              />
+            )}
+          </>
         )}
       </div>
 
-      <Dialog open={newDossierOpen} onOpenChange={setNewDossierOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Nouveau dossier</DialogTitle>
-          </DialogHeader>
-          <Input
-            value={newDossierName}
-            onChange={(e) => setNewDossierName(e.target.value)}
-            placeholder="Nom du dossier"
-            autoFocus
-            onKeyDown={(e) => e.key === 'Enter' && handleCreateDossier()}
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setNewDossierOpen(false)}>
-              Annuler
+      {selectedCount > 0 && (
+        <div
+          className="fixed bottom-6 right-0 z-40 flex justify-center pointer-events-none transition-[left] duration-200"
+          style={{ left: sidebarOffset }}
+        >
+          <div className="pointer-events-auto flex items-center gap-1 rounded-full border bg-background/95 backdrop-blur px-2 py-1.5 shadow-lg animate-in fade-in slide-in-from-bottom-4 duration-200">
+            <span className="px-3 text-sm tabular-nums">
+              {selectedCount} sélectionné{selectedCount === 1 ? '' : 's'}
+            </span>
+            <div className="h-5 w-px bg-border" />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 rounded-full px-3"
+              onClick={() =>
+                navigate(`/editor/${projectId}?ids=${Array.from(selectedIds).join(',')}`)
+              }
+            >
+              <FileText className="h-4 w-4 mr-1.5" />
+              Transcrire
             </Button>
-            <Button onClick={handleCreateDossier} disabled={!newDossierName.trim()}>
-              Créer
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 rounded-full px-3"
+              onClick={() => setMoveOpen(true)}
+            >
+              <MoveRight className="h-4 w-4 mr-1.5" />
+              Déplacer
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 rounded-full px-3 text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={() => setBulkDeleteOpen(true)}
+            >
+              <Trash2 className="h-4 w-4 mr-1.5" />
+              Supprimer
+            </Button>
+            <div className="h-5 w-px bg-border" />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 rounded-full p-0 text-muted-foreground"
+              onClick={() => setSelectedIds(new Set())}
+              title="Désélectionner"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       <Dialog open={!!renameDossierId} onOpenChange={(open) => !open && setRenameDossierId(null)}>
         <DialogContent>

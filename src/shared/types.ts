@@ -119,6 +119,8 @@ export interface ArticleMetadata {
 export interface ArticleScope {
   dossierId?: string | null   // null = orphans only; undefined = any
   sourceId?: string
+  articleId?: string          // when set: list returns at most this single article
+  articleIds?: string[]       // when set: list returns only articles whose id is in this set
   status?: ArticleStatus
   includeDrafts?: boolean
 }
@@ -220,6 +222,10 @@ export interface ElectronAPI {
   v2_projectsGet: (projectId: string) => Promise<ProjectView | null>
   v2_projectsCreate: (name: string, templateId: string) => Promise<ProjectView | null>
   v2_projectsRename: (projectId: string, name: string) => Promise<boolean>
+  v2_projectsUpdate: (
+    projectId: string,
+    patch: { name?: string; defaultTemplateId?: string }
+  ) => Promise<boolean>
   v2_projectsDelete: (projectId: string) => Promise<boolean>
   v2_projectsDuplicate: (projectId: string) => Promise<ProjectView | null>
   v2_projectsOpenFolder: (projectId: string) => Promise<boolean>

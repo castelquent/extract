@@ -6,24 +6,39 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useProjectStore, useTemplatesStore } from '@/stores'
 import {
   Button,
+  CircularProgress,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
 } from '@/components/ui'
-import { ArrowLeft, FolderOpen, Pencil } from 'lucide-react'
+import { FileText, FolderOpen, Plus, Settings } from 'lucide-react'
 import { ArticlesView } from './ArticlesView'
 import { SourcesView } from './SourcesView'
 
 export function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>()
   const navigate = useNavigate()
-  const { project, loadProject, loading, reset } = useProjectStore()
+  const { project, articles, loadProject, loading, reset, createDossier } = useProjectStore()
   const { templates, loadTemplates } = useTemplatesStore()
   const [tab, setTab] = useState<'articles' | 'sources'>('articles')
-  const [editingName, setEditingName] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [draftName, setDraftName] = useState('')
+  const [draftTemplateId, setDraftTemplateId] = useState('')
+  const [newDossierOpen, setNewDossierOpen] = useState(false)
+  const [newDossierName, setNewDossierName] = useState('')
 
   useEffect(() => {
     if (!projectId) return
@@ -51,78 +66,129 @@ export function ProjectDetailPage() {
     )
   }
 
-  const templateName = templates.find((t) => t.id === project.defaultTemplateId)?.name
-
-  const startEditingName = () => {
+  const openSettings = () => {
     setDraftName(project.name)
-    setEditingName(true)
+    setDraftTemplateId(project.defaultTemplateId)
+    setSettingsOpen(true)
   }
-  const commitRename = async () => {
+  const saveSettings = async () => {
     const name = draftName.trim()
-    if (name && name !== project.name) {
-      const ok = await window.api.v2_projectsRename(project.id, name)
+    const patch: { name?: string; defaultTemplateId?: string } = {}
+    if (name && name !== project.name) patch.name = name
+    if (draftTemplateId && draftTemplateId !== project.defaultTemplateId) {
+      patch.defaultTemplateId = draftTemplateId
+    }
+    if (Object.keys(patch).length > 0) {
+      const ok = await window.api.v2_projectsUpdate(project.id, patch)
       if (ok) await loadProject(project.id)
     }
-    setEditingName(false)
+    setSettingsOpen(false)
   }
 
-  return (
-    <div className="min-h-screen p-8">
-      <div className="flex items-center gap-3 mb-6">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/')}>
-          <ArrowLeft className="h-4 w-4 mr-1" />
-          Projets
-        </Button>
-      </div>
+  const handleCreateDossier = async () => {
+    const created = await createDossier(newDossierName)
+    if (created) {
+      setNewDossierOpen(false)
+      setNewDossierName('')
+    }
+  }
 
-      <header className="mb-6">
-        <div className="flex items-center gap-2 mb-1">
-          {editingName ? (
-            <Input
-              autoFocus
-              value={draftName}
-              onChange={(e) => setDraftName(e.target.value)}
-              onBlur={commitRename}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') commitRename()
-                if (e.key === 'Escape') setEditingName(false)
-              }}
-              className="text-2xl font-bold h-auto py-1"
-            />
-          ) : (
-            <>
-              <h1 className="text-2xl font-bold">{project.name}</h1>
-              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={startEditingName}>
-                <Pencil className="h-3.5 w-3.5" />
-              </Button>
-            </>
-          )}
-        </div>
-        <div className="flex items-center gap-3 text-sm text-muted-foreground">
-          {templateName && <span>Modèle : {templateName}</span>}
-          <span>·</span>
-          <span>{project.sourcesCount} source{project.sourcesCount === 1 ? '' : 's'}</span>
-          <span>·</span>
-          <span>{project.dossiersCount} dossier{project.dossiersCount === 1 ? '' : 's'}</span>
-          <span>·</span>
-          <span>{project.articlesTotal} élément{project.articlesTotal === 1 ? '' : 's'}</span>
-          <span className="flex-1" />
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => window.api.v2_projectsOpenFolder(project.id)}
-          >
-            <FolderOpen className="h-4 w-4 mr-1" />
-            Dossier
-          </Button>
+  // Overall fill rate across ready articles' schemas — drafts have no
+  // transcription yet so we exclude them.
+  let fieldsFilled = 0
+  let fieldsTotal = 0
+  for (const a of articles) {
+    if (a.status !== 'ready') continue
+    const schema = a.schema ?? []
+    fieldsTotal += schema.length
+    fieldsFilled += schema.filter((f) => a.fields?.[f.name]).length
+  }
+  const fillPct = fieldsTotal > 0 ? Math.round((fieldsFilled / fieldsTotal) * 100) : 0
+
+  return (
+    <div className="min-h-screen">
+      <header className="p-6 border-b">
+        <div className="flex items-center justify-between gap-4 mb-1">
+          <div className="flex items-center min-w-0 flex-1">
+            <h1 className="text-2xl font-bold">{project.name}</h1>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 w-6 p-0 ml-2"
+              onClick={openSettings}
+              title="Paramètres du projet"
+            >
+              <Settings className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 w-6 p-0"
+              onClick={() => window.api.v2_projectsOpenFolder(project.id)}
+              title="Ouvrir le dossier du projet"
+            >
+              <FolderOpen className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate(`/editor/${project.id}`)}
+              disabled={project.articlesTotal === 0}
+              title={project.articlesTotal === 0 ? 'Aucun élément à transcrire' : 'Transcrire tout le projet'}
+            >
+              <FileText className="h-4 w-4 mr-1" />
+              Transcrire
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setNewDossierOpen(true)}>
+              <Plus className="h-4 w-4 mr-1" />
+              Nouveau dossier
+            </Button>
+          </div>
         </div>
       </header>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as 'articles' | 'sources')}>
-        <TabsList>
-          <TabsTrigger value="articles">Éléments</TabsTrigger>
-          <TabsTrigger value="sources">Sources</TabsTrigger>
-        </TabsList>
+        <div className="border-b py-4 px-6 flex items-center justify-between gap-4">
+          <TabsList className="bg-transparent p-0 h-auto gap-1">
+            <TabsTrigger
+              value="articles"
+              className="gap-2 px-2.5 py-1 text-sm data-[state=active]:bg-muted data-[state=active]:shadow-none data-[state=inactive]:text-muted-foreground hover:text-foreground"
+            >
+              Éléments
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted-foreground/15 text-muted-foreground tabular-nums">
+                {project.articlesTotal}
+              </span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="sources"
+              className="gap-2 px-2.5 py-1 text-sm data-[state=active]:bg-muted data-[state=active]:shadow-none data-[state=inactive]:text-muted-foreground hover:text-foreground"
+            >
+              Sources
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted-foreground/15 text-muted-foreground tabular-nums">
+                {project.sourcesCount}
+              </span>
+            </TabsTrigger>
+          </TabsList>
+          {fieldsTotal > 0 && (
+            <div
+              className="flex items-center gap-2"
+              title={`${fieldsFilled} / ${fieldsTotal} champs remplis`}
+            >
+              <CircularProgress
+                value={fillPct}
+                size={28}
+                strokeWidth={3}
+                className="stroke-muted"
+                progressClassName="stroke-primary"
+              />
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {fillPct}%
+              </span>
+            </div>
+          )}
+        </div>
         <TabsContent value="articles" className="pt-4">
           <ArticlesView projectId={project.id} />
         </TabsContent>
@@ -130,6 +196,75 @@ export function ProjectDetailPage() {
           <SourcesView projectId={project.id} />
         </TabsContent>
       </Tabs>
+
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Paramètres du projet</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="project-name">Nom</Label>
+              <Input
+                id="project-name"
+                value={draftName}
+                onChange={(e) => setDraftName(e.target.value)}
+                autoFocus
+                onKeyDown={(e) => e.key === 'Enter' && saveSettings()}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="project-template">Modèle par défaut</Label>
+              <Select value={draftTemplateId} onValueChange={setDraftTemplateId}>
+                <SelectTrigger id="project-template">
+                  <SelectValue placeholder="Choisir un modèle" />
+                </SelectTrigger>
+                <SelectContent>
+                  {templates.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Appliqué aux nouveaux éléments. Les éléments existants gardent leur modèle.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSettingsOpen(false)}>
+              Annuler
+            </Button>
+            <Button onClick={saveSettings} disabled={!draftName.trim()}>
+              Enregistrer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={newDossierOpen} onOpenChange={setNewDossierOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nouveau dossier</DialogTitle>
+          </DialogHeader>
+          <Input
+            value={newDossierName}
+            onChange={(e) => setNewDossierName(e.target.value)}
+            placeholder="Nom du dossier"
+            autoFocus
+            onKeyDown={(e) => e.key === 'Enter' && handleCreateDossier()}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNewDossierOpen(false)}>
+              Annuler
+            </Button>
+            <Button onClick={handleCreateDossier} disabled={!newDossierName.trim()}>
+              Créer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

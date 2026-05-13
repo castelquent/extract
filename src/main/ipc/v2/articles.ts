@@ -64,6 +64,8 @@ const matchesScope = (article: ArticleMetadata, scope?: ArticleScope): boolean =
   if (!scope) return true
   if (scope.dossierId !== undefined && article.dossierId !== scope.dossierId) return false
   if (scope.sourceId !== undefined && article.sourceId !== scope.sourceId) return false
+  if (scope.articleId !== undefined && article.id !== scope.articleId) return false
+  if (scope.articleIds !== undefined && !scope.articleIds.includes(article.id)) return false
   if (scope.status !== undefined && article.status !== scope.status) return false
   return true
 }

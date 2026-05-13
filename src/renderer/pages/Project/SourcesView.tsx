@@ -94,11 +94,8 @@ export function SourcesView({ projectId }: { projectId: string }) {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 p-6">
       <div className="flex items-center justify-between">
-        <div className="text-sm text-muted-foreground">
-          {sources.length} source{sources.length === 1 ? '' : 's'}
-        </div>
         <Button variant="outline" size="sm" onClick={addSources}>
           <Plus className="h-4 w-4 mr-1" />
           Importer

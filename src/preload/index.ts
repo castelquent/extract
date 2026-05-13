@@ -79,6 +79,7 @@ const api: ElectronAPI & {
   v2_projectsGet: (projectId) => ipcRenderer.invoke('v2:projects:get', projectId),
   v2_projectsCreate: (name, templateId) => ipcRenderer.invoke('v2:projects:create', name, templateId),
   v2_projectsRename: (projectId, name) => ipcRenderer.invoke('v2:projects:rename', projectId, name),
+  v2_projectsUpdate: (projectId, patch) => ipcRenderer.invoke('v2:projects:update', projectId, patch),
   v2_projectsDelete: (projectId) => ipcRenderer.invoke('v2:projects:delete', projectId),
   v2_projectsDuplicate: (projectId) => ipcRenderer.invoke('v2:projects:duplicate', projectId),
   v2_projectsOpenFolder: (projectId) => ipcRenderer.invoke('v2:projects:openFolder', projectId),
