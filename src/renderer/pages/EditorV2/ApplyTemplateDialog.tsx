@@ -28,10 +28,18 @@ interface ApplyTemplateDialogProps {
   onConfirm: (template: Template, mergedFields: Record<string, string>) => void | Promise<void>
 }
 
+// Coerce any field value to a string. Field values are typed as string but
+// can occasionally arrive non-string (legacy data, transient draft objects).
+const asString = (v: unknown): string => {
+  if (v == null) return ''
+  return typeof v === 'string' ? v : String(v)
+}
+
 // Strip HTML for graceful richtext → text conversion.
-const stripHtml = (html: string): string => {
-  if (!html) return ''
-  return html
+const stripHtml = (html: unknown): string => {
+  const str = asString(html)
+  if (!str) return ''
+  return str
     .replace(/<\/(p|div|li|h[1-6]|br)>/gi, ' ')
     .replace(/<br\s*\/?>/gi, ' ')
     .replace(/<[^>]+>/g, '')
@@ -46,9 +54,10 @@ const stripHtml = (html: string): string => {
 }
 
 // Wrap plain text in <p> for graceful text → richtext conversion.
-const wrapAsHtml = (text: string): string => {
-  if (!text) return ''
-  return `<p>${text}</p>`
+const wrapAsHtml = (text: unknown): string => {
+  const str = asString(text)
+  if (!str) return ''
+  return `<p>${str}</p>`
 }
 
 // Returns the new (merged) fields and the list of field names whose value
@@ -63,7 +72,7 @@ const computeMerge = (
   const mergedFields: Record<string, string> = {}
 
   for (const field of newSchema) {
-    const existingValue = oldFields[field.name] ?? ''
+    const existingValue = asString(oldFields[field.name])
     if (!existingValue) {
       mergedFields[field.name] = ''
       continue
@@ -87,7 +96,8 @@ const computeMerge = (
   }
 
   const lostFields: { name: string; value: string }[] = []
-  for (const [name, value] of Object.entries(oldFields)) {
+  for (const [name, raw] of Object.entries(oldFields)) {
+    const value = asString(raw)
     if (!value) continue
     if (!newNames.has(name)) lostFields.push({ name, value })
   }
