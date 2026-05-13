@@ -1,9 +1,8 @@
-// v2 ArticleForm. Operates on plain `fields: Record<string, string>` instead
-// of legacy Article — usable for both legacy and v2 articles.
+// v2 ArticleForm. Renders fields from the article's snapshotted schema.
 import { useEffect, useRef, useState } from 'react'
 import ReactQuill from 'react-quill'
 import 'react-quill/dist/quill.snow.css'
-import type { Template, TemplateField } from '@shared/types'
+import type { TemplateField } from '@shared/types'
 import {
   Button,
   Input,
@@ -12,17 +11,19 @@ import {
   Separator,
   Textarea,
 } from '@/components/ui'
-import { Copy, Download, Sparkles } from 'lucide-react'
+import { Copy, Download, FileStack, Sparkles } from 'lucide-react'
 
 interface ArticleFormProps {
   fields: Record<string, string> | undefined
-  template: Template | null
+  schema: TemplateField[]
+  currentTemplateName?: string
   transcribing: boolean
   copyingOcr?: boolean
   onUpdate: (fieldName: string, value: string) => void
   onTranscribe: () => void
   onCopyOcr?: () => void
   onExport: () => void
+  onApplyTemplate?: () => void
 }
 
 const quillModules = {
@@ -125,17 +126,17 @@ function DynamicField({ field, value, onChange }: DynamicFieldProps) {
 
 export function ArticleForm({
   fields,
-  template,
+  schema,
+  currentTemplateName,
   transcribing,
   copyingOcr,
   onUpdate,
   onTranscribe,
   onCopyOcr,
   onExport,
+  onApplyTemplate,
 }: ArticleFormProps) {
-  const sortedFields = template?.fields
-    ? [...template.fields].sort((a, b) => a.order - b.order)
-    : []
+  const sortedFields = [...schema].sort((a, b) => a.order - b.order)
 
   return (
     <ScrollArea className="flex-1">
@@ -166,6 +167,23 @@ export function ArticleForm({
             Exporter
           </Button>
         </div>
+
+        {onApplyTemplate && (
+          <div className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
+            <FileStack className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">
+              Modèle : <span className="font-medium text-foreground">{currentTemplateName ?? 'Personnalisé'}</span>
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 text-xs px-2 ml-auto"
+              onClick={onApplyTemplate}
+            >
+              Changer
+            </Button>
+          </div>
+        )}
 
         <Separator />
 

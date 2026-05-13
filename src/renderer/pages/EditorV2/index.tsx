@@ -1,19 +1,20 @@
 // v2 Editor page. Operates on string article IDs and reads from the v2
 // filesystem-as-truth hierarchy.
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useBlocker, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import type {
   AIProvider,
   AISettings,
   ProjectView,
-  Template,
+  TemplateField,
 } from '@shared/types'
 import {
   selectV2CurrentArticle,
   selectV2CurrentFields,
   selectV2HasUnsavedChanges,
   useEditorStore,
+  useTemplatesStore,
   useUIStore,
 } from '@/stores'
 import {
@@ -54,6 +55,17 @@ import '@react-pdf-viewer/default-layout/lib/styles/index.css'
 
 import { ArticleForm } from './ArticleForm'
 import { ArticlesTableV2 } from './ArticlesTable'
+import { ApplyTemplateDialog } from './ApplyTemplateDialog'
+
+// Returns true when the two schema arrays match field-by-field by name/type/order.
+const sameSchema = (a: TemplateField[], b: TemplateField[]): boolean => {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    const af = a[i], bf = b[i]
+    if (af.name !== bf.name || af.type !== bf.type || af.order !== bf.order) return false
+  }
+  return true
+}
 import { TranscriptionModal } from '../Editor/TranscriptionModal'
 import { ModelSelectionModal } from '../Editor/ModelSelectionModal'
 import { UnsavedChangesModal } from '../Editor/UnsavedChangesModal'
@@ -75,15 +87,19 @@ export function EditorV2Page() {
     saveAll,
     deleteArticle,
     transcribeArticle,
+    applyTemplate,
   } = useEditorStore()
+
+  const templates = useTemplatesStore((s) => s.templates)
+  const loadTemplates = useTemplatesStore((s) => s.loadTemplates)
 
   const currentArticle = useEditorStore(selectV2CurrentArticle)
   const currentFields = useEditorStore(selectV2CurrentFields)
   const hasUnsavedChanges = useEditorStore(selectV2HasUnsavedChanges)
 
   const [project, setProject] = useState<ProjectView | null>(null)
-  const [template, setTemplate] = useState<Template | null>(null)
   const [loading, setLoading] = useState(true)
+  const [applyTemplateOpen, setApplyTemplateOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [transcribing, setTranscribing] = useState(false)
   const [bulkTranscribeProgress, setBulkTranscribeProgress] =
@@ -137,13 +153,10 @@ export function EditorV2Page() {
       const [proj, _] = await Promise.all([
         window.api.v2_projectsGet(projectId),
         loadScope(projectId),
+        loadTemplates(),
       ])
       if (cancelled) return
       setProject(proj)
-      if (proj?.defaultTemplateId) {
-        const tmpl = await window.api.getTemplate(proj.defaultTemplateId)
-        if (!cancelled) setTemplate(tmpl)
-      }
 
       // Deep-link from search: open the requested article and strip the param.
       const requested = searchParams.get('article')
@@ -228,7 +241,7 @@ export function EditorV2Page() {
   const executePendingTranscribe = async (modelOverride: string) => {
     const ids = pendingTranscribeIds
     setPendingTranscribeIds(null)
-    if (!ids || ids.length === 0 || !template) return
+    if (!ids || ids.length === 0) return
     const settings = await window.api.getSettings()
     const aiSettings = applyModelOverride(settings.ai, modelOverride)
 
@@ -331,10 +344,28 @@ export function EditorV2Page() {
     setExportModalOpen(true)
   }
 
-  const totalFields = template?.fields.length || 0
+  // Per-article completion: each element has its own snapshot schema.
+  const currentSchema: TemplateField[] = currentArticle?.schema ?? []
+  const totalFields = currentSchema.length
   const currentCompletion = currentArticle
-    ? template?.fields.filter((f) => currentArticle.fields?.[f.name]).length ?? 0
+    ? currentSchema.filter((f) => currentArticle.fields?.[f.name]).length
     : 0
+
+  // Find which template (if any) matches the current article's schema for
+  // display in the form header. Exact match on field shape.
+  const currentTemplateName = useMemo(() => {
+    if (!currentArticle) return undefined
+    const matched = templates.find((t) => sameSchema(t.fields, currentArticle.schema))
+    return matched?.name ?? 'Personnalisé'
+  }, [currentArticle, templates])
+
+  const handleApplyTemplate = async (
+    template: { fields: TemplateField[]; aiContext?: string },
+    mergedFields: Record<string, string>
+  ) => {
+    if (!currentArticleId) return
+    await applyTemplate(currentArticleId, template.fields, mergedFields, template.aiContext)
+  }
 
   const currentIndex = currentArticleId
     ? articles.findIndex((a) => a.id === currentArticleId)
@@ -373,6 +404,18 @@ export function EditorV2Page() {
         onClose={() => setExportModalOpen(false)}
         onExport={handleExport}
       />
+
+      {currentArticle && (
+        <ApplyTemplateDialog
+          open={applyTemplateOpen}
+          onOpenChange={setApplyTemplateOpen}
+          templates={templates}
+          currentTemplateId={undefined}
+          currentSchema={currentArticle.schema}
+          currentFields={currentArticle.fields}
+          onConfirm={handleApplyTemplate}
+        />
+      )}
 
       <AlertDialog open={!!bulkDeleteIds} onOpenChange={(open) => !open && setBulkDeleteIds(null)}>
         <AlertDialogContent>
@@ -525,7 +568,8 @@ export function EditorV2Page() {
                 <ArticleForm
                   key={currentArticleId ?? 'none'}
                   fields={currentFields}
-                  template={template}
+                  schema={currentSchema}
+                  currentTemplateName={currentTemplateName}
                   transcribing={transcribing}
                   copyingOcr={copyingOcr}
                   onUpdate={(fieldName, value) =>
@@ -534,6 +578,11 @@ export function EditorV2Page() {
                   onTranscribe={() => currentArticleId && requestTranscribe([currentArticleId])}
                   onCopyOcr={handleCopyOcr}
                   onExport={openExportSingle}
+                  onApplyTemplate={
+                    currentArticleId && templates.length > 0
+                      ? () => setApplyTemplateOpen(true)
+                      : undefined
+                  }
                 />
               </div>
             </TabsContent>

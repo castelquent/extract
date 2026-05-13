@@ -7,6 +7,7 @@ import type {
   AISettings,
   ArticleMetadata,
   ArticleScope,
+  TemplateField,
   TranscriptionResult,
 } from '@shared/types'
 
@@ -35,6 +36,12 @@ interface EditorState {
     articleId: string,
     settings: AISettings
   ) => Promise<TranscriptionResult>
+  applyTemplate: (
+    articleId: string,
+    newSchema: TemplateField[],
+    newFields: Record<string, string>,
+    newAiContext: string | undefined
+  ) => Promise<boolean>
 }
 
 const initialState = {
@@ -173,6 +180,47 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     } catch (err: any) {
       console.error(err)
       return { success: false, error: err?.message ?? 'Erreur lors de la transcription' }
+    }
+  },
+
+  applyTemplate: async (articleId, newSchema, newFields, newAiContext) => {
+    const projectId = get().projectId
+    if (!projectId) return false
+    try {
+      const ok = await window.api.v2_articlesUpdate(projectId, articleId, {
+        schema: newSchema,
+        aiContext: newAiContext,
+        fields: newFields,
+      })
+      if (!ok) return false
+      set((s) => ({
+        articles: s.articles.map((a) =>
+          a.id === articleId
+            ? {
+                ...a,
+                schema: newSchema,
+                aiContext: newAiContext,
+                fields: newFields,
+                modifiedAt: new Date().toISOString(),
+              }
+            : a
+        ),
+        // Replace any pending draft with the merged fields so the form
+        // reflects the new state cleanly.
+        drafts: { ...s.drafts, [articleId]: newFields },
+      }))
+      // After applyTemplate, the draft equals the persisted fields — nothing
+      // to save. Clear the draft to mark "clean".
+      set((s) => {
+        const { [articleId]: _, ...rest } = s.drafts
+        return { drafts: rest }
+      })
+      toast.success('Modèle appliqué')
+      return true
+    } catch (err) {
+      console.error(err)
+      toast.error("Erreur lors de l'application du modèle")
+      return false
     }
   },
 }))
