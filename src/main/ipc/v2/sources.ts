@@ -26,7 +26,7 @@ import {
 } from '../_fs'
 
 // Count how many articles reference a given sourceId. By default drafts
-// (status='new') are excluded — that's the user-facing count shown on the
+// (status='draft') are excluded — that's the user-facing count shown on the
 // source card. The delete check passes `includeDrafts: true` so it refuses
 // to remove a source still backing in-progress drafts.
 const countArticlesUsingSource = (
@@ -38,7 +38,7 @@ const countArticlesUsingSource = (
   const accept = (am: { sourceId: string; status: string } | null): boolean => {
     if (!am) return false
     if (am.sourceId !== sourceId) return false
-    if (!includeDrafts && am.status === 'new') return false
+    if (!includeDrafts && am.status === 'draft') return false
     return true
   }
   for (const articleId of listSubdirs(getOrphansDir(projectId))) {

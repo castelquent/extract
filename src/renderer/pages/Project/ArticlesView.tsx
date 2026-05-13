@@ -44,16 +44,25 @@ import { selectArticlesInDossier, selectOrphanArticles, useProjectStore } from '
 import type {
   ArticleMetadata,
   ArticleMoveTarget,
-  ArticleStatus,
   DossierDeleteMode,
   DossierView,
 } from '@shared/types'
 import { MoveDialog } from './MoveDialog'
 
-const statusBadge = (status: ArticleStatus): React.ReactNode => {
-  if (status === 'new') return <Badge variant="info">Nouveau</Badge>
-  if (status === 'extracted') return <Badge variant="warning">À transcrire</Badge>
-  return <Badge variant="success">Transcrit</Badge>
+// Compute X/Y completion ratio from article.fields and article.schema.
+// Returns a Badge: success when complete, secondary otherwise. Drafts are
+// filtered out upstream so we don't render a status badge for them.
+const completionBadge = (article: ArticleMetadata): React.ReactNode => {
+  const schema = article.schema ?? []
+  const total = schema.length
+  const filled = schema.filter((f) => article.fields?.[f.name]).length
+  if (total === 0) return null
+  const done = filled === total
+  return (
+    <Badge variant={done ? 'success' : 'secondary'} className="tabular-nums">
+      {filled}/{total}
+    </Badge>
+  )
 }
 
 function ArticleRow({
@@ -86,7 +95,7 @@ function ArticleRow({
           />
           <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
           <span className="flex-1 truncate text-sm">{title}</span>
-          {statusBadge(article.status)}
+          {completionBadge(article)}
           <span className="text-xs text-muted-foreground tabular-nums">
             {article.pages.length}p
           </span>

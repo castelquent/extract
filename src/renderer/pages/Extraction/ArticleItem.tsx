@@ -87,22 +87,30 @@ export function ArticleItem({
   // Generate sortable IDs for zones
   const sortableIds = article.zones.map((_, zoneIndex) => `zone-${article.id}-${zoneIndex}`)
 
+  // Locked + active uses a muted amber ring so the user can still tell
+  // "I clicked this" but doesn't confuse it with the "actif for drawing"
+  // state (which doesn't apply to locked elements).
+  const cardActiveClass = isActive
+    ? locked
+      ? 'bg-amber-500/5 ring-2 ring-amber-500/40'
+      : 'bg-primary/10 ring-2 ring-primary shadow-sm'
+    : 'hover:bg-muted/50'
+
+  const numberBadgeClass =
+    isActive && !locked
+      ? 'bg-primary text-primary-foreground'
+      : 'bg-primary/10 text-primary'
+
   return (
     <Card
       ref={setRef}
-      className={`group transition-all cursor-pointer ${
-        isActive
-          ? 'bg-primary/10 ring-2 ring-primary shadow-sm'
-          : 'hover:bg-muted/50'
-      }`}
+      className={`group transition-all cursor-pointer ${cardActiveClass}`}
       onClick={onSelect}
     >
       <CardContent className="p-3">
         <div className="flex items-center gap-2">
           {/* Article number */}
-          <div className={`w-6 h-6 rounded flex items-center justify-center text-xs font-medium ${
-            isActive ? 'bg-primary text-primary-foreground' : 'bg-primary/10 text-primary'
-          }`}>
+          <div className={`w-6 h-6 rounded flex items-center justify-center text-xs font-medium ${numberBadgeClass}`}>
             {index + 1}
           </div>
 

@@ -56,10 +56,9 @@ export interface ProjectView extends ProjectMetadataV2 {
   thumbnailPath: string | null
   sourcesCount: number
   dossiersCount: number
-  articlesTotal: number
-  articlesToExtract: number     // status === 'new'
-  articlesToTranscribe: number  // status === 'extracted'
-  articlesDone: number          // status === 'transcribed'
+  articlesToExtract: number  // status === 'draft' (PDF pending)
+  articlesTotal: number       // status === 'ready' (real elements)
+  articlesFilled: number      // status === 'ready' AND every schema field has a value
 }
 
 // --- Source (a PDF imported into a project) ---
@@ -88,7 +87,12 @@ export interface DossierView extends DossierMetadata {
 }
 
 // --- Article (the portable unit) ---
-export type ArticleStatus = 'new' | 'extracted' | 'transcribed'
+// Binary status. 'draft' means the extract.pdf doesn't reflect the current
+// zones (either never generated, or zones were modified since last gen).
+// 'ready' means the PDF on disk is up to date. Completion (whether the
+// element's fields are filled) is computed from `fields` + `schema`, NOT
+// stored as a status — manual fills and AI transcriptions are equivalent.
+export type ArticleStatus = 'draft' | 'ready'
 
 // An article carries its own field schema (snapshotted from a Template at
 // creation). Editing a Template afterwards does NOT mutate existing articles.
@@ -108,9 +112,10 @@ export interface ArticleMetadata {
   modifiedAt: string
 }
 
-// Filtering scope passed to articles:list. Drafts (status='new') are hidden
-// from every consumer by default — callers in extraction context must opt in
-// via `includeDrafts: true` (or filter explicitly by status='new').
+// Filtering scope passed to articles:list. Drafts (status='draft') are
+// hidden from every consumer by default — callers in extraction context
+// must opt in via `includeDrafts: true` (or filter explicitly by
+// status='draft').
 export interface ArticleScope {
   dossierId?: string | null   // null = orphans only; undefined = any
   sourceId?: string
@@ -251,7 +256,7 @@ export interface ElectronAPI {
       schema: TemplateField[]
       aiContext?: string
       // When true, do NOT run the PDF extraction script (no extract.pdf
-      // generated, status stays 'new'). Used by Sauvegarder in extraction.
+      // generated, status stays 'draft'). Used by Sauvegarder in extraction.
       skipExtractGeneration?: boolean
     }
   ) => Promise<ArticleMetadata | null>

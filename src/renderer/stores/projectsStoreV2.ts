@@ -141,13 +141,16 @@ export const useProjectsStoreV2 = create<ProjectsV2State>((set, get) => ({
   clearError: () => set({ error: null }),
 }))
 
-// Filtered selectors based on aggregated counts (replace the legacy
-// selectExtractionProjects / selectTranscriptionProjects / selectCompletedProjects).
+// Filtered selectors. With the new binary status model:
+// - "À extraire" = has at least one draft (PDF pending).
+// - "À transcrire" / "À compléter" = has real elements with at least one
+//   unfilled field. Drops the AI-vs-manual distinction; field counts drive it.
+// - "Terminés" = has real elements AND all fields filled.
 export const selectProjectsToExtract = (s: ProjectsV2State): ProjectView[] =>
   s.projects.filter((p) => p.articlesToExtract > 0)
 
 export const selectProjectsToTranscribe = (s: ProjectsV2State): ProjectView[] =>
-  s.projects.filter((p) => p.articlesToTranscribe > 0)
+  s.projects.filter((p) => p.articlesTotal > 0 && p.articlesFilled < p.articlesTotal)
 
 export const selectProjectsDone = (s: ProjectsV2State): ProjectView[] =>
-  s.projects.filter((p) => p.articlesTotal > 0 && p.articlesToExtract === 0 && p.articlesToTranscribe === 0)
+  s.projects.filter((p) => p.articlesTotal > 0 && p.articlesFilled === p.articlesTotal)

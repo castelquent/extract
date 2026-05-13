@@ -56,11 +56,11 @@ const walkArticles = function* (projectId: string): Generator<{ dossierId: strin
   }
 }
 
-// Apply an ArticleScope filter. Drafts (status='new') are hidden by default;
-// callers must pass `includeDrafts: true` or `status: 'new'` to see them.
+// Apply an ArticleScope filter. Drafts (status='draft') are hidden by default;
+// callers must pass `includeDrafts: true` or `status: 'draft'` to see them.
 const matchesScope = (article: ArticleMetadata, scope?: ArticleScope): boolean => {
-  const wantsDrafts = scope?.includeDrafts === true || scope?.status === 'new'
-  if (!wantsDrafts && article.status === 'new') return false
+  const wantsDrafts = scope?.includeDrafts === true || scope?.status === 'draft'
+  if (!wantsDrafts && article.status === 'draft') return false
   if (!scope) return true
   if (scope.dossierId !== undefined && article.dossierId !== scope.dossierId) return false
   if (scope.sourceId !== undefined && article.sourceId !== scope.sourceId) return false
@@ -142,7 +142,7 @@ export function setupV2ArticleHandlers(): void {
         zones: payload.zones,
         pages: payload.pages,
         fields: payload.fields ?? {},
-        status: 'new',
+        status: 'draft',
         schema: payload.schema,
         aiContext: payload.aiContext,
         createdAt: now,
@@ -151,7 +151,7 @@ export function setupV2ArticleHandlers(): void {
       writeJson(getArticleMetadataPath(projectId, payload.dossierId, id), metadata)
 
       // Skip PDF generation when the caller is just persisting in-progress
-      // work (Sauvegarder during extraction). Status stays 'new'.
+      // work (Sauvegarder during extraction). Status stays 'draft'.
       if (payload.skipExtractGeneration) {
         touchProject(projectId)
         return metadata
@@ -162,10 +162,10 @@ export function setupV2ArticleHandlers(): void {
       if (existsSync(sourcePdf)) {
         const ok = await generateArticleExtract(sourcePdf, payload.zones, outputPdf)
         if (ok) {
-          const extracted: ArticleMetadata = { ...metadata, status: 'extracted', modifiedAt: new Date().toISOString() }
-          writeJson(getArticleMetadataPath(projectId, payload.dossierId, id), extracted)
+          const ready: ArticleMetadata = { ...metadata, status: 'ready', modifiedAt: new Date().toISOString() }
+          writeJson(getArticleMetadataPath(projectId, payload.dossierId, id), ready)
           touchProject(projectId)
-          return extracted
+          return ready
         }
       }
       touchProject(projectId)
@@ -284,7 +284,7 @@ export function setupV2ArticleHandlers(): void {
       if (ok) {
         const updated: ArticleMetadata = {
           ...am,
-          status: am.status === 'transcribed' ? 'transcribed' : 'extracted',
+          status: 'ready',
           modifiedAt: new Date().toISOString(),
         }
         writeJson(getArticleMetadataPath(projectId, dossierId, articleId), updated)

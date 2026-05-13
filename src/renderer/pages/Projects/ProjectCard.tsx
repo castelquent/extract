@@ -45,9 +45,11 @@ export function ProjectCard({
     }
   }, [project.id, project.thumbnailPath])
 
-  const { articlesTotal, articlesToExtract, articlesToTranscribe, articlesDone } = project
-  const isEmpty = articlesTotal === 0
-  const isDone = !isEmpty && articlesToExtract === 0 && articlesToTranscribe === 0
+  const { articlesTotal, articlesToExtract, articlesFilled } = project
+  const isEmptyProject =
+    articlesTotal === 0 && articlesToExtract === 0
+  const isComplete =
+    articlesTotal > 0 && articlesFilled === articlesTotal && articlesToExtract === 0
 
   return (
     <ContextMenu>
@@ -91,21 +93,20 @@ export function ProjectCard({
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">
-                {isEmpty ? (
+                {isEmptyProject ? (
                   <Badge variant="info">Nouveau</Badge>
                 ) : (
                   <>
-                    <Badge variant="secondary">
-                      {articlesTotal} élément{articlesTotal === 1 ? '' : 's'}
-                    </Badge>
                     {articlesToExtract > 0 && (
                       <Badge variant="warning">{articlesToExtract} à extraire</Badge>
                     )}
-                    {articlesToTranscribe > 0 && (
-                      <Badge variant="warning">{articlesToTranscribe} à transcrire</Badge>
-                    )}
-                    {isDone && articlesDone === articlesTotal && (
-                      <Badge variant="success">Terminé</Badge>
+                    {articlesTotal > 0 && (
+                      <Badge
+                        variant={isComplete ? 'success' : 'secondary'}
+                        className="tabular-nums"
+                      >
+                        {articlesFilled}/{articlesTotal}
+                      </Badge>
                     )}
                   </>
                 )}

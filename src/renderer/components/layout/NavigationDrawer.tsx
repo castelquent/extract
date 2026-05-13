@@ -112,11 +112,14 @@ export function NavigationDrawer() {
                       <FolderOpen className="h-4 w-4 shrink-0" />
                       <span className="truncate">{project.name}</span>
                     </SidebarMenuButton>
-                    {project.articlesToExtract + project.articlesToTranscribe > 0 && (
-                      <SidebarMenuBadge>
-                        {project.articlesToExtract + project.articlesToTranscribe}
-                      </SidebarMenuBadge>
-                    )}
+                    {(() => {
+                      const pending =
+                        project.articlesToExtract +
+                        Math.max(0, project.articlesTotal - project.articlesFilled)
+                      return pending > 0 ? (
+                        <SidebarMenuBadge>{pending}</SidebarMenuBadge>
+                      ) : null
+                    })()}
                   </SidebarMenuItem>
                 ))}
               </SidebarMenu>

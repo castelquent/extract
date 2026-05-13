@@ -3,12 +3,12 @@
 // only for the session.
 //
 // New articles (no persistedId): created on disk at Save time with
-// skipExtractGeneration=true (status='new', no extract.pdf). Generate later
-// runs the PDF extraction and bumps to 'extracted'.
+// skipExtractGeneration=true (status='draft', no extract.pdf). Generate later
+// runs the PDF extraction and bumps to 'ready'.
 //
 // Persisted articles (persistedId set): hydrated from disk on mount. Edits
 // flow through v2_articlesUpdate on Save; if zones changed, status resets
-// to 'new' so Generate regenerates the PDF.
+// to 'draft' so Generate regenerates the PDF.
 import { create } from 'zustand'
 import { toast } from 'sonner'
 import type { ArticleStatus, Template, TemplateField, Zone } from '@shared/types'
@@ -66,9 +66,9 @@ interface ExtractionState {
   removeArticle: (id: number) => void
   selectArticle: (id: number | null) => void
   updateArticle: (id: number, updates: Partial<WorkingArticle>) => void
-  // Unlock = wipe fields + reset status to 'new'. Used when the user
-  // confirms they want to modify zones of a persisted element that has
-  // filled fields (zone change invalidates the PDF, so fields are stale).
+  // Unlock = wipe fields + reset status to 'draft'. Used when the user
+  // confirms they want to modify zones of a persisted ready element (zone
+  // change invalidates the PDF, so fields might be stale too).
   unlockArticle: (id: number) => void
 
   // Zones
@@ -100,10 +100,10 @@ interface ExtractionState {
 
   // Persistence
   // saveArticles: persist the in-memory buffer without generating PDFs.
-  //   New articles → created in orphans/ with status='new'.
-  //   Persisted articles → updated; if zones changed, status reset to 'new'.
+  //   New articles → created in orphans/ with status='draft'.
+  //   Persisted articles → updated; if zones changed, status reset to 'draft'.
   saveArticles: () => Promise<boolean>
-  // generateArticles: save first, then for every 'new' article, optionally
+  // generateArticles: save first, then for every 'draft' article, optionally
   // move orphans to a chosen dossier and run extract PDF generation.
   // Takes an intent (not a dossierId), so the dossier is created lazily
   // — only if at least one orphan article needs a home.
@@ -168,12 +168,10 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
       const remaining = state.articles.filter((a) => a.id !== id)
       return {
         articles: remaining,
-        currentArticleId:
-          state.currentArticleId === id
-            ? remaining.length > 0
-              ? remaining[0].id
-              : null
-            : state.currentArticleId,
+        // Removing the current article: clear selection (don't auto-pick
+        // another — annoying UX, makes drawing-then-deleting a zone hop
+        // to an unrelated element).
+        currentArticleId: state.currentArticleId === id ? null : state.currentArticleId,
         selectedZoneIndex: state.currentArticleId === id ? null : state.selectedZoneIndex,
       }
     })
@@ -190,7 +188,7 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
   unlockArticle: (id) => {
     set((state) => ({
       articles: state.articles.map((a) =>
-        a.id === id ? { ...a, fields: {}, persistedStatus: 'new' as const } : a
+        a.id === id ? { ...a, fields: {}, persistedStatus: 'draft' as const } : a
       ),
     }))
   },
@@ -256,14 +254,11 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
     const article = articles.find((a) => a.id === currentArticleId)
     if (!article) return
     if (article.zones.length === 1) {
-      set((state) => {
-        const remaining = state.articles.filter((a) => a.id !== currentArticleId)
-        return {
-          articles: remaining,
-          currentArticleId: remaining.length > 0 ? remaining[0].id : null,
-          selectedZoneIndex: null,
-        }
-      })
+      set((state) => ({
+        articles: state.articles.filter((a) => a.id !== currentArticleId),
+        currentArticleId: null,
+        selectedZoneIndex: null,
+      }))
     } else {
       set((state) => ({
         articles: state.articles.map((a) =>
@@ -281,19 +276,14 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
     const article = articles.find((a) => a.id === articleId)
     if (!article) return
     if (article.zones.length === 1) {
-      set((state) => {
-        const remaining = state.articles.filter((a) => a.id !== articleId)
-        return {
-          articles: remaining,
-          currentArticleId:
-            state.currentArticleId === articleId
-              ? remaining.length > 0
-                ? remaining[0].id
-                : null
-              : state.currentArticleId,
-          selectedZoneIndex: null,
-        }
-      })
+      set((state) => ({
+        articles: state.articles.filter((a) => a.id !== articleId),
+        // Clear selection if the just-removed article was the active one;
+        // never auto-hop to another element.
+        currentArticleId:
+          state.currentArticleId === articleId ? null : state.currentArticleId,
+        selectedZoneIndex: null,
+      }))
     } else {
       set((state) => ({
         articles: state.articles.map((a) =>
@@ -380,7 +370,7 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
   hydrateFromSource: async (projectId, sourceId, templates) => {
     set({ sessionProjectId: projectId, sessionSourceId: sourceId, error: null })
     try {
-      // includeDrafts: extraction is the one context where status='new'
+      // includeDrafts: extraction is the one context where status='draft'
       // articles SHOULD be visible (they're the in-progress saved work).
       const existing = await window.api.v2_articlesList(projectId, { sourceId, includeDrafts: true })
       let counter = 0
@@ -460,8 +450,8 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
         const zonesChanged =
           JSON.stringify(article.zones) !== JSON.stringify(baseline?.zones ?? [])
         const newStatus: ArticleStatus = zonesChanged
-          ? 'new'
-          : article.persistedStatus ?? 'extracted'
+          ? 'draft'
+          : article.persistedStatus ?? 'ready'
 
         const ok = await window.api.v2_articlesUpdate(sessionProjectId, article.persistedId, {
           zones: article.zones,
@@ -496,7 +486,7 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
     // to land in it. Avoids leaking an empty dossier on disk if generation
     // somehow has nothing to place.
     const orphansToMove = articles.filter(
-      (a) => a.persistedId && a.persistedStatus === 'new' && a.persistedDossierId === null
+      (a) => a.persistedId && a.persistedStatus === 'draft' && a.persistedDossierId === null
     )
     let dossierIdForOrphans: string | null = null
     if (orphansToMove.length > 0) {
@@ -516,7 +506,7 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
     try {
       const next: WorkingArticle[] = []
       for (const article of articles) {
-        if (!article.persistedId || article.persistedStatus !== 'new') {
+        if (!article.persistedId || article.persistedStatus !== 'draft') {
           next.push(article)
           continue
         }
@@ -531,13 +521,13 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
         const regen = await window.api.v2_articlesRegenerateExtract(sessionProjectId, article.persistedId)
         next.push({
           ...article,
-          persistedStatus: regen ? 'extracted' : article.persistedStatus,
+          persistedStatus: regen ? 'ready' : article.persistedStatus,
           persistedDossierId: dossierId,
         })
       }
       set({ articles: next, savedArticles: deepClone(next), exporting: false })
-      const generatedCount = next.filter((a) => a.persistedStatus === 'extracted').length -
-        articles.filter((a) => a.persistedStatus === 'extracted').length
+      const generatedCount = next.filter((a) => a.persistedStatus === 'ready').length -
+        articles.filter((a) => a.persistedStatus === 'ready').length
       if (generatedCount > 0) {
         toast.success(`${generatedCount} élément${generatedCount > 1 ? 's' : ''} généré${generatedCount > 1 ? 's' : ''}`)
       }
@@ -569,13 +559,11 @@ export const selectHasUnsavedChanges = (state: ExtractionState): boolean =>
   JSON.stringify(state.articles) !== JSON.stringify(state.savedArticles)
 
 // An element is "locked" as soon as it has been generated on disk
-// (status='extracted' or 'transcribed'). Modifying its zones would
-// invalidate the extract.pdf and silently demote it to draft (hidden from
-// project views) — confusing for the user. The lock forces an explicit
-// confirmation.
+// (status='ready'). Modifying its zones would invalidate the extract.pdf
+// and silently demote it to draft (hidden from project views) — confusing
+// for the user. The lock forces an explicit confirmation.
 //
-// Draft-persisted elements (status='new': saved during extraction with no
-// PDF yet) are NOT locked — they can be edited freely.
+// Draft-persisted elements (status='draft': saved during extraction with
+// no PDF yet) are NOT locked — they can be edited freely.
 export const isArticleLocked = (a: WorkingArticle): boolean =>
-  !!a.persistedId &&
-  (a.persistedStatus === 'extracted' || a.persistedStatus === 'transcribed')
+  !!a.persistedId && a.persistedStatus === 'ready'

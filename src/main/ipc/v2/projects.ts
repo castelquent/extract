@@ -25,23 +25,23 @@ const buildProjectView = (projectId: string): ProjectView | null => {
   const metadata = readProjectMetadata(projectId)
   if (!metadata) return null
 
-  let articlesTotal = 0
-  let articlesToExtract = 0
-  let articlesToTranscribe = 0
-  let articlesDone = 0
+  let articlesToExtract = 0  // status === 'draft' (PDF pending)
+  let articlesTotal = 0       // status === 'ready' (real elements)
+  let articlesFilled = 0      // status === 'ready' AND every schema field has a value
 
-  // Drafts (status='new') are excluded from `articlesTotal` so they don't
-  // pollute "X éléments dans ce projet" headers. They're surfaced separately
-  // via articlesToExtract (= "X à extraire" badges).
   const countArticle = (dossierId: string | null, articleId: string): void => {
     const am = readArticleMetadata(projectId, dossierId, articleId)
     if (!am) return
-    if (am.status === 'new') {
+    if (am.status === 'draft') {
       articlesToExtract += 1
-    } else {
-      articlesTotal += 1
-      if (am.status === 'extracted') articlesToTranscribe += 1
-      else if (am.status === 'transcribed') articlesDone += 1
+      return
+    }
+    // status === 'ready' (or future statuses)
+    articlesTotal += 1
+    const schema = am.schema ?? []
+    const fields = am.fields ?? {}
+    if (schema.length > 0 && schema.every((f) => fields[f.name])) {
+      articlesFilled += 1
     }
   }
 
@@ -68,10 +68,9 @@ const buildProjectView = (projectId: string): ProjectView | null => {
     thumbnailPath,
     sourcesCount,
     dossiersCount: dossierIds.length,
-    articlesTotal,
     articlesToExtract,
-    articlesToTranscribe,
-    articlesDone,
+    articlesTotal,
+    articlesFilled,
   }
 }
 

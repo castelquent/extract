@@ -245,13 +245,12 @@ export function ExtractionV2Page() {
     handleZoneCreated({ page: currentPage, x1: 0, y1: 0, x2: 1, y2: 1 })
   }
 
-  // Number of orphan 'new' articles needing a dossier choice at Generate time.
-  // (Persisted articles already in a dossier keep their place.)
+  // Number of orphan draft articles needing a dossier choice at Generate
+  // time. (Persisted articles already in a dossier keep their place.)
   const orphanNewCount = articles.filter(
     (a) =>
       (a.persistedDossierId === null || a.persistedDossierId === undefined) &&
-      a.persistedStatus !== 'extracted' &&
-      a.persistedStatus !== 'transcribed'
+      a.persistedStatus !== 'ready'
   ).length
 
   // Working articles never saved yet (no persistedId) — they'll be created
@@ -449,15 +448,24 @@ export function ExtractionV2Page() {
               <Badge variant="outline">{articles.length}</Badge>
             </div>
             {activeArticle && (
-              <Button
-                variant="default"
-                size="sm"
-                className="w-full"
-                onClick={() => selectArticle(null)}
-              >
-                <X className="h-4 w-4 mr-2" />
-                Terminer l'élément en cours
-              </Button>
+              <>
+                {isArticleLocked(activeArticle) && (
+                  <div className="text-xs text-amber-700 dark:text-amber-500 bg-amber-500/10 border border-amber-500/30 rounded px-2 py-1.5">
+                    Élément verrouillé. Dessiner une zone créera un nouvel élément.
+                  </div>
+                )}
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => selectArticle(null)}
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  {isArticleLocked(activeArticle)
+                    ? 'Désélectionner'
+                    : "Terminer l'élément en cours"}
+                </Button>
+              </>
             )}
           </div>
 
@@ -569,9 +577,9 @@ export function ExtractionV2Page() {
                     ).length
                   : 0
                 if (filledCount > 0) {
-                  return `Modifier les zones invalide le PDF extrait et la transcription. Les ${filledCount} champ(s) déjà remplis seront supprimés. La modification est appliquée au prochain Sauvegarder.`
+                  return `Modifier les zones invalide le PDF extrait et la transcription. Les ${filledCount} champ(s) déjà remplis seront supprimés. La modification est appliquée à la prochaine sauvegarde.`
                 }
-                return "Modifier les zones invalide le PDF extrait. L'élément redeviendra un brouillon (hors vue projet) jusqu'au prochain Générer. La modification est appliquée au prochain Sauvegarder."
+                return "Modifier les zones invalide le PDF extrait. L'élément redeviendra un brouillon jusqu'à la prochaine généreration."
               })()}
             </AlertDialogDescription>
           </AlertDialogHeader>

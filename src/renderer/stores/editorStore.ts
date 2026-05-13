@@ -167,7 +167,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
               ? {
                   ...a,
                   fields: { ...a.fields, ...fields },
-                  status: 'transcribed',
                   modifiedAt: new Date().toISOString(),
                 }
               : a

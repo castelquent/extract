@@ -278,12 +278,12 @@ export function setupV2TranscriptionHandlers(): void {
           error: result.error,
         })
 
-        // Persist fields + status on success
+        // Persist filled fields on success. Status is unchanged — "filled
+        // or not" is computed from fields + schema, not stored as state.
         if (result.success && result.data?.fields) {
           const updated: ArticleMetadata = {
             ...article,
             fields: { ...article.fields, ...result.data.fields },
-            status: 'transcribed',
             modifiedAt: new Date().toISOString(),
           }
           writeJson(getArticleMetadataPath(projectId, dossierId, articleId), updated)

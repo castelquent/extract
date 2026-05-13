@@ -2,193 +2,191 @@
 
 ## Le projet
 
-ExtrAct est une application desktop permettant de **numériser et structurer des documents** depuis des PDFs. Conçue initialement pour les articles de presse (journaux, magazines, revues), l'application a évolué vers un système de **templates personnalisables** permettant de traiter tout type de document.
-
-### Cas d'usage
-
-- **Archivage documentaire** : numériser des collections de magazines, journaux anciens
-- **Correspondance** : extraire et structurer des lettres, courriers
-- **Recherche** : constituer des bases de données d'articles ou documents
-- **Tout document structuré** : grâce aux templates customs, adapter l'extraction à n'importe quel type de contenu
+Application desktop pour **numériser et structurer des documents** depuis des PDFs. Cible commerciale : chercheurs en sciences sociales (dépouillement de corpus, archivage, presse, correspondance). Système de **modèles personnalisables** snapshotés par élément.
 
 ### Workflow utilisateur
 
-1. **Créer un projet** : importer un PDF et choisir un template (Article de presse, Correspondance, ou custom)
-2. **Extraire** : dessiner des zones rectangulaires sur les pages pour délimiter chaque élément
-3. **Générer** : l'app crée un PDF par élément extrait (zones combinables pour un même élément)
-4. **Transcrire** : l'IA (OpenAI/Anthropic) remplit automatiquement les champs du template
-5. **Éditer** : corriger/compléter dans l'éditeur avec Quill (texte riche)
-6. **Exporter** : PDF, DOCX, TXT, ou ZIP complet du projet
+1. **Créer un projet** (corpus / thématique) → choisir un modèle par défaut.
+2. **Importer des sources** (PDFs). Plusieurs par projet.
+3. **Extraire** : dessiner des zones sur le PDF → grouper en éléments → choisir un modèle par élément.
+4. **Sauvegarder** (Ctrl+S) : persiste l'avancement en brouillons (sans PDF). Reprise possible plus tard.
+5. **Générer** : produit l'`extract.pdf` par élément, déplace les orphelins vers un dossier choisi.
+6. **Transcrire** (IA OpenAI/Anthropic) ou **remplir à la main** dans l'éditeur.
+7. **Exporter** : PDF, DOCX, TXT, ZIP du projet entier.
 
 ---
 
-## Version actuelle : 2.0.5
+## Modèle de données (v2)
 
----
-
-## Stack technique
-
-| Technologie | Usage |
-|-------------|-------|
-| **Electron 28** | Framework desktop |
-| **React 18** | UI Framework |
-| **TypeScript 5** | Typage statique |
-| **Vite 5** | Build & dev server |
-| **Tailwind CSS 3** | Styling |
-| **shadcn/ui** | Composants UI (Radix) |
-| **Zustand 4** | State management |
-| **React Router 6** | Navigation SPA |
-| **@react-pdf-viewer** | Rendu PDF dans l'éditeur |
-| **react-quill** | Éditeur texte riche |
-| **@dnd-kit** | Drag & drop (templates) |
-| **PyMuPDF** | Extraction PDF (Python) |
-
----
-
-## Structure du projet
+Filesystem-as-truth. Tout sur disque, pas de DB.
 
 ```
-src/
-├── main/                   # Process Electron principal
-│   ├── index.ts            # Entry point + auto-updater
-│   └── ipc/                # Handlers IPC par domaine
-│       ├── projects.ts     # CRUD projets, import/export ZIP
-│       ├── templates.ts    # CRUD templates
-│       ├── extraction.ts   # Sauvegarde zones, export images
-│       ├── transcription.ts # Appels API IA (OpenAI/Anthropic)
-│       ├── export.ts       # Export PDF/DOCX/TXT
-│       └── settings.ts     # Paramètres, version, updates
-├── preload/                # Bridge IPC sécurisé
-│   └── index.ts            # window.api exposé au renderer
-├── renderer/               # Application React
-│   ├── App.tsx             # Routes + layout
-│   ├── pages/
-│   │   ├── Projects/       # Liste projets avec filtres
-│   │   ├── Extraction/     # Sélection zones sur PDF
-│   │   ├── Editor/         # Édition articles + transcription
-│   │   ├── Templates/      # Gestion des templates
-│   │   └── Settings/       # (via modal)
-│   ├── components/
-│   │   ├── layout/         # AppLayout, NavigationDrawer, SettingsModal
-│   │   └── ui/             # Composants shadcn/ui
-│   └── stores/             # Zustand stores
-│       ├── projectsStore.ts
-│       ├── extractionStore.ts
-│       ├── templatesStore.ts
-│       ├── settingsStore.ts
-│       └── uiStore.ts
-├── shared/
-│   └── types.ts            # Types TypeScript partagés
-scripts/
-├── pdf_to_image.py         # Extraction zones → images
-└── generate_thumbnail.py   # Miniature projet
-python-portable/            # Python embarqué
+%AppData%/Local/ExtrAct/
+├── settings.json
+├── templates.json
+├── logs.json
+└── projects/{projectId}/
+    ├── metadata.json           # { id, name, defaultTemplateId, dates }
+    ├── thumbnail.png
+    ├── sources/{sourceId}/
+    │   ├── source.pdf
+    │   ├── thumbnail.png
+    │   └── metadata.json       # { id, originalFilename, pageCount, importedAt }
+    ├── dossiers/{dossierId}/
+    │   ├── metadata.json       # { id, name, dates }
+    │   └── articles/{articleId}/
+    │       ├── metadata.json
+    │       └── extract.pdf
+    └── orphans/{articleId}/    # éléments sans dossier
+        ├── metadata.json
+        └── extract.pdf
 ```
 
----
+**ArticleMetadata** :
+```ts
+{
+  id, sourceId, dossierId,
+  zones: Zone[], pages: number[],
+  fields: Record<string, string>,
+  schema: TemplateField[],     // snapshotté à la création
+  aiContext?: string,
+  status: 'draft' | 'ready',
+  dates,
+}
+```
 
-## Fonctionnalités implémentées
+**Statut binaire** : `'draft'` (PDF en attente — soit jamais généré, soit zones modifiées depuis) vs `'ready'` (PDF à jour). Le "remplissage" est computed depuis `fields` + `schema`, jamais stocké.
 
-### Templates
-
-- **3 types de champs** : `text` (court), `textarea` (long), `richtext` (HTML/Quill)
-- **Champ "Titre" obligatoire** : toujours en première position, non supprimable
-- **Templates par défaut** :
-  - "Article de presse" : Titre, Auteur, Contenu
-  - "Correspondance" : Titre, Date, Expéditeur, Destinataire, Contenu
-- **Prompt IA auto-généré** : construit à partir des champs + `aiHint` optionnel
-- **Drag & drop** : réorganisation des champs
-- **Protection** : templates par défaut non modifiables, templates en utilisation non supprimables
-- **Export/Import** : à l'export ZIP le template est inclus, à l'import il est recréé avec nouvelle ID
-
-### Projets
-
-- **CRUD complet** : création, suppression, duplication, renommage
-- **Filtres** : Tous / À extraire / À transcrire / Terminés
-- **Statuts** : `new`, `extracting`, `extracted`, `in_progress`, `completed`
-- **Export ZIP** : backup complet (PDF source, images, données, template)
-- **Import ZIP** : restauration avec gestion des conflits de template
-
-### Extraction
-
-- **Viewer PDF** avec navigation pages
-- **Sélection zones** : rectangles dessinés sur canvas
-- **Zones multiples** : plusieurs zones combinées = un seul élément
-- **Context menu** sur les zones
-
-### Éditeur
-
-- **Vue splitée resizable** : PDF extrait (gauche) | Formulaire (droite)
-- **@react-pdf-viewer** : rendu PDF avec zoom
-- **Onglets** : Éditeur / Sommaire (table des matières)
-- **Navigation** : boutons + flèches clavier
-- **Transcription** :
-  - Single : un élément
-  - Bulk : sélection multiple avec progression
-- **Export** :
-  - Single : élément courant
-  - Batch : sélection multiple
-  - Tous : export complet
-  - Formats : PDF, DOCX, TXT
-- **Suppression** : confirmation single et bulk
-- **Changements non sauvegardés** : détection + modal de confirmation
-
-### Raccourcis clavier
-
-| Raccourci | Action | Contexte |
-|-----------|--------|----------|
-| `Ctrl+S` | Sauvegarder | Éditeur |
-| `←` / `→` | Article précédent/suivant | Éditeur (hors input) |
-
-### Transcription IA
-
-- **Providers** : OpenAI (GPT-4o, etc.) et Anthropic (Claude)
-- **Clés API séparées** : une par provider
-- **Logs** : historique avec tokens consommés, succès/échec
-- **Gestion erreurs** : messages user-friendly (clé invalide, rate limit, etc.)
-
-### UI/UX
-
-- **Thème** : dark/light avec persistance
-- **Navigation** : drawer collapsible
-- **Toasts** : notifications via sonner
-- **Auto-update** : vérification + download avec progression
+**Modèle snapshot** : éditer un Template ne touche pas les éléments déjà créés. "Appliquer un modèle" = nouveau snapshot, avec **merge intelligent** des fields (matching par nom, coercion richtext↔text). Logique partagée dans `src/renderer/lib/templateMerge.ts`.
 
 ---
 
-## Données
+## Architecture
 
-Stockage dans `%AppData%/Local/ExtrAct/` :
+### Main process
 
-| Fichier/Dossier | Contenu |
-|-----------------|---------|
-| `projects/{id}/` | Dossier par projet |
-| `projects/{id}/metadata.json` | Nom, dates, statut, templateId |
-| `projects/{id}/source.pdf` | PDF original |
-| `projects/{id}/thumbnail.png` | Miniature |
-| `projects/{id}/save.json` | Articles avec zones et champs |
-| `projects/{id}/images/` | Images extraites |
-| `templates.json` | Templates utilisateur |
-| `settings.json` | Paramètres (clés API, thème, etc.) |
-| `logs.json` | Historique transcriptions |
+```
+src/main/
+├── index.ts                    # Entry + auto-updater
+├── watchers.ts                 # chokidar sur projects/ → notifs renderer
+└── ipc/
+    ├── settings.ts             # settings.json (clés API, thème)
+    ├── templates.ts            # templates.json (CRUD libre, plus de "in_use" check)
+    └── v2/
+        ├── _fs.ts              # path helpers + readJson/writeJson + ULID
+        ├── _python.ts          # spawn helpers (generate_thumbnail, image_to_pdf, pdf_to_image, page count via pdf-lib)
+        ├── projects.ts         # CRUD + buildProjectView (counts)
+        ├── sources.ts          # add multi-file picker, thumbnail
+        ├── dossiers.ts         # create/rename/delete (mode: 'delete-content' | 'orphan-articles')
+        ├── articles.ts         # CRUD + move (cross-project copie la source) + regenerateExtract
+        ├── transcription.ts    # appel IA, écrit dans fields (pas de status update)
+        ├── export.ts           # PDF/DOCX/TXT par articleIds
+        └── zip.ts              # export/import projet (self-contained, pas de template embarqué)
+```
+
+### Renderer
+
+```
+src/renderer/
+├── App.tsx                     # Routes
+├── lib/
+│   └── templateMerge.ts        # asString, stripHtml, wrapAsHtml, sameSchema, computeMerge
+├── components/
+│   ├── ApplyTemplateDialog.tsx # Modèle picker + merge preview (partagé Editor + Extraction)
+│   ├── layout/                 # AppLayout, NavigationDrawer, SettingsModal, HelpModal
+│   └── ui/                     # shadcn/ui
+├── pages/
+│   ├── Projects/               # Liste projets + filtres + ProjectCard (X/Y)
+│   ├── Project/                # Détail projet : tabs Articles + Sources
+│   ├── ExtractionV2/           # Source-scoped, Sauvegarder + Générer
+│   ├── Extraction/             # Composants partagés (PdfViewer, ZonesOverlay, ZoneBox, ArticleItem, ZoneItem)
+│   ├── EditorV2/               # Éditeur scope projet + ApplyTemplateDialog
+│   ├── Editor/                 # Modales partagées (Transcription, Export, ModelSelection, UnsavedChanges)
+│   ├── Templates/              # CRUD modèles
+│   ├── Search/                 # Recherche cross-projets
+│   ├── Settings/               # Modal
+│   └── Onboarding/             # /welcome stepper
+└── stores/                     # Zustand
+    ├── projectsStoreV2.ts      # liste projets + selectors par count
+    ├── projectStore.ts         # projet courant (sources, dossiers, articles)
+    ├── extractionStore.ts      # WorkingArticle[] (memory) + hydrateFromSource/saveArticles/generateArticles
+    ├── editorStore.ts          # articles par scope + drafts en mémoire + applyTemplate
+    ├── templatesStore.ts, settingsStore.ts, uiStore.ts
+    └── index.ts
+```
+
+### Routes
+
+- `/` `/extraction` `/transcription` `/completed` → ProjectsPage (filtres par count)
+- `/project/:projectId` → ProjectDetailPage
+- `/extraction/:projectId/:sourceId` → ExtractionV2Page
+- `/editor/:projectId?article=:articleId` → EditorV2Page
+- `/templates`, `/search`, `/welcome`
 
 ---
 
-## Conventions
+## Mécaniques notables
 
-- **Composants UI** : shadcn/ui dans `src/renderer/components/ui/`
-- **Couleurs** : variables CSS HSL dans `index.css`
-- **IPC** : `window.api.*` exposé par preload
-- **Stores** : Zustand avec actions et selectors
+### Extraction (ExtractionV2)
+
+- **Hydrate** au mount : charge tous les éléments de la source (drafts inclus via `includeDrafts: true`). Les éléments existants deviennent des `WorkingArticle` avec `persistedId` set.
+- **Lock** : un élément avec `persistedStatus === 'ready'` est verrouillé. Drag/resize/delete des zones bloqués jusqu'à déverrouillage explicite (modale "Modifier les zones invalide le PDF, X champs seront supprimés"). `unlockArticle()` vide les fields + reset status à `'draft'`.
+- **Sélecteur de modèle par élément** : inline `<Select>` pour non-lockés (swap silencieux), bouton "Modèle : X" qui ouvre `ApplyTemplateDialog` pour les lockés (merge intelligent).
+- **Sauvegarder** (Ctrl+S) : persiste les nouveaux comme `'draft'` (skipExtractGeneration=true, `dossierId: null`). Maj des persistés modifiés. Si zones changées → reset à `'draft'`.
+- **Générer** : popup dossier si y'a des drafts orphans. Dossier créé **lazy** (uniquement si au moins un article y atterrit). Régen extract.pdf par élément, status passe à `'ready'`.
+
+### Filtre brouillons
+
+`v2:articles:list` (et `ArticleScope`) filtre `status: 'draft'` par défaut. Seul ExtractionV2 passe `includeDrafts: true`. ProjectDetail / Editor / Search ne voient pas les drafts. `buildProjectView` les compte dans `articlesToExtract`, pas dans `articlesTotal`.
+
+### Counts ProjectView
+
+| Champ | Quoi |
+|---|---|
+| `articlesToExtract` | drafts (PDF à générer) |
+| `articlesTotal` | éléments ready |
+| `articlesFilled` | ready avec tous les fields du schema remplis |
+
+Affichage : ProjectCard montre `5 à extraire` + badge `8/12` (vert si plein). Pas de label "à transcrire" / "terminé" séparé.
+
+### Watcher chokidar
+
+`src/main/watchers.ts` watch `projects/` profond, debounce 250ms, émet `v2:fs:projectsListChanged` + `v2:fs:projectChanged(projectId)`. AppLayout listen → refresh `projectsStoreV2` + `projectStore` (si projet courant). **extractionStore et editorStore PAS refresh** (perdrait les drafts en mémoire).
+
+### Strict Mode gotcha
+
+Le cleanup du `useEffect` d'ExtractionV2 ne reset PAS `extractionStore` (sinon le double-mount React Strict niquerait `sessionProjectId` et toute Save/Generate échouerait silencieusement). Voir le commentaire dans `pages/ExtractionV2/index.tsx`.
 
 ---
 
-## Ce qui manque
+## Wording UI (français)
 
-- **Auto-save** : pas de sauvegarde automatique
-- **Recherche** : pas de recherche dans projets/articles
-- **Tooltips** : pas d'aide contextuelle
-- **Tests** : aucun test unitaire ou E2E
+- **Élément** (pas "article" — terme générique, peut être un article, lettre, pub, etc.)
+- **Modèle** (pas "preset" ou "template" — voir [[feedback-french-wording]])
+- **Source** = PDF importé
+- **Dossier** = groupement d'éléments dans un projet
+- "Article de presse" reste le nom du modèle par défaut (pas à renommer)
+
+---
+
+## Stack
+
+| Tech | Usage |
+|---|---|
+| Electron 28 | Desktop |
+| React 18 + TS 5 + Vite 5 | UI |
+| Tailwind 3 + shadcn/ui (Radix) | Styling |
+| Zustand 4 | State |
+| React Router 6 (HashRouter) | Nav |
+| @react-pdf-viewer | Rendu PDF dans l'éditeur |
+| pdfjs-dist | Rendu PDF dans l'extraction |
+| react-quill | Texte riche |
+| @dnd-kit | Drag-drop (zones, templates) |
+| react-rnd | Zones draggables sur PDF |
+| PyMuPDF (via python-portable) | Extraction zones → PDF, thumbnails |
+| pdf-lib | Page count (pure JS, sans Python) |
+| chokidar | File watcher |
+| ulid | IDs courts sortable |
 
 ---
 
@@ -196,8 +194,18 @@ Stockage dans `%AppData%/Local/ExtrAct/` :
 
 ```bash
 cd src
-npm run dev           # Dev avec HMR
-npm run electron:dev  # Dev Electron complet
-npm run build:win     # Build Windows
-npm run typecheck     # Vérification TypeScript
+npm run electron:dev      # Dev complet
+npm run build:win         # Build Windows
+npm run build:mac         # Build macOS
+npm run typecheck         # tsc --noEmit
 ```
+
+---
+
+## Ce qui manque
+
+- **Auto-save dans l'éditeur** : pas implémenté (les drafts dans extraction oui).
+- **Tooltips** : très peu.
+- **Tests** : aucun.
+- **Distribution** : pas encore d'auto-update infrastructure mature pour les utilisateurs finaux.
+- **API keys friction** : reste le blocker commercial principal (cf. `memory/project_api_key_friction.md`).
