@@ -55,7 +55,7 @@ import '@react-pdf-viewer/default-layout/lib/styles/index.css'
 
 import { ArticleForm } from './ArticleForm'
 import { ArticlesTableV2 } from './ArticlesTable'
-import { ApplyTemplateDialog } from './ApplyTemplateDialog'
+import { ApplyTemplateDialog } from '@/components/ApplyTemplateDialog'
 
 // Returns true when the two schema arrays match field-by-field by name/type/order.
 const sameSchema = (a: TemplateField[], b: TemplateField[]): boolean => {

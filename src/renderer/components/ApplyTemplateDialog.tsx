@@ -1,6 +1,6 @@
-// Two-step dialog: pick a new model, then if any filled fields would be
-// dropped, confirm the loss. Merge keeps values for fields whose name
-// matches between old and new schema (with graceful type coercion).
+// Two-step model picker: select a model → preview the merge (with lost fields
+// if any) → confirm. Used both by the Editor (full-form context) and the
+// Extraction page (changing model on a persisted element).
 import { useMemo, useState } from 'react'
 import {
   Button,
@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui'
 import type { Template, TemplateField } from '@shared/types'
+import { computeMerge, stripHtml } from '@/lib/templateMerge'
 
 interface ApplyTemplateDialogProps {
   open: boolean
@@ -26,83 +27,6 @@ interface ApplyTemplateDialogProps {
   currentSchema: TemplateField[]
   currentFields: Record<string, string>
   onConfirm: (template: Template, mergedFields: Record<string, string>) => void | Promise<void>
-}
-
-// Coerce any field value to a string. Field values are typed as string but
-// can occasionally arrive non-string (legacy data, transient draft objects).
-const asString = (v: unknown): string => {
-  if (v == null) return ''
-  return typeof v === 'string' ? v : String(v)
-}
-
-// Strip HTML for graceful richtext → text conversion.
-const stripHtml = (html: unknown): string => {
-  const str = asString(html)
-  if (!str) return ''
-  return str
-    .replace(/<\/(p|div|li|h[1-6]|br)>/gi, ' ')
-    .replace(/<br\s*\/?>/gi, ' ')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-// Wrap plain text in <p> for graceful text → richtext conversion.
-const wrapAsHtml = (text: unknown): string => {
-  const str = asString(text)
-  if (!str) return ''
-  return `<p>${str}</p>`
-}
-
-// Returns the new (merged) fields and the list of field names whose value
-// would be dropped (only those that had a non-empty value).
-const computeMerge = (
-  oldSchema: TemplateField[],
-  newSchema: TemplateField[],
-  oldFields: Record<string, string>
-): { mergedFields: Record<string, string>; lostFields: { name: string; value: string }[] } => {
-  const newNames = new Set(newSchema.map((f) => f.name))
-  const oldByName = new Map(oldSchema.map((f) => [f.name, f]))
-  const mergedFields: Record<string, string> = {}
-
-  for (const field of newSchema) {
-    const existingValue = asString(oldFields[field.name])
-    if (!existingValue) {
-      mergedFields[field.name] = ''
-      continue
-    }
-    const oldField = oldByName.get(field.name)
-    if (!oldField || oldField.type === field.type) {
-      mergedFields[field.name] = existingValue
-      continue
-    }
-    // Type changed: coerce.
-    if (oldField.type === 'richtext' && (field.type === 'text' || field.type === 'textarea')) {
-      mergedFields[field.name] = stripHtml(existingValue)
-    } else if (
-      (oldField.type === 'text' || oldField.type === 'textarea') &&
-      field.type === 'richtext'
-    ) {
-      mergedFields[field.name] = wrapAsHtml(existingValue)
-    } else {
-      mergedFields[field.name] = existingValue
-    }
-  }
-
-  const lostFields: { name: string; value: string }[] = []
-  for (const [name, raw] of Object.entries(oldFields)) {
-    const value = asString(raw)
-    if (!value) continue
-    if (!newNames.has(name)) lostFields.push({ name, value })
-  }
-
-  return { mergedFields, lostFields }
 }
 
 export function ApplyTemplateDialog({
@@ -135,7 +59,6 @@ export function ApplyTemplateDialog({
     onOpenChange(false)
   }
 
-  // Empty short-snippet for a dropped value (avoid dumping a whole article)
   const snippet = (raw: string): string => {
     const t = stripHtml(raw)
     return t.length > 60 ? `${t.slice(0, 60)}…` : t
