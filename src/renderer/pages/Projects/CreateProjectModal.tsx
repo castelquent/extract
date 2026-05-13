@@ -50,7 +50,7 @@ export function CreateProjectModal({ open, onOpenChange, onCreate }: CreateProje
         <DialogHeader>
           <DialogTitle>Nouveau projet</DialogTitle>
           <DialogDescription>
-            Créez un nouveau projet pour extraire des articles d'un PDF.
+            Un projet regroupe vos sources (PDF) et les articles extraits.
           </DialogDescription>
         </DialogHeader>
 
@@ -61,7 +61,7 @@ export function CreateProjectModal({ open, onOpenChange, onCreate }: CreateProje
               id="project-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Mon projet"
+              placeholder="Mon corpus"
               autoFocus
             />
           </div>
@@ -81,13 +81,9 @@ export function CreateProjectModal({ open, onOpenChange, onCreate }: CreateProje
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              Le modèle définit les champs disponibles pour chaque article.
+              Le modèle définit les champs disponibles pour chaque article. Vous pourrez ajouter des PDFs après la création.
             </p>
           </div>
-
-          <p className="text-sm text-muted-foreground">
-            Vous serez invité à sélectionner un fichier PDF après avoir cliqué sur "Créer".
-          </p>
 
           <DialogFooter className="gap-2 sm:gap-0">
             <Button

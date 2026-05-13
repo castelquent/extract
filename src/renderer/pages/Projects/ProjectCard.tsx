@@ -1,54 +1,51 @@
 import { useState, useEffect } from 'react'
-import type { Project } from '@shared/types'
+import type { ProjectView } from '@shared/types'
 import {
   Card,
   CardContent,
   Badge,
-  Progress,
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuTrigger,
   ContextMenuSeparator,
 } from '@/components/ui'
-import { Copy, Trash2, FileStack, FileArchive, Pencil } from 'lucide-react'
+import { Copy, Trash2, FileStack, Pencil, FolderOpen, Files, FolderTree } from 'lucide-react'
 import { useTemplatesStore } from '@/stores'
 
 interface ProjectCardProps {
-  project: Project
+  project: ProjectView
   onClick: () => void
   onDelete: () => void
   onDuplicate: () => void
-  onExportZip: () => void
   onRename: () => void
+  onOpenFolder: () => void
 }
 
-const statusConfig: Record<Project['status'], { label: string; variant: 'info' | 'warning' | 'secondary' | 'success' }> = {
-  new: { label: 'Nouveau', variant: 'info' },
-  extracting: { label: 'Extraction', variant: 'warning' },
-  extracted: { label: 'Extrait', variant: 'secondary' },
-  in_progress: { label: 'Transcription', variant: 'warning' },
-  completed: { label: 'Terminé', variant: 'success' }
-}
-
-export function ProjectCard({ project, onClick, onDelete, onDuplicate, onExportZip, onRename }: ProjectCardProps) {
+export function ProjectCard({
+  project,
+  onClick,
+  onDelete,
+  onDuplicate,
+  onRename,
+  onOpenFolder,
+}: ProjectCardProps) {
   const [thumbnailSrc, setThumbnailSrc] = useState<string | null>(null)
   const { templates } = useTemplatesStore()
 
-  const templateName = templates.find(t => t.id === project.templateId)?.name
+  const templateName = templates.find((t) => t.id === project.templateId)?.name
 
   useEffect(() => {
     if (project.thumbnailPath) {
-      // thumbnailPath is absolute, so projectId is just used for routing
       window.api.getImageData(project.id, project.thumbnailPath).then(setThumbnailSrc)
+    } else {
+      setThumbnailSrc(null)
     }
   }, [project.id, project.thumbnailPath])
 
-  const progress = project.totalFields > 0
-    ? Math.round((project.filledFields / project.totalFields) * 100)
-    : 0
-
-  const status = statusConfig[project.status]
+  const { articlesTotal, articlesToExtract, articlesToTranscribe, articlesDone } = project
+  const isEmpty = articlesTotal === 0
+  const isDone = !isEmpty && articlesToExtract === 0 && articlesToTranscribe === 0
 
   return (
     <ContextMenu>
@@ -58,27 +55,20 @@ export function ProjectCard({ project, onClick, onDelete, onDuplicate, onExportZ
           onClick={onClick}
         >
           <CardContent className="p-4 h-full flex flex-col">
-            {/* Thumbnail */}
-            <div className="aspect-[4/3] rounded-md mb-4 overflow-hidden flex-shrink-0">
+            <div className="aspect-[4/3] rounded-md mb-4 overflow-hidden flex-shrink-0 bg-muted/30">
               {thumbnailSrc ? (
-                <img
-                  src={thumbnailSrc}
-                  alt={project.name}
-                  className="w-full h-full object-contain"
-                />
+                <img src={thumbnailSrc} alt={project.name} className="w-full h-full object-contain" />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-                  PDF
+                <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm">
+                  Aucune source
                 </div>
               )}
             </div>
 
-            {/* Info */}
             <div className="flex-1 space-y-3 flex flex-col">
               <h3 className="font-semibold truncate">{project.name}</h3>
 
-              <div className="flex items-center gap-2">
-                <Badge variant={status.variant}>{status.label}</Badge>
+              <div className="flex items-center gap-2 flex-wrap">
                 {templateName && (
                   <span className="text-xs text-muted-foreground flex items-center gap-1">
                     <FileStack className="h-3 w-3" />
@@ -87,12 +77,37 @@ export function ProjectCard({ project, onClick, onDelete, onDuplicate, onExportZ
                 )}
               </div>
 
-              {project.totalFields > 0 && (
-                <div className="space-y-1">
-                  <Progress value={progress} className="h-1.5" />
-                  <p className="text-xs text-muted-foreground text-right">{progress}%</p>
-                </div>
-              )}
+              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <Files className="h-3 w-3" />
+                  {project.sourcesCount} source{project.sourcesCount === 1 ? '' : 's'}
+                </span>
+                <span className="flex items-center gap-1">
+                  <FolderTree className="h-3 w-3" />
+                  {project.dossiersCount} dossier{project.dossiersCount === 1 ? '' : 's'}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                {isEmpty ? (
+                  <Badge variant="info">Nouveau</Badge>
+                ) : (
+                  <>
+                    <Badge variant="secondary">
+                      {articlesTotal} article{articlesTotal === 1 ? '' : 's'}
+                    </Badge>
+                    {articlesToExtract > 0 && (
+                      <Badge variant="warning">{articlesToExtract} à extraire</Badge>
+                    )}
+                    {articlesToTranscribe > 0 && (
+                      <Badge variant="warning">{articlesToTranscribe} à transcrire</Badge>
+                    )}
+                    {isDone && articlesDone === articlesTotal && (
+                      <Badge variant="success">Terminé</Badge>
+                    )}
+                  </>
+                )}
+              </div>
 
               <p className="text-xs text-muted-foreground" style={{ marginTop: 'auto' }}>
                 Modifié le {new Date(project.modifiedAt).toLocaleDateString('fr-FR')}
@@ -110,9 +125,9 @@ export function ProjectCard({ project, onClick, onDelete, onDuplicate, onExportZ
           <Copy className="h-4 w-4 mr-2" />
           Dupliquer
         </ContextMenuItem>
-        <ContextMenuItem onClick={onExportZip}>
-          <FileArchive className="h-4 w-4 mr-2" />
-          Exporter ZIP
+        <ContextMenuItem onClick={onOpenFolder}>
+          <FolderOpen className="h-4 w-4 mr-2" />
+          Ouvrir le dossier
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">

@@ -1,35 +1,35 @@
-import { useState, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { Project } from '@shared/types'
+import type { ProjectView } from '@shared/types'
 import {
-  useProjectsStore,
-  selectExtractionProjects,
-  selectTranscriptionProjects,
-  selectCompletedProjects,
+  selectHasAnyApiKey,
+  selectProjectsDone,
+  selectProjectsToExtract,
+  selectProjectsToTranscribe,
+  useProjectsStoreV2,
   useSettingsStore,
   useUIStore,
-  selectHasAnyApiKey,
 } from '@/stores'
 import { ProjectCard } from './ProjectCard'
 import { CreateProjectModal } from './CreateProjectModal'
 import {
-  Button,
   AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
   AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
   AlertDialogDescription,
   AlertDialogFooter,
-  AlertDialogCancel,
-  AlertDialogAction,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  Button,
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
   Input,
 } from '@/components/ui'
-import { Plus, FolderOpen, Scissors, FileText, Home, CheckCircle, Upload, AlertTriangle } from 'lucide-react'
+import { AlertTriangle, CheckCircle, FileText, FolderOpen, Home, Plus, Scissors } from 'lucide-react'
 import { toast } from 'sonner'
 
 export type ProjectFilter = 'all' | 'extraction' | 'transcription' | 'completed'
@@ -41,21 +41,21 @@ interface ProjectsPageProps {
 const filterConfig: Record<ProjectFilter, { title: string; subtitle: string; icon: React.ElementType; emptyMessage: string }> = {
   all: {
     title: 'Tous les projets',
-    subtitle: 'Vue d\'ensemble de tous vos projets',
+    subtitle: "Vue d'ensemble de tous vos projets",
     icon: Home,
     emptyMessage: 'Aucun projet',
   },
   extraction: {
     title: 'Extraction',
-    subtitle: 'Projets à extraire',
+    subtitle: 'Projets avec des articles à extraire',
     icon: Scissors,
-    emptyMessage: 'Aucun projet à extraire',
+    emptyMessage: 'Aucun article à extraire',
   },
   transcription: {
     title: 'Transcription',
-    subtitle: 'Projets à transcrire',
+    subtitle: 'Projets avec des articles à transcrire',
     icon: FileText,
-    emptyMessage: 'Aucun projet à transcrire',
+    emptyMessage: 'Aucun article à transcrire',
   },
   completed: {
     title: 'Terminés',
@@ -67,95 +67,86 @@ const filterConfig: Record<ProjectFilter, { title: string; subtitle: string; ico
 
 export function ProjectsPage({ filter = 'all' }: ProjectsPageProps) {
   const navigate = useNavigate()
-  const { projects, loading, createProject, deleteProject, duplicateProject, updateProject } = useProjectsStore()
+  const {
+    projects,
+    loading,
+    loadProjects,
+    createProject,
+    deleteProject,
+    duplicateProject,
+    renameProject,
+    openProjectFolder,
+  } = useProjectsStoreV2()
   const hasAnyApiKey = useSettingsStore(selectHasAnyApiKey)
-  const settingsLoaded = useSettingsStore((state) => state.settings !== null)
-  const openSettings = useUIStore((state) => state.openSettings)
+  const settingsLoaded = useSettingsStore((s) => s.settings !== null)
+  const openSettings = useUIStore((s) => s.openSettings)
+
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState<Project | null>(null)
-  const [renameTarget, setRenameTarget] = useState<Project | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<ProjectView | null>(null)
+  const [renameTarget, setRenameTarget] = useState<ProjectView | null>(null)
   const [newName, setNewName] = useState('')
 
+  useEffect(() => {
+    loadProjects()
+  }, [loadProjects])
+
   const filteredProjects = useMemo(() => {
-    const state = { projects } as any
+    const state = { projects } as Parameters<typeof selectProjectsToExtract>[0]
     switch (filter) {
       case 'extraction':
-        return selectExtractionProjects(state)
+        return selectProjectsToExtract(state)
       case 'transcription':
-        return selectTranscriptionProjects(state)
+        return selectProjectsToTranscribe(state)
       case 'completed':
-        return selectCompletedProjects(state)
+        return selectProjectsDone(state)
       default:
         return projects
     }
   }, [projects, filter])
 
   const config = filterConfig[filter]
+  const Icon = config.icon
 
   const handleCreateProject = async (name: string, templateId: string) => {
     const project = await createProject(name, templateId)
     if (project) {
       setShowCreateModal(false)
-    }
-  }
-
-  const handleOpenProject = (project: Project) => {
-    if (project.status === 'new' || project.status === 'extracting') {
-      navigate(`/extraction/${project.id}`)
-    } else {
-      navigate(`/editor/${project.id}`)
-    }
-  }
-
-  const handleExportZip = async (projectId: string) => {
-    const success = await window.api.exportProjectZip(projectId)
-    if (success) {
-      toast.success('Projet exporté')
-    }
-  }
-
-  const handleImportZip = async () => {
-    const project = await window.api.importProjectZip()
-    if (project) {
-      // Refresh projects list
-      await useProjectsStore.getState().loadProjects()
-      toast.success('Projet importé')
+      navigate(`/project/${project.id}`)
     }
   }
 
   const handleRename = async () => {
     if (!renameTarget || !newName.trim()) return
-    const success = await updateProject(renameTarget.id, { name: newName.trim() })
-    if (success) {
-      toast.success('Projet renommé')
-    }
+    const ok = await renameProject(renameTarget.id, newName.trim())
+    if (ok) toast.success('Projet renommé')
     setRenameTarget(null)
     setNewName('')
   }
 
-  const openRenameDialog = (project: Project) => {
+  const openRenameDialog = (project: ProjectView) => {
     setRenameTarget(project)
     setNewName(project.name)
   }
 
-  const Icon = config.icon
-
   return (
     <div className="min-h-screen p-8">
-      {/* No API key banner */}
       {settingsLoaded && !hasAnyApiKey && (
         <div className="mb-4 flex items-center gap-3 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-1.5 text-sm">
           <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-500 shrink-0" />
           <p className="flex-1 text-muted-foreground">
             Aucune clé API configurée. La transcription IA est désactivée.
           </p>
-          <Button variant="ghost" size="sm" className="h-7 text-amber-700 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300" onClick={openSettings}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-amber-700 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300"
+            onClick={openSettings}
+          >
             Configurer
           </Button>
         </div>
       )}
 
-      {/* Header */}
       <header className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-3">
           <Icon className="h-8 w-8 text-primary" />
@@ -165,10 +156,6 @@ export function ProjectsPage({ filter = 'all' }: ProjectsPageProps) {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={handleImportZip}>
-            <Upload className="h-4 w-4 mr-2" />
-            Importer
-          </Button>
           <Button onClick={() => setShowCreateModal(true)}>
             <Plus className="h-4 w-4 mr-2" />
             Nouveau projet
@@ -176,7 +163,6 @@ export function ProjectsPage({ filter = 'all' }: ProjectsPageProps) {
         </div>
       </header>
 
-      {/* Projects Grid */}
       {loading ? (
         <div className="flex items-center justify-center h-64">
           <div className="text-muted-foreground">Chargement...</div>
@@ -194,28 +180,26 @@ export function ProjectsPage({ filter = 'all' }: ProjectsPageProps) {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filteredProjects.map(project => (
+          {filteredProjects.map((project) => (
             <ProjectCard
               key={project.id}
               project={project}
-              onClick={() => handleOpenProject(project)}
+              onClick={() => navigate(`/project/${project.id}`)}
               onDelete={() => setDeleteTarget(project)}
               onDuplicate={() => duplicateProject(project.id)}
-              onExportZip={() => handleExportZip(project.id)}
               onRename={() => openRenameDialog(project)}
+              onOpenFolder={() => openProjectFolder(project.id)}
             />
           ))}
         </div>
       )}
 
-      {/* Create Modal */}
       <CreateProjectModal
         open={showCreateModal}
         onOpenChange={setShowCreateModal}
         onCreate={handleCreateProject}
       />
 
-      {/* Delete Confirmation */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -241,7 +225,6 @@ export function ProjectsPage({ filter = 'all' }: ProjectsPageProps) {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Rename Dialog */}
       <Dialog open={!!renameTarget} onOpenChange={(open) => !open && setRenameTarget(null)}>
         <DialogContent>
           <DialogHeader>
