@@ -24,6 +24,7 @@ import {
   FileImage,
   Layers,
   MousePointer2,
+  Save,
   Square,
   X,
   ZoomIn,
@@ -60,7 +61,6 @@ export function ExtractionV2Page() {
     exporting,
     setCurrentPage,
     setTotalPages,
-    setArticles,
     removeArticle,
     selectArticle,
     addZoneAsNewArticle,
@@ -73,7 +73,9 @@ export function ExtractionV2Page() {
     updateArticle,
     setDefaultTemplate,
     reset: resetExtraction,
-    generateV2Articles,
+    hydrateFromSource,
+    saveArticles,
+    generateArticles,
   } = useExtractionStore()
 
   const templates = useTemplatesStore((s) => s.templates)
@@ -107,13 +109,12 @@ export function ExtractionV2Page() {
     return () => window.removeEventListener('wheel', onWheel)
   }, [])
 
-  // Load project (for dossier list + source metadata) + templates list
+  // Load project + templates list on mount. Hydration of existing v2
+  // articles happens once both are ready.
   useEffect(() => {
     if (!projectId) return
     loadProject(projectId)
     loadTemplates()
-    // Start fresh — no incremental persistence in v2 extraction.
-    setArticles([])
     return () => {
       resetProject()
       resetExtraction()
@@ -121,11 +122,26 @@ export function ExtractionV2Page() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId])
 
+  // Hydrate working buffer from existing v2 articles for this source, once
+  // templates are loaded (so we can attach a templateId for the UI label).
+  const hydratedKeyRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!projectId || !sourceId || templates.length === 0) return
+    const key = `${projectId}:${sourceId}`
+    if (hydratedKeyRef.current === key) return
+    hydratedKeyRef.current = key
+    hydrateFromSource(projectId, sourceId, templates)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, sourceId, templates])
+
   // Seed the store's default model (used by addZoneAsNewArticle) once we
   // know both the project's defaultTemplateId and the templates list.
   useEffect(() => {
     if (!project || templates.length === 0) return
-    const defaultTpl = templates.find((t) => t.id === project.defaultTemplateId)
+    const defaultTpl =
+      templates.find((t) => t.id === project.defaultTemplateId) ??
+      templates.find((t) => t.id === 'press-article') ??
+      templates[0]
     if (!defaultTpl) return
     setDefaultTemplate(defaultTpl.id, defaultTpl.fields, defaultTpl.aiContext)
   }, [project, templates, setDefaultTemplate])
@@ -184,6 +200,12 @@ export function ExtractionV2Page() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // Ctrl/Cmd+S → save current state without generating PDFs
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault()
+        saveArticles()
+        return
+      }
       if (e.key === 'Delete' && currentArticleId !== null && selectedZoneIndex !== null) {
         removeZoneFromArticle(currentArticleId, selectedZoneIndex)
       }
@@ -196,10 +218,35 @@ export function ExtractionV2Page() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [currentArticleId, selectedZoneIndex, removeZoneFromArticle, currentPage, totalPages, setCurrentPage])
+  }, [currentArticleId, selectedZoneIndex, removeZoneFromArticle, currentPage, totalPages, setCurrentPage, saveArticles])
 
   const handleSelectEntirePage = () => {
     handleZoneCreated({ page: currentPage, x1: 0, y1: 0, x2: 1, y2: 1 })
+  }
+
+  // Number of orphan 'new' articles needing a dossier choice at Generate time.
+  // (Persisted articles already in a dossier keep their place.)
+  const orphanNewCount = articles.filter(
+    (a) =>
+      (a.persistedDossierId === null || a.persistedDossierId === undefined) &&
+      a.persistedStatus !== 'extracted' &&
+      a.persistedStatus !== 'transcribed'
+  ).length
+
+  // Working articles never saved yet (no persistedId) — they'll be created
+  // as orphan 'new' at Save time, so they also need a dossier choice on Generate.
+  const unsavedNewCount = articles.filter((a) => !a.persistedId).length
+
+  const handleGenerateClick = async () => {
+    if (!projectId || !sourceId) return
+    // If there are unsaved new articles OR orphan-new persisted, ask dossier.
+    if (orphanNewCount > 0 || unsavedNewCount > 0) {
+      setGenerateOpen(true)
+      return
+    }
+    // Otherwise just regen (modifications on existing dossiered articles).
+    const ok = await generateArticles(null)
+    if (ok) navigate(`/project/${projectId}`)
   }
 
   const handleConfirmGenerate = async (target: {
@@ -216,7 +263,7 @@ export function ExtractionV2Page() {
     } else if (target.choice === 'existing-dossier' && target.existingDossierId) {
       dossierId = target.existingDossierId
     }
-    const ok = await generateV2Articles(projectId, sourceId, dossierId)
+    const ok = await generateArticles(dossierId)
     if (ok) navigate(`/project/${projectId}`)
   }
 
@@ -233,13 +280,10 @@ export function ExtractionV2Page() {
       <UnsavedChangesModal
         open={blocker.state === 'blocked'}
         onSave={async () => {
-          setGenerateOpen(true)
-          blocker.reset?.()
-        }}
-        onDiscard={() => {
-          setArticles([])
+          await saveArticles()
           blocker.proceed?.()
         }}
+        onDiscard={() => blocker.proceed?.()}
         onCancel={() => blocker.reset?.()}
       />
 
@@ -286,7 +330,17 @@ export function ExtractionV2Page() {
           )}
 
           <Button
-            onClick={() => setGenerateOpen(true)}
+            variant="outline"
+            onClick={saveArticles}
+            disabled={!hasUnsavedChanges || exporting}
+            title="Ctrl+S — persiste l'avancement sans générer les PDFs"
+          >
+            <Save className="h-4 w-4 mr-2" />
+            Sauvegarder
+          </Button>
+
+          <Button
+            onClick={handleGenerateClick}
             disabled={articles.length === 0 || exporting}
           >
             <FileImage className="h-4 w-4 mr-2" />

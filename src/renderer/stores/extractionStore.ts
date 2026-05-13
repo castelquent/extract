@@ -1,17 +1,19 @@
 // In-memory state for the ExtractionV2 page: a working buffer of articles
 // being drawn on a source PDF. Articles use a temporary integer id that lives
-// only for the session — at "Generate" time, each article is persisted via
-// v2_articlesCreate which mints a ULID and writes the article folder.
+// only for the session.
+//
+// New articles (no persistedId): created on disk at Save time with
+// skipExtractGeneration=true (status='new', no extract.pdf). Generate later
+// runs the PDF extraction and bumps to 'extracted'.
+//
+// Persisted articles (persistedId set): hydrated from disk on mount. Edits
+// flow through v2_articlesUpdate on Save; if zones changed, status resets
+// to 'new' so Generate regenerates the PDF.
 import { create } from 'zustand'
 import { toast } from 'sonner'
-import type { TemplateField, Zone } from '@shared/types'
+import type { ArticleStatus, Template, TemplateField, Zone } from '@shared/types'
+import { sameSchema } from '@/lib/templateMerge'
 
-// In-memory article shape (numeric id is a session-local handle). The schema
-// is snapshotted from a Template at creation time — copied here so the
-// article is autonomous (template edits won't mutate it).
-// `templateId` is a UI-only marker: which model the user last picked for this
-// working article (so the sidebar select can show the right label). Not
-// persisted to disk on generate.
 export interface WorkingArticle {
   id: number
   zones: Zone[]
@@ -19,6 +21,11 @@ export interface WorkingArticle {
   schema: TemplateField[]
   aiContext?: string
   templateId?: string
+  // Disk-persistence markers (set when hydrated from an existing v2 article,
+  // or after a successful Save of a new article).
+  persistedId?: string
+  persistedStatus?: ArticleStatus
+  persistedDossierId?: string | null
 }
 
 interface ExtractionState {
@@ -31,9 +38,12 @@ interface ExtractionState {
   exporting: boolean
   error: string | null
 
-  // Default model applied to every new WorkingArticle. Set by the page from
-  // the project's default model. Each article can be overridden via
-  // updateArticle({ templateId, schema, aiContext }).
+  // Session bindings (set by the page on mount, cleared on unmount).
+  sessionProjectId: string | null
+  sessionSourceId: string | null
+
+  // Default model applied to every NEW WorkingArticle (drawn from scratch
+  // this session). Persisted articles keep whatever schema they had on disk.
   defaultTemplateId?: string
   defaultSchema: TemplateField[]
   defaultAiContext?: string
@@ -68,12 +78,21 @@ interface ExtractionState {
   setTotalPages: (total: number) => void
   goToPage: (page: number) => void
 
-  // Persistence — create v2 articles from the working buffer
-  generateV2Articles: (
+  // Lifecycle
+  hydrateFromSource: (
     projectId: string,
     sourceId: string,
-    dossierId: string | null
-  ) => Promise<boolean>
+    templates: Template[]
+  ) => Promise<void>
+
+  // Persistence
+  // saveArticles: persist the in-memory buffer without generating PDFs.
+  //   New articles → created in orphans/ with status='new'.
+  //   Persisted articles → updated; if zones changed, status reset to 'new'.
+  saveArticles: () => Promise<boolean>
+  // generateArticles: save first, then for every 'new' article, optionally
+  // move orphans to a chosen dossier and run extract PDF generation.
+  generateArticles: (dossierIdForOrphans: string | null) => Promise<boolean>
 
   // State
   setExporting: (exporting: boolean) => void
@@ -90,10 +109,17 @@ const initialState = {
   totalPages: 0,
   exporting: false,
   error: null as string | null,
+  sessionProjectId: null as string | null,
+  sessionSourceId: null as string | null,
   defaultTemplateId: undefined as string | undefined,
   defaultSchema: [] as TemplateField[],
   defaultAiContext: undefined as string | undefined,
 }
+
+const pagesFromZones = (zones: Zone[]): number[] =>
+  Array.from(new Set(zones.map((z) => z.page))).sort((a, b) => a - b)
+
+const deepClone = <T,>(v: T): T => JSON.parse(JSON.stringify(v))
 
 export const useExtractionStore = create<ExtractionState>((set, get) => ({
   ...initialState,
@@ -328,38 +354,149 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
     }
   },
 
-  generateV2Articles: async (projectId, sourceId, dossierId) => {
-    const { articles } = get()
-    if (articles.length === 0) return false
-    set({ exporting: true, error: null })
+  hydrateFromSource: async (projectId, sourceId, templates) => {
+    set({ sessionProjectId: projectId, sessionSourceId: sourceId, error: null })
     try {
-      for (const article of articles) {
-        const pages = Array.from(new Set(article.zones.map((z) => z.page))).sort(
-          (a, b) => a - b
-        )
-        await window.api.v2_articlesCreate(projectId, {
-          sourceId,
-          dossierId,
-          zones: article.zones,
-          pages,
-          schema: article.schema,
-          aiContext: article.aiContext,
-        })
-      }
-      const empty: WorkingArticle[] = []
+      const existing = await window.api.v2_articlesList(projectId, { sourceId })
+      let counter = 0
+      const hydrated: WorkingArticle[] = existing.map((am) => {
+        const matched = templates.find((t) => sameSchema(t.fields, am.schema ?? []))
+        return {
+          id: ++counter,
+          zones: am.zones,
+          fields: am.fields ?? {},
+          schema: am.schema ?? [],
+          aiContext: am.aiContext,
+          templateId: matched?.id,
+          persistedId: am.id,
+          persistedStatus: am.status,
+          persistedDossierId: am.dossierId,
+        }
+      })
       set({
-        articles: empty,
-        savedArticles: empty,
-        exporting: false,
+        articles: hydrated,
+        savedArticles: deepClone(hydrated),
         currentArticleId: null,
         selectedZoneIndex: null,
       })
-      toast.success(`${articles.length} article(s) générés`)
+    } catch (err) {
+      console.error(err)
+      set({ error: 'Erreur lors du chargement des éléments existants' })
+    }
+  },
+
+  saveArticles: async () => {
+    const { sessionProjectId, sessionSourceId, articles, savedArticles } = get()
+    if (!sessionProjectId || !sessionSourceId) return false
+    if (articles.length === 0 && savedArticles.length === 0) return true
+
+    set({ error: null })
+    const baselineById = new Map(savedArticles.map((a) => [a.id, a]))
+    const updated: WorkingArticle[] = []
+
+    try {
+      for (const article of articles) {
+        if (!article.persistedId) {
+          // New: create on disk without generating PDF.
+          const created = await window.api.v2_articlesCreate(sessionProjectId, {
+            sourceId: sessionSourceId,
+            dossierId: null,
+            zones: article.zones,
+            pages: pagesFromZones(article.zones),
+            fields: article.fields,
+            schema: article.schema,
+            aiContext: article.aiContext,
+            skipExtractGeneration: true,
+          })
+          if (created) {
+            updated.push({
+              ...article,
+              persistedId: created.id,
+              persistedStatus: created.status,
+              persistedDossierId: created.dossierId,
+            })
+          } else {
+            updated.push(article)
+          }
+          continue
+        }
+
+        // Persisted: compare to baseline. Skip if unchanged.
+        const baseline = baselineById.get(article.id)
+        const same = baseline && JSON.stringify(article) === JSON.stringify(baseline)
+        if (same) {
+          updated.push(article)
+          continue
+        }
+
+        const zonesChanged =
+          JSON.stringify(article.zones) !== JSON.stringify(baseline?.zones ?? [])
+        const newStatus: ArticleStatus = zonesChanged
+          ? 'new'
+          : article.persistedStatus ?? 'extracted'
+
+        const ok = await window.api.v2_articlesUpdate(sessionProjectId, article.persistedId, {
+          zones: article.zones,
+          pages: pagesFromZones(article.zones),
+          fields: article.fields,
+          schema: article.schema,
+          aiContext: article.aiContext,
+          status: newStatus,
+        })
+        updated.push(ok ? { ...article, persistedStatus: newStatus } : article)
+      }
+
+      set({ articles: updated, savedArticles: deepClone(updated) })
+      toast.success('Sauvegardé')
       return true
     } catch (err) {
       console.error(err)
-      toast.error('Erreur lors de la génération des articles')
-      set({ error: 'Erreur lors de la génération', exporting: false })
+      toast.error('Erreur lors de la sauvegarde')
+      set({ error: 'Erreur lors de la sauvegarde' })
+      return false
+    }
+  },
+
+  generateArticles: async (dossierIdForOrphans) => {
+    const saved = await get().saveArticles()
+    if (!saved) return false
+    const { sessionProjectId, articles } = get()
+    if (!sessionProjectId) return false
+
+    set({ exporting: true, error: null })
+    try {
+      const next: WorkingArticle[] = []
+      for (const article of articles) {
+        if (!article.persistedId || article.persistedStatus !== 'new') {
+          next.push(article)
+          continue
+        }
+        // Move orphan → dossier if user picked one.
+        let dossierId = article.persistedDossierId
+        if (article.persistedDossierId === null && dossierIdForOrphans !== null) {
+          const moved = await window.api.v2_articlesMove(sessionProjectId, article.persistedId, {
+            dossierId: dossierIdForOrphans,
+          })
+          if (moved) dossierId = dossierIdForOrphans
+        }
+        const regen = await window.api.v2_articlesRegenerateExtract(sessionProjectId, article.persistedId)
+        next.push({
+          ...article,
+          persistedStatus: regen ? 'extracted' : article.persistedStatus,
+          persistedDossierId: dossierId,
+        })
+      }
+      set({ articles: next, savedArticles: deepClone(next), exporting: false })
+      const generatedCount = next.filter((a) => a.persistedStatus === 'extracted').length -
+        articles.filter((a) => a.persistedStatus === 'extracted').length
+      if (generatedCount > 0) {
+        toast.success(`${generatedCount} élément${generatedCount > 1 ? 's' : ''} généré${generatedCount > 1 ? 's' : ''}`)
+      }
+      return true
+    } catch (err) {
+      console.error(err)
+      toast.error('Erreur lors de la génération')
+      set({ exporting: false, error: 'Erreur lors de la génération' })
       return false
     }
   },

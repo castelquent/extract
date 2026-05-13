@@ -35,6 +35,17 @@ export const wrapAsHtml = (text: unknown): string => {
   return `<p>${str}</p>`
 }
 
+// Schema equality by field-by-field comparison (name + type + order). Used
+// to identify which Template (if any) currently matches an article's snapshot.
+export const sameSchema = (a: TemplateField[], b: TemplateField[]): boolean => {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    const af = a[i], bf = b[i]
+    if (af.name !== bf.name || af.type !== bf.type || af.order !== bf.order) return false
+  }
+  return true
+}
+
 export interface MergeResult {
   mergedFields: Record<string, string>
   lostFields: { name: string; value: string }[]
