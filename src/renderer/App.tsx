@@ -5,6 +5,7 @@ import { ExtractionPage } from './pages/Extraction'
 import { EditorPage } from './pages/Editor'
 import { TemplatesPage } from './pages/Templates'
 import { SearchPage } from './pages/Search'
+import { OnboardingPage } from './pages/Onboarding'
 import { WindowCloseHandler } from './components/WindowCloseHandler'
 import { UpdateHandler } from './components/UpdateHandler'
 
@@ -14,6 +15,7 @@ function App() {
       <WindowCloseHandler />
       <UpdateHandler />
       <Routes>
+        <Route path="/welcome" element={<OnboardingPage />} />
         <Route element={<AppLayout />}>
           <Route path="/" element={<ProjectsPage filter="all" />} />
           <Route path="/extraction" element={<ProjectsPage filter="extraction" />} />

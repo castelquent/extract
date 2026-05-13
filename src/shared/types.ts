@@ -101,6 +101,7 @@ export interface Settings {
   app: {
     checkUpdatesOnStart: boolean
     theme: 'light' | 'dark'
+    onboardingSeen?: boolean
   }
 }
 

@@ -1,20 +1,35 @@
 import { useEffect } from 'react'
-import { Outlet } from 'react-router-dom'
+import { Outlet, useNavigate } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { NavigationDrawer } from './NavigationDrawer'
 import { SettingsModal } from './SettingsModal'
 import { HelpModal } from './HelpModal'
-import { useProjectsStore, useTemplatesStore } from '@/stores'
+import {
+  useProjectsStore,
+  useTemplatesStore,
+  useSettingsStore,
+} from '@/stores'
 
 export function AppLayout() {
+  const navigate = useNavigate()
   const loadProjects = useProjectsStore((state) => state.loadProjects)
   const loadTemplates = useTemplatesStore((state) => state.loadTemplates)
+  const loadSettings = useSettingsStore((state) => state.loadSettings)
+  const settings = useSettingsStore((state) => state.settings)
 
   useEffect(() => {
     loadProjects()
     loadTemplates()
-  }, [loadProjects, loadTemplates])
+    loadSettings()
+  }, [loadProjects, loadTemplates, loadSettings])
+
+  // Redirect to onboarding on first launch (once settings have loaded)
+  useEffect(() => {
+    if (settings && !settings.app.onboardingSeen) {
+      navigate('/welcome', { replace: true })
+    }
+  }, [settings, navigate])
 
   return (
     <SidebarProvider>

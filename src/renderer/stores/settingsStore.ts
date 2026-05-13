@@ -31,6 +31,7 @@ Réponds uniquement avec le JSON, sans explication.`,
   app: {
     checkUpdatesOnStart: true,
     theme: 'dark',
+    onboardingSeen: false,
   },
 }
 
@@ -106,3 +107,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 // Selectors
 export const selectAISettings = (state: SettingsState) => state.settings?.ai || null
 export const selectAppSettings = (state: SettingsState) => state.settings?.app || null
+export const selectHasAnyApiKey = (state: SettingsState) => {
+  const ai = state.settings?.ai
+  return !!(ai?.anthropicApiKey?.trim() || ai?.openaiApiKey?.trim())
+}

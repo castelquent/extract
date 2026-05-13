@@ -7,5 +7,5 @@ export {
   selectTotalZonesCount,
   selectHasUnsavedChanges,
 } from './extractionStore'
-export { useSettingsStore, selectAISettings, selectAppSettings } from './settingsStore'
+export { useSettingsStore, selectAISettings, selectAppSettings, selectHasAnyApiKey } from './settingsStore'
 export { useTemplatesStore } from './templatesStore'

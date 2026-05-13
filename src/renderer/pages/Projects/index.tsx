@@ -1,7 +1,15 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Project } from '@shared/types'
-import { useProjectsStore, selectExtractionProjects, selectTranscriptionProjects, selectCompletedProjects } from '@/stores'
+import {
+  useProjectsStore,
+  selectExtractionProjects,
+  selectTranscriptionProjects,
+  selectCompletedProjects,
+  useSettingsStore,
+  useUIStore,
+  selectHasAnyApiKey,
+} from '@/stores'
 import { ProjectCard } from './ProjectCard'
 import { CreateProjectModal } from './CreateProjectModal'
 import {
@@ -21,7 +29,7 @@ import {
   DialogFooter,
   Input,
 } from '@/components/ui'
-import { Plus, FolderOpen, Scissors, FileText, Home, CheckCircle, Upload } from 'lucide-react'
+import { Plus, FolderOpen, Scissors, FileText, Home, CheckCircle, Upload, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 
 export type ProjectFilter = 'all' | 'extraction' | 'transcription' | 'completed'
@@ -60,6 +68,9 @@ const filterConfig: Record<ProjectFilter, { title: string; subtitle: string; ico
 export function ProjectsPage({ filter = 'all' }: ProjectsPageProps) {
   const navigate = useNavigate()
   const { projects, loading, createProject, deleteProject, duplicateProject, updateProject } = useProjectsStore()
+  const hasAnyApiKey = useSettingsStore(selectHasAnyApiKey)
+  const settingsLoaded = useSettingsStore((state) => state.settings !== null)
+  const openSettings = useUIStore((state) => state.openSettings)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null)
   const [renameTarget, setRenameTarget] = useState<Project | null>(null)
@@ -131,6 +142,19 @@ export function ProjectsPage({ filter = 'all' }: ProjectsPageProps) {
 
   return (
     <div className="min-h-screen p-8">
+      {/* No API key banner */}
+      {settingsLoaded && !hasAnyApiKey && (
+        <div className="mb-4 flex items-center gap-3 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-1.5 text-sm">
+          <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-500 shrink-0" />
+          <p className="flex-1 text-muted-foreground">
+            Aucune clé API configurée. La transcription IA est désactivée.
+          </p>
+          <Button variant="ghost" size="sm" className="h-7 text-amber-700 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300" onClick={openSettings}>
+            Configurer
+          </Button>
+        </div>
+      )}
+
       {/* Header */}
       <header className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-3">
