@@ -154,8 +154,8 @@ function WorkflowSection() {
       <div>
         <h3 className="text-lg font-medium mb-2">Comment ça marche ?</h3>
         <p className="text-sm text-muted-foreground">
-          ExtrAct transforme un PDF (journal, magazine, courrier...) en documents
-          structurés grâce à l'IA. Voici les quatre grandes étapes.
+          ExtrAct transforme vos PDF (journaux, magazines, correspondance...) en
+          éléments structurés grâce à l'IA. Voici les grandes étapes.
         </p>
       </div>
 
@@ -163,33 +163,68 @@ function WorkflowSection() {
         <li className="border rounded-lg p-4">
           <div className="font-medium mb-1">1. Créer un projet</div>
           <p className="text-sm text-muted-foreground">
-            Depuis <em>Accueil</em>, cliquez sur <strong>Nouveau projet</strong>, importez
-            votre PDF et choisissez un <strong>modèle</strong> par défaut (Article de presse,
-            Correspondance, ou un modèle personnalisé que vous avez créé).
+            Depuis <em>Tous les projets</em>, cliquez sur <strong>Nouveau projet</strong>,
+            donnez-lui un nom et choisissez un <strong>modèle</strong> par défaut
+            (Article de presse, Correspondance, ou un modèle personnalisé). Un projet
+            peut contenir plusieurs PDF (les <strong>sources</strong>) et plusieurs
+            <strong> dossiers</strong> pour les organiser.
           </p>
         </li>
         <li className="border rounded-lg p-4">
-          <div className="font-medium mb-1">2. Extraire les zones</div>
+          <div className="font-medium mb-1">2. Importer une ou plusieurs sources</div>
           <p className="text-sm text-muted-foreground">
-            Dans <em>Extraction</em>, dessinez un rectangle autour de chaque élément à
-            isoler (un article, une lettre...). Vous pouvez combiner plusieurs zones
-            pour un même élément si celui-ci s'étale sur plusieurs colonnes ou pages.
+            Dans l'onglet <em>Sources</em>, importez vos PDF (ou images JPG/PNG, qui
+            seront converties). Chaque source devient une vignette cliquable. Le bouton
+            engrenage permet de renommer, télécharger ou remplacer le PDF d'une source.
           </p>
         </li>
         <li className="border rounded-lg p-4">
-          <div className="font-medium mb-1">3. Transcrire avec l'IA</div>
+          <div className="font-medium mb-1">3. Extraire les éléments</div>
           <p className="text-sm text-muted-foreground">
-            Dans <em>Transcription</em>, lancez la transcription sur un élément ou en
-            masse. L'IA remplit automatiquement les champs définis par le modèle
-            (titre, auteur, contenu, etc.). Vous pouvez ensuite corriger à la main.
+            Cliquez sur une source pour ouvrir la page <em>Extraction</em>. Dessinez un
+            rectangle autour de chaque article / lettre / annonce. Plusieurs zones
+            peuvent appartenir au même élément s'il s'étale sur plusieurs colonnes
+            ou pages. <strong>Sauvegarder</strong> garde votre avancement en
+            brouillon ; <strong>Générer</strong> produit le PDF de chaque élément et
+            le ranger dans le dossier choisi.
           </p>
         </li>
         <li className="border rounded-lg p-4">
-          <div className="font-medium mb-1">4. Exporter</div>
+          <div className="font-medium mb-1">4. Transcrire dans l'éditeur</div>
           <p className="text-sm text-muted-foreground">
-            Exportez vos éléments un par un, par lot ou en totalité, au format PDF,
-            DOCX ou TXT. Vous pouvez aussi exporter le projet complet en ZIP pour
+            Cliquez sur un élément (ou cochez-en plusieurs puis <em>Transcrire</em>)
+            pour ouvrir l'éditeur. La transcription IA remplit automatiquement les
+            champs du modèle. Vous pouvez ensuite corriger à la main, naviguer entre
+            les éléments avec les flèches, et appliquer un autre modèle si besoin.
+          </p>
+        </li>
+        <li className="border rounded-lg p-4">
+          <div className="font-medium mb-1">5. Organiser</div>
+          <p className="text-sm text-muted-foreground">
+            Dans l'onglet <em>Éléments</em>, glissez-déposez les articles pour les
+            réordonner ou les déplacer entre dossiers. Sélectionnez-en plusieurs
+            (case à cocher) pour des actions en lot : déplacer, exporter, supprimer.
+            Le filtre <em>Incomplets seulement</em> n'affiche que les éléments dont
+            tous les champs ne sont pas remplis.
+          </p>
+        </li>
+        <li className="border rounded-lg p-4">
+          <div className="font-medium mb-1">6. Exporter</div>
+          <p className="text-sm text-muted-foreground">
+            Exportez un, plusieurs ou tous les éléments au format PDF, DOCX ou TXT.
+            Chaque élément exporté est accompagné de sa source et de son numéro de
+            page d'origine. Le projet entier peut aussi être exporté en ZIP pour
             sauvegarde.
+          </p>
+        </li>
+        <li className="border rounded-lg p-4">
+          <div className="font-medium mb-1">7. Rechercher</div>
+          <p className="text-sm text-muted-foreground">
+            La page <em>Recherche</em> cherche un mot ou une phrase à travers tous
+            vos projets, tous champs confondus. La recherche est insensible aux
+            accents et à la casse. Vous pouvez filtrer par projet / dossier / modèle
+            / champ, et exporter les résultats trouvés (avec mise en surbrillance
+            du terme recherché en DOCX et PDF).
           </p>
         </li>
       </ol>
@@ -262,7 +297,7 @@ function TemplatesSection() {
         <h4 className="font-medium mb-2">Modèles par défaut</h4>
         <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
           <li><strong>Article de presse</strong> — Titre, Auteur, Contenu.</li>
-          <li><strong>Correspondance</strong> — Titre, Date, Expéditeur, Destinataire, Contenu.</li>
+          <li><strong>Correspondance</strong> — Date, Expéditeur, Destinataire, Contenu.</li>
         </ul>
         <p className="text-xs text-muted-foreground mt-2 italic">
           Ces modèles ne sont pas modifiables, mais vous pouvez les dupliquer
