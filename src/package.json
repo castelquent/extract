@@ -1,6 +1,6 @@
 {
   "name": "extract-v2",
-  "version": "2.0.5",
+  "version": "2.0.6",
   "description": "Application d'extraction et d'édition d'articles depuis des PDF",
   "main": "dist-electron/main/index.js",
   "scripts": {
