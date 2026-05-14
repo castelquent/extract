@@ -129,6 +129,16 @@ const api: ElectronAPI & {
   v2_exportMultiArticlesDocx: (items, options) => ipcRenderer.invoke('v2:export:multiArticlesDocx', items, options),
   v2_exportMultiArticlesTxt: (items, options) => ipcRenderer.invoke('v2:export:multiArticlesTxt', items, options),
 
+  // PDF export diagnostics — main forwards each step here so DevTools
+  // shows the trace (helps debug cross-platform issues without stdout).
+  v2_onExportLog: (callback: (line: string) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, line: string) => callback(line)
+    ipcRenderer.on('v2:export:log', handler)
+    return () => {
+      ipcRenderer.removeListener('v2:export:log', handler)
+    }
+  },
+
   // File watcher notifications (main → renderer)
   v2_onProjectsListChanged: (callback: () => void) => {
     const handler = () => callback()

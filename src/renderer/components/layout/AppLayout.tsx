@@ -40,9 +40,12 @@ export function AppLayout() {
       }
       useProjectsStoreV2.getState().loadProjects()
     })
+    // Forward PDF-export diagnostics from main into the DevTools console.
+    const unsubExportLog = window.api.v2_onExportLog((line) => console.log(line))
     return () => {
       unsubList()
       unsubProject()
+      unsubExportLog()
     }
   }, [])
 

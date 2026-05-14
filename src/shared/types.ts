@@ -359,6 +359,9 @@ export interface ElectronAPI {
     options?: ExportOptions
   ) => Promise<boolean>
 
+  // PDF export diagnostics (main → renderer DevTools console)
+  v2_onExportLog: (callback: (line: string) => void) => () => void
+
   // File watcher notifications
   v2_onProjectsListChanged: (callback: () => void) => () => void
   v2_onProjectChanged: (callback: (projectId: string) => void) => () => void

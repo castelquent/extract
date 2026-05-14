@@ -1,9 +1,27 @@
 // v2 export handlers. Take an array of articleIds, load each article's
 // metadata, and produce a single output file (PDF / DOCX / TXT).
-import { ipcMain, dialog } from 'electron'
+//
+// PDF generation runs through Electron's headless BrowserWindow +
+// webContents.printToPDF rather than PDFKit. That gives us native
+// support for everything HTML/CSS does (highlight via <mark>, page
+// breaks via CSS, accented text, real typography) at the cost of
+// spinning up a Chromium renderer per export — still seconds for a
+// few hundred articles.
+import { ipcMain, dialog, BrowserWindow } from 'electron'
+import { writeFileSync, unlinkSync } from 'fs'
+import { tmpdir } from 'os'
 import { join } from 'path'
-import { createWriteStream, existsSync, writeFileSync } from 'fs'
-import PDFDocument from 'pdfkit'
+import { pathToFileURL } from 'url'
+
+// Forward export diagnostics to every renderer's DevTools console.
+// (main process stdout isn't visible in a packaged Electron app, so the
+// renderer is the only place a user can watch the trace.)
+const exportLog = (msg: string, err?: unknown): void => {
+  const line = `[pdf-export ${new Date().toISOString()}] ${msg}${err ? ` :: ${err instanceof Error ? err.stack || err.message : String(err)}` : ''}`
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) win.webContents.send('v2:export:log', line)
+  }
+}
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, PageBreak, VerticalAlign } from 'docx'
 import { convert } from 'html-to-text'
 import type {
@@ -15,8 +33,10 @@ import type {
 import { isFieldFilled } from '@shared/fieldValue'
 import { idx } from './_index'
 
-// Load metadata for a list of article IDs in a project. Reads from the
-// in-memory index (no file walk).
+// ============================================================
+// Shared helpers (loading, ordering, source line, formatting)
+// ============================================================
+
 const loadArticles = (projectId: string, articleIds: string[]): ArticleMetadata[] => {
   const result: ArticleMetadata[] = []
   for (const id of articleIds) {
@@ -26,9 +46,6 @@ const loadArticles = (projectId: string, articleIds: string[]): ArticleMetadata[
   return result
 }
 
-// Multi-project variant: each item already names its own project. Used by
-// the search-results export. Article order in the output matches the input
-// item order — the caller (SearchPage) decides grouping.
 const loadMultiArticles = (items: MultiExportItem[]): ArticleMetadata[] => {
   const result: ArticleMetadata[] = []
   for (const { projectId, articleId } of items) {
@@ -62,7 +79,6 @@ const splitOnNeedle = (
   return out
 }
 
-// Build TextRuns from a plain string, splitting around highlight matches.
 const runsFromText = (
   text: string,
   needle: string | undefined,
@@ -80,14 +96,8 @@ const runsFromText = (
   )
 }
 
-// Build the ordered list of `(field, plainText)` entries we want to export
-// for one article. Driven by `article.schema` (not by `Object.entries(fields)`,
-// which would yield JSON-insertion order). Empty values are dropped via
-// `isFieldFilled` so a Quill `<p><br></p>` placeholder doesn't render as
-// a blank section. Richtext values go through html-to-text; plain text /
-// textarea / numeric values are used as-is (string-coerced) — running them
-// through html-to-text silently swallows non-HTML scalars like the number
-// `3` stored in a "Nombre de paragraphes" field.
+// Plain-text per-field (used by DOCX/TXT). Richtext fields go through
+// html-to-text; everything else stays as the raw string.
 const orderedFilledEntries = (
   article: ArticleMetadata
 ): { field: TemplateField; plain: string }[] => {
@@ -106,7 +116,6 @@ const orderedFilledEntries = (
   return out
 }
 
-// Compact page range formatting: [1,2,3,5,7,8] → "1-3, 5, 7-8".
 const formatPages = (pages: number[]): string => {
   if (!pages || pages.length === 0) return ''
   const sorted = [...new Set(pages)].sort((a, b) => a - b)
@@ -127,8 +136,6 @@ const formatPages = (pages: number[]): string => {
   return out.join(', ')
 }
 
-// "Source : <name>, page(s) <N>". Falls back to "Source inconnue" if the
-// referenced source is missing (article still on disk, source deleted).
 const sourceLineFor = (article: ArticleMetadata): string => {
   const entry = idx.getSource(article.sourceId)
   const sourceName =
@@ -138,24 +145,231 @@ const sourceLineFor = (article: ArticleMetadata): string => {
   const pages = article.pages ?? []
   if (pages.length === 0) return `Source : ${sourceName}`
   const pageStr = formatPages(pages)
-  // Plural if multiple pages OR a range (e.g. "3-5" reads as plural too).
   const isPlural = pages.length > 1 || pageStr.includes('-')
   return `Source : ${sourceName}, ${isPlural ? 'pages' : 'page'} ${pageStr}`
 }
 
-const getFontPath = (fontName: string): string | null => {
-  const systemFonts = process.env.WINDIR ? join(process.env.WINDIR, 'Fonts') : '/usr/share/fonts'
-  const fontMap: Record<string, string[]> = {
-    regular: ['arial.ttf', 'Arial.ttf', 'DejaVuSans.ttf'],
-    bold: ['arialbd.ttf', 'Arial Bold.ttf', 'DejaVuSans-Bold.ttf'],
-  }
-  const fonts = fontMap[fontName] || fontMap['regular']
-  for (const f of fonts) {
-    const p = join(systemFonts, f)
-    if (existsSync(p)) return p
-  }
-  return null
+// ============================================================
+// HTML helpers (used by the printToPDF path)
+// ============================================================
+
+const escapeHtml = (s: string): string =>
+  s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+
+const escapeRegex = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+// Wrap each occurrence of `needle` in <mark>, but only inside text content
+// (not inside tag names or attributes). The regex splits the HTML into
+// `(<tag>) | (text)` alternations and only rewrites the text branches.
+const highlightInHtml = (html: string, needle: string | undefined): string => {
+  if (!needle) return html
+  const re = new RegExp(escapeRegex(needle), 'gi')
+  return html.replace(/(<[^>]+>)|([^<]+)/g, (_, tag: string | undefined, text: string | undefined) => {
+    if (tag !== undefined) return tag
+    return (text ?? '').replace(re, (m) => `<mark>${m}</mark>`)
+  })
 }
+
+// HTML-ready per-field entries. Richtext fields keep their Quill HTML
+// (we trust it — same renderer that produced it owns the input). Plain
+// values are escaped. Optional needle inserts <mark> wraps around hits.
+const orderedFilledEntriesHtml = (
+  article: ArticleMetadata,
+  needle?: string
+): { field: TemplateField; html: string }[] => {
+  const schema = [...(article.schema ?? [])].sort((a, b) => a.order - b.order)
+  const out: { field: TemplateField; html: string }[] = []
+  for (const field of schema) {
+    const raw = article.fields?.[field.name]
+    if (!isFieldFilled(field, raw)) continue
+    const str = typeof raw === 'string' ? raw : String(raw ?? '')
+    const html = field.type === 'richtext' ? str : escapeHtml(str)
+    out.push({ field, html: highlightInHtml(html, needle) })
+  }
+  return out
+}
+
+// One article's HTML section. The first field is rendered as the H1
+// title; subsequent fields as labelled blocks. The article-level
+// `break-before` is controlled by the caller (first article has no
+// break; subsequent ones get a forced page break).
+const articleSectionHtml = (
+  article: ArticleMetadata,
+  needle: string | undefined,
+  withPageBreak: boolean
+): string => {
+  const entries = orderedFilledEntriesHtml(article, needle)
+  let titleHtml = ''
+  const fieldBlocks: string[] = []
+  entries.forEach(({ field, html }, i) => {
+    if (i === 0) {
+      // First field = title. If it's richtext (unusual), strip tags so
+      // it reads as a clean heading.
+      const headerInner = field.type === 'richtext' ? html.replace(/<[^>]+>/g, ' ').trim() : html
+      titleHtml = `<h1 class="article-title">${headerInner}</h1><hr class="title-rule"/>`
+    } else {
+      fieldBlocks.push(
+        `<section class="field"><div class="field-label">${escapeHtml(field.name)}</div><div class="field-value">${html}</div></section>`
+      )
+    }
+  })
+  const sourceLine = `<div class="source">${highlightInHtml(escapeHtml(sourceLineFor(article)), needle)}</div>`
+  const style = withPageBreak ? ' style="break-before: page;"' : ''
+  return `<article class="article"${style}>${titleHtml}${fieldBlocks.join('')}${sourceLine}</article>`
+}
+
+const dossierTitleSectionHtml = (title: string): string =>
+  `<section class="dossier-title-page"><div class="dossier-title">${escapeHtml(title)}</div></section>`
+
+const fullDocumentHtml = (innerHtml: string): string => `<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<style>
+@page { size: A4; margin: 2cm; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-size: 11pt;
+  line-height: 1.5;
+  color: #000;
+}
+h1.article-title {
+  font-size: 18pt;
+  text-align: center;
+  margin: 0 0 0.4em 0;
+  font-weight: bold;
+}
+hr.title-rule {
+  border: none;
+  border-top: 1px solid #000;
+  margin: 0 0 1em 0;
+}
+.field {
+  margin-top: 0.8em;
+}
+.field-label {
+  font-weight: bold;
+  font-size: 10pt;
+  margin-bottom: 0.2em;
+  /* Keep the label glued to at least the start of its value (avoid a label
+     stranded at the bottom of a page with its content starting on the next). */
+  break-after: avoid;
+}
+.field-value {
+  text-align: justify;
+  /* Prevent single-line orphans/widows at page boundaries. */
+  orphans: 2;
+  widows: 2;
+}
+.field-value p { margin: 0 0 0.5em 0; }
+.field-value p:last-child { margin-bottom: 0; }
+.source {
+  margin-top: 1.6em;
+  font-size: 9pt;
+  color: #666;
+}
+.dossier-title-page {
+  break-before: page;
+  break-after: page;
+  height: 80vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.dossier-title {
+  font-size: 36pt;
+  font-weight: bold;
+  line-height: 1.2;
+}
+mark {
+  background-color: #fff14a;
+  color: inherit;
+  padding: 0 1px;
+  border-radius: 1px;
+}
+</style>
+</head>
+<body>${innerHtml}</body>
+</html>`
+
+// Render an HTML document to a PDF file by loading it in a hidden
+// BrowserWindow and calling webContents.printToPDF. The window is
+// destroyed when done, the temp HTML file is removed on a best-effort
+// basis. We use a temp file rather than a `data:` URL so we don't hit
+// Chromium's data-URL size limits on large exports.
+const renderHtmlToPdf = async (html: string, savePath: string): Promise<boolean> => {
+  let win: BrowserWindow | null = null
+  const tmpHtml = join(tmpdir(), `extract-export-${Date.now()}-${process.pid}.html`)
+  exportLog(`start: htmlLen=${html.length} tmp=${tmpHtml} save=${savePath}`)
+  try {
+    writeFileSync(tmpHtml, html, 'utf-8')
+    exportLog('wrote tmp html')
+
+    win = new BrowserWindow({
+      show: false,
+      // CRITICAL on macOS: a `show: false` BrowserWindow doesn't render
+      // its DOM by default — printToPDF would then produce a blank file
+      // or fail silently. paintWhenInitiallyHidden forces the renderer to
+      // paint anyway. Default has been `true` since Electron 14 but we
+      // set it explicitly to be safe across versions.
+      paintWhenInitiallyHidden: true,
+      webPreferences: {
+        sandbox: false,
+        nodeIntegration: false,
+        contextIsolation: true,
+        offscreen: false,
+      },
+    })
+    exportLog('created BrowserWindow')
+
+    win.webContents.on('did-fail-load', (_e, code, desc, url) => {
+      exportLog(`did-fail-load code=${code} desc=${desc} url=${url}`)
+    })
+    win.webContents.on('render-process-gone', (_e, details) => {
+      exportLog(`render-process-gone reason=${details.reason} exitCode=${details.exitCode}`)
+    })
+
+    const fileUrl = pathToFileURL(tmpHtml).href
+    exportLog(`loading url: ${fileUrl}`)
+    await win.loadURL(fileUrl)
+    exportLog('loadURL resolved')
+
+    // One animation frame's worth of grace so the renderer commits its
+    // layout before we ask for a print. Cheap insurance against races on
+    // slower Macs where loadURL resolves before paint.
+    await new Promise((r) => setTimeout(r, 50))
+
+    const pdf = await win.webContents.printToPDF({
+      pageSize: 'A4',
+      printBackground: true,
+      preferCSSPageSize: true,
+    })
+    exportLog(`printToPDF returned ${pdf.byteLength} bytes`)
+
+    writeFileSync(savePath, pdf)
+    exportLog(`wrote save file (${pdf.byteLength} bytes)`)
+    return true
+  } catch (err) {
+    exportLog('failed in renderHtmlToPdf', err)
+    return false
+  } finally {
+    if (win) {
+      try { win.destroy() } catch { /* ignore */ }
+    }
+    try { unlinkSync(tmpHtml) } catch { /* best-effort cleanup */ }
+  }
+}
+
+// ============================================================
+// IPC handlers
+// ============================================================
 
 export function setupV2ExportHandlers(): void {
   ipcMain.handle(
@@ -179,72 +393,20 @@ export function setupV2ExportHandlers(): void {
         (options?.dossierTitles ?? []).map((m) => [m.beforeArticleId, m.title])
       )
 
-      return new Promise((resolve) => {
-        try {
-          const regularFont = getFontPath('regular')
-          const boldFont = getFontPath('bold')
-          if (!regularFont || !boldFont) {
-            console.error('[PDF Export] System fonts not found')
-            resolve(false)
-            return
-          }
-          const doc = new PDFDocument({
-            size: 'A4',
-            margins: { top: 72, bottom: 72, left: 72, right: 72 },
-            autoFirstPage: false,
-            bufferPages: true,
-            font: regularFont,
-          })
-          doc.registerFont('Regular', regularFont)
-          doc.registerFont('Bold', boldFont)
-          const stream = createWriteStream(result.filePath!)
-          doc.pipe(stream)
-
-          // No eager first page — each iteration adds the page(s) it needs.
-          // This keeps the loop uniform whether the first item starts with
-          // a dossier title or not.
-          articles.forEach((article) => {
-            const dossierTitle = dossierTitleByArticleId.get(article.id)
-            if (dossierTitle) {
-              doc.addPage()
-              // Vertically-centred dossier title page.
-              const innerH = doc.page.height - 144
-              doc.fontSize(36).font('Bold')
-              doc.text(dossierTitle, 72, 72 + innerH / 2 - 24, {
-                align: 'center',
-                width: doc.page.width - 144,
-              })
-            }
-            doc.addPage()
-            const entries = orderedFilledEntries(article)
-            entries.forEach(({ field, plain }, fieldIndex) => {
-              if (fieldIndex === 0) {
-                doc.fontSize(18).font('Bold')
-                doc.text(plain, { align: 'center' })
-                doc.moveDown(0.5)
-                doc.moveTo(72, doc.y).lineTo(doc.page.width - 72, doc.y).stroke()
-                doc.moveDown(1)
-              } else {
-                doc.fontSize(10).font('Bold').text(field.name, { continued: false })
-                doc.fontSize(11).font('Regular')
-                doc.text(plain, { align: 'justify', lineGap: 2 })
-                doc.moveDown(0.5)
-              }
-            })
-            // Source line at the bottom of the article — smaller, muted.
-            doc.moveDown(0.5)
-            doc.fontSize(9).font('Regular').fillColor('#666666')
-            doc.text(sourceLineFor(article), { align: 'left' })
-            doc.fillColor('black')
-          })
-          doc.end()
-          stream.on('finish', () => resolve(true))
-          stream.on('error', () => resolve(false))
-        } catch (err) {
-          console.error('[v2 PDF Export] Error:', err)
-          resolve(false)
+      const parts: string[] = []
+      articles.forEach((article, index) => {
+        const dossierTitle = dossierTitleByArticleId.get(article.id)
+        if (dossierTitle) {
+          parts.push(dossierTitleSectionHtml(dossierTitle))
+          // The article that follows a dossier title already starts on
+          // a fresh page (dossier-title-page has break-after: page).
+          parts.push(articleSectionHtml(article, undefined, false))
+        } else {
+          parts.push(articleSectionHtml(article, undefined, index > 0))
         }
       })
+
+      return renderHtmlToPdf(fullDocumentHtml(parts.join('')), result.filePath)
     }
   )
 
@@ -270,10 +432,6 @@ export function setupV2ExportHandlers(): void {
       )
 
       try {
-        // Each dossier title gets its OWN section with `verticalAlign:
-        // CENTER` so Word centres the title vertically on its page no
-        // matter how many lines it wraps to. Article content lives in
-        // separate default-aligned sections that follow.
         type Section = {
           properties: { verticalAlign?: typeof VerticalAlign.CENTER }
           children: Paragraph[]
@@ -333,7 +491,6 @@ export function setupV2ExportHandlers(): void {
               }
             }
           })
-          // Source line at the bottom of the article — italic, slightly muted.
           current.children.push(
             new Paragraph({
               children: [
@@ -350,7 +507,6 @@ export function setupV2ExportHandlers(): void {
         })
         flush()
 
-        // docx requires at least one section even if export was empty.
         const doc = new Document({
           sections: sections.length > 0 ? sections : [{ properties: {}, children: [] }],
         })
@@ -428,15 +584,13 @@ export function setupV2ExportHandlers(): void {
   // ============================================================
   //
   // Article order matches the input items list — caller decides grouping.
-  // The current callers (SearchPage) hand articles in the same order they
-  // appear on screen. `options.highlight` is honoured in DOCX only; PDF
-  // and TXT just render without emphasis (PDFKit can't style inline spans
-  // cleanly; TXT has no markup convention here).
+  // `options.highlight` wraps occurrences of the term in <mark> (PDF) or
+  // yellow highlight runs (DOCX). TXT has no markup convention so the
+  // term is left alone.
 
   ipcMain.handle(
     'v2:export:multiArticlesPdf',
-    async (_, items: MultiExportItem[], _options?: ExportOptions): Promise<boolean> => {
-      void _options
+    async (_, items: MultiExportItem[], options?: ExportOptions): Promise<boolean> => {
       const result = await dialog.showSaveDialog({
         defaultPath: 'recherche.pdf',
         filters: [{ name: 'PDF', extensions: ['pdf'] }],
@@ -445,55 +599,11 @@ export function setupV2ExportHandlers(): void {
       const articles = loadMultiArticles(items)
       if (articles.length === 0) return false
 
-      return new Promise((resolve) => {
-        try {
-          const regularFont = getFontPath('regular')
-          const boldFont = getFontPath('bold')
-          if (!regularFont || !boldFont) {
-            console.error('[PDF Export] System fonts not found')
-            resolve(false)
-            return
-          }
-          const doc = new PDFDocument({
-            size: 'A4',
-            margins: { top: 72, bottom: 72, left: 72, right: 72 },
-            autoFirstPage: false,
-            font: regularFont,
-          })
-          doc.registerFont('Regular', regularFont)
-          doc.registerFont('Bold', boldFont)
-          const stream = createWriteStream(result.filePath!)
-          doc.pipe(stream)
-          articles.forEach((article) => {
-            doc.addPage()
-            const entries = orderedFilledEntries(article)
-            entries.forEach(({ field, plain }, fieldIndex) => {
-              if (fieldIndex === 0) {
-                doc.fontSize(18).font('Bold')
-                doc.text(plain, { align: 'center' })
-                doc.moveDown(0.5)
-                doc.moveTo(72, doc.y).lineTo(doc.page.width - 72, doc.y).stroke()
-                doc.moveDown(1)
-              } else {
-                doc.fontSize(10).font('Bold').text(field.name, { continued: false })
-                doc.fontSize(11).font('Regular')
-                doc.text(plain, { align: 'justify', lineGap: 2 })
-                doc.moveDown(0.5)
-              }
-            })
-            doc.moveDown(0.5)
-            doc.fontSize(9).font('Regular').fillColor('#666666')
-            doc.text(sourceLineFor(article), { align: 'left' })
-            doc.fillColor('black')
-          })
-          doc.end()
-          stream.on('finish', () => resolve(true))
-          stream.on('error', () => resolve(false))
-        } catch (err) {
-          console.error('[v2 Multi PDF Export] Error:', err)
-          resolve(false)
-        }
-      })
+      const needle = options?.highlight
+      const parts = articles.map((article, index) =>
+        articleSectionHtml(article, needle, index > 0)
+      )
+      return renderHtmlToPdf(fullDocumentHtml(parts.join('')), result.filePath)
     }
   )
 
@@ -521,9 +631,6 @@ export function setupV2ExportHandlers(): void {
             if (fieldIndex === 0) {
               children.push(
                 new Paragraph({
-                  // Heading title: keep H1 styling AND highlight matches.
-                  // Using `children` (runs) is incompatible with the `text`
-                  // shortcut, but `heading` works alongside `children`.
                   children: runsFromText(plain, needle),
                   heading: HeadingLevel.HEADING_1,
                   alignment: AlignmentType.CENTER,
