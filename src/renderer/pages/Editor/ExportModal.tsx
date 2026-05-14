@@ -77,20 +77,15 @@ export function ExportModal({
           </div>
         )}
         {highlightTerm && (
-          <div className="space-y-1 pt-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="export-highlight-term" className="cursor-pointer">
-                Surligner « {highlightTerm} »
-              </Label>
-              <Switch
-                id="export-highlight-term"
-                checked={highlightSearchTerm}
-                onCheckedChange={setHighlightSearchTerm}
-              />
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Surlignage disponible uniquement en DOCX.
-            </p>
+          <div className="flex items-center justify-between pt-2">
+            <Label htmlFor="export-highlight-term" className="cursor-pointer">
+              Surligner « {highlightTerm} »
+            </Label>
+            <Switch
+              id="export-highlight-term"
+              checked={highlightSearchTerm}
+              onCheckedChange={setHighlightSearchTerm}
+            />
           </div>
         )}
         <div className="grid grid-cols-3 gap-3 py-4">

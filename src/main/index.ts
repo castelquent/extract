@@ -1,9 +1,21 @@
+import * as Sentry from '@sentry/electron/main'
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'path'
 import { autoUpdater } from 'electron-updater'
 import { setupIpcHandlers } from './ipc'
 import { setupFsWatchers, teardownFsWatchers } from './watchers'
 import { buildIndex } from './ipc/v2/_index'
+
+// Initialise Sentry as early as possible so we capture errors from the
+// very first tick (including any throws inside imports). Disabled in dev
+// to avoid noise during local work; opt-in/out from settings is a TODO.
+if (app.isPackaged) {
+  Sentry.init({
+    dsn: 'https://69d2a7cc6f89691253af58fda7410ae1@o4511299765796864.ingest.de.sentry.io/4511390055071824',
+    // No PII (user paths, IPs) — researcher targets are GDPR/Loi 25 sensitive.
+    sendDefaultPii: false,
+  })
+}
 
 let mainWindow: BrowserWindow | null = null
 let forceQuit = false
