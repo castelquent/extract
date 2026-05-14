@@ -2,7 +2,34 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import electron from 'vite-plugin-electron'
 import electronRenderer from 'vite-plugin-electron-renderer'
+import { sentryVitePlugin } from '@sentry/vite-plugin'
 import { resolve } from 'path'
+import { readFileSync } from 'fs'
+
+// Read package version once so the Sentry release name matches the value
+// passed to Sentry.init at runtime (`extract@${app.getVersion()}`).
+const pkg = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf-8'))
+const releaseName = `extract@${pkg.version}`
+
+// Sentry sourcemap upload runs at production build time, only when a token
+// is present in the env. Local dev builds skip it cleanly so we don't
+// publish bogus releases or fail without credentials.
+const sentryAuthToken = process.env.SENTRY_AUTH_TOKEN
+
+const sentryPlugins = sentryAuthToken
+  ? [
+      sentryVitePlugin({
+        org: 'na-9v7',
+        project: 'extract',
+        authToken: sentryAuthToken,
+        release: { name: releaseName },
+        // Don't fail the build if upload errors out (e.g. offline build).
+        // The build artefact is still valid; we just lose symbolication
+        // for that release.
+        errorHandler: (err) => console.warn('[sentry-vite-plugin]', err.message),
+      }),
+    ]
+  : []
 
 export default defineConfig({
   plugins: [
@@ -22,10 +49,12 @@ export default defineConfig({
           },
           build: {
             outDir: 'dist-electron/main',
+            sourcemap: true,
             rollupOptions: {
               external: ['electron']
             }
-          }
+          },
+          plugins: sentryPlugins,
         }
       },
       {
@@ -40,12 +69,16 @@ export default defineConfig({
             }
           },
           build: {
-            outDir: 'dist-electron/preload'
+            outDir: 'dist-electron/preload',
+            sourcemap: true,
           }
         }
       }
     ]),
-    electronRenderer()
+    electronRenderer(),
+    // Sentry plugin for the renderer build (Vite's own pipeline). Has to
+    // come AFTER all other plugins so it sees the final bundle output.
+    ...sentryPlugins,
   ],
   resolve: {
     alias: {
@@ -56,6 +89,7 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    emptyOutDir: true
+    emptyOutDir: true,
+    sourcemap: true,
   }
 })

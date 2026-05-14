@@ -12,6 +12,10 @@ import { buildIndex } from './ipc/v2/_index'
 if (app.isPackaged) {
   Sentry.init({
     dsn: 'https://69d2a7cc6f89691253af58fda7410ae1@o4511299765796864.ingest.de.sentry.io/4511390055071824',
+    // Tag every event with the running app version. Critical for triaging
+    // bugs: "this stack only happens on 2.0.7" is the first question you
+    // ask in front of a Sentry issue.
+    release: `extract@${app.getVersion()}`,
     // No PII (user paths, IPs) — researcher targets are GDPR/Loi 25 sensitive.
     sendDefaultPii: false,
   })
