@@ -106,6 +106,43 @@ const orderedFilledEntries = (
   return out
 }
 
+// Compact page range formatting: [1,2,3,5,7,8] → "1-3, 5, 7-8".
+const formatPages = (pages: number[]): string => {
+  if (!pages || pages.length === 0) return ''
+  const sorted = [...new Set(pages)].sort((a, b) => a - b)
+  const out: string[] = []
+  let start = sorted[0]
+  let prev = sorted[0]
+  for (let i = 1; i <= sorted.length; i++) {
+    if (i === sorted.length || sorted[i] !== prev + 1) {
+      out.push(start === prev ? `${start}` : `${start}-${prev}`)
+      if (i < sorted.length) {
+        start = sorted[i]
+        prev = sorted[i]
+      }
+    } else {
+      prev = sorted[i]
+    }
+  }
+  return out.join(', ')
+}
+
+// "Source : <name>, page(s) <N>". Falls back to "Source inconnue" if the
+// referenced source is missing (article still on disk, source deleted).
+const sourceLineFor = (article: ArticleMetadata): string => {
+  const entry = idx.getSource(article.sourceId)
+  const sourceName =
+    entry?.meta.name?.trim() ||
+    entry?.meta.originalFilename ||
+    'Source inconnue'
+  const pages = article.pages ?? []
+  if (pages.length === 0) return `Source : ${sourceName}`
+  const pageStr = formatPages(pages)
+  // Plural if multiple pages OR a range (e.g. "3-5" reads as plural too).
+  const isPlural = pages.length > 1 || pageStr.includes('-')
+  return `Source : ${sourceName}, ${isPlural ? 'pages' : 'page'} ${pageStr}`
+}
+
 const getFontPath = (fontName: string): string | null => {
   const systemFonts = process.env.WINDIR ? join(process.env.WINDIR, 'Fonts') : '/usr/share/fonts'
   const fontMap: Record<string, string[]> = {
@@ -194,6 +231,11 @@ export function setupV2ExportHandlers(): void {
                 doc.moveDown(0.5)
               }
             })
+            // Source line at the bottom of the article — smaller, muted.
+            doc.moveDown(0.5)
+            doc.fontSize(9).font('Regular').fillColor('#666666')
+            doc.text(sourceLineFor(article), { align: 'left' })
+            doc.fillColor('black')
           })
           doc.end()
           stream.on('finish', () => resolve(true))
@@ -291,6 +333,20 @@ export function setupV2ExportHandlers(): void {
               }
             }
           })
+          // Source line at the bottom of the article — italic, slightly muted.
+          current.children.push(
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: sourceLineFor(article),
+                  italics: true,
+                  color: '666666',
+                  size: 18,
+                }),
+              ],
+              spacing: { before: 200 },
+            })
+          )
         })
         flush()
 
@@ -354,6 +410,7 @@ export function setupV2ExportHandlers(): void {
                 lines.push(`[${field.name}]`, plain, '')
               }
             })
+            lines.push(sourceLineFor(article), '')
             return lines.join('\n')
           })
           .join('\n')
@@ -424,6 +481,10 @@ export function setupV2ExportHandlers(): void {
                 doc.moveDown(0.5)
               }
             })
+            doc.moveDown(0.5)
+            doc.fontSize(9).font('Regular').fillColor('#666666')
+            doc.text(sourceLineFor(article), { align: 'left' })
+            doc.fillColor('black')
           })
           doc.end()
           stream.on('finish', () => resolve(true))
@@ -489,6 +550,19 @@ export function setupV2ExportHandlers(): void {
               }
             }
           })
+          children.push(
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: sourceLineFor(article),
+                  italics: true,
+                  color: '666666',
+                  size: 18,
+                }),
+              ],
+              spacing: { before: 200 },
+            })
+          )
         })
 
         const doc = new Document({
@@ -526,6 +600,7 @@ export function setupV2ExportHandlers(): void {
               if (fieldIndex === 0) lines.push(plain.toUpperCase(), '')
               else lines.push(`[${field.name}]`, plain, '')
             })
+            lines.push(sourceLineFor(article), '')
             return lines.join('\n')
           })
           .join('\n')

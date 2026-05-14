@@ -18,10 +18,7 @@ function App() {
       <Routes>
         <Route path="/welcome" element={<OnboardingPage />} />
         <Route element={<AppLayout />}>
-          <Route path="/" element={<ProjectsPage filter="all" />} />
-          <Route path="/extraction" element={<ProjectsPage filter="extraction" />} />
-          <Route path="/transcription" element={<ProjectsPage filter="transcription" />} />
-          <Route path="/completed" element={<ProjectsPage filter="completed" />} />
+          <Route path="/" element={<ProjectsPage />} />
           <Route path="/search" element={<SearchPage />} />
           <Route path="/templates" element={<TemplatesPage />} />
           <Route path="/project/:projectId" element={<ProjectDetailPage />} />

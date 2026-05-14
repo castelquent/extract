@@ -20,6 +20,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Switch,
   Tabs,
   TabsContent,
   TabsList,
@@ -42,11 +43,20 @@ export function ProjectDetailPage() {
   const [newDossierOpen, setNewDossierOpen] = useState(false)
   const [newDossierName, setNewDossierName] = useState('')
   const [exportOpen, setExportOpen] = useState(false)
+  // "Show only incomplete" filter for the articles list. Session-only.
+  const [incompleteOnly, setIncompleteOnly] = useState(false)
 
   useEffect(() => {
     if (!projectId) return
-    loadProject(projectId)
-    return () => reset()
+    // Only reset + reload when the project actually changes. Same-project
+    // remount (Editor → back) keeps the cached articles, so the page paints
+    // at full height immediately — that's what lets the browser's native
+    // scroll restoration (Chrome on navigate(-1)) land at the right Y.
+    const currentId = useProjectStore.getState().project?.id
+    if (currentId !== projectId) {
+      reset()
+      loadProject(projectId)
+    }
   }, [projectId, loadProject, reset])
 
   useEffect(() => {
@@ -238,26 +248,38 @@ export function ProjectDetailPage() {
               </span>
             </TabsTrigger>
           </TabsList>
-          {fieldsTotal > 0 && (
-            <div
-              className="flex items-center gap-2"
-              title={`${fieldsFilled} / ${fieldsTotal} champs remplis`}
-            >
-              <CircularProgress
-                value={fillPct}
-                size={28}
-                strokeWidth={3}
-                className="stroke-muted"
-                progressClassName="stroke-primary"
-              />
-              <span className="text-xs text-muted-foreground tabular-nums">
-                {fillPct}%
-              </span>
-            </div>
-          )}
+          <div className="flex items-center gap-4">
+            {fieldsTotal > 0 && tab === 'articles' && (
+              <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+                <Switch
+                  checked={incompleteOnly}
+                  onCheckedChange={setIncompleteOnly}
+                  aria-label="Afficher uniquement les éléments incomplets"
+                />
+                <span>Incomplets seulement</span>
+              </label>
+            )}
+            {fieldsTotal > 0 && (
+              <div
+                className="flex items-center gap-2"
+                title={`${fieldsFilled} / ${fieldsTotal} champs remplis`}
+              >
+                <CircularProgress
+                  value={fillPct}
+                  size={28}
+                  strokeWidth={3}
+                  className="stroke-muted"
+                  progressClassName="stroke-primary"
+                />
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  {fillPct}%
+                </span>
+              </div>
+            )}
+          </div>
         </div>
         <TabsContent value="articles" className="pt-4">
-          <ArticlesView projectId={project.id} />
+          <ArticlesView projectId={project.id} incompleteOnly={incompleteOnly} />
         </TabsContent>
         <TabsContent value="sources" className="pt-4">
           <SourcesView projectId={project.id} />

@@ -6,21 +6,29 @@
 // actually in the viewport pay the React/DnD cost. At 300+ articles, mounting
 // every <ArticleRow> with its own useSortable hook is the main bottleneck —
 // virtualization caps the rendered count at ~20 regardless of total size.
+//
+// DnD: one SortableContext for the whole list with a no-op strategy (no row
+// shifting during drag). The active row follows the cursor; the drop target
+// is highlighted via a border. Intra-section drops reorder; cross-section
+// drops move the article AND reorder so it lands at the user's drop position.
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   DndContext,
   PointerSensor,
   closestCenter,
+  useDndContext,
+  useDroppable,
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragStartEvent,
 } from '@dnd-kit/core'
 import {
   SortableContext,
   arrayMove,
   useSortable,
-  verticalListSortingStrategy,
+  type SortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useWindowVirtualizer } from '@tanstack/react-virtual'
@@ -68,7 +76,14 @@ import { isFieldFilled } from '@shared/fieldValue'
 import { MoveDialog } from './MoveDialog'
 import { ExportModal, ExportFormat } from '../Editor/ExportModal'
 
-// Compute X/Y completion ratio from article.fields and article.schema.
+// No-op sorting strategy: items don't shift to "make space" during drag.
+// dnd-kit's default (rectSortingStrategy) treats every member of the
+// SortableContext as part of one big list, so dragging into a destination
+// section pushes its rows — including the bottom one — into the next
+// section. We just want the active row to follow the cursor; the drop
+// position is resolved from the over target in onDragEnd.
+const noopStrategy: SortingStrategy = () => null
+
 const completionBadge = (article: ArticleMetadata): React.ReactNode => {
   const schema = article.schema ?? []
   const total = schema.length
@@ -88,11 +103,8 @@ const formatShortDate = (iso: string): string => {
   return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
 }
 
-// Shared 5-column grid: checkbox · title (flex) · pages · remplissage · modifié.
 const ROW_GRID = 'grid grid-cols-[28px_minmax(0,1fr)_72px_96px_88px] gap-4 items-center'
 
-// Sort by `order` ascending, falling back to `createdAt`. Mirrors the backend
-// sort in v2:articles:list.
 const compareArticles = (a: ArticleMetadata, b: ArticleMetadata): number => {
   const ao = typeof a.order === 'number' ? a.order : Number.POSITIVE_INFINITY
   const bo = typeof b.order === 'number' ? b.order : Number.POSITIVE_INFINITY
@@ -100,10 +112,13 @@ const compareArticles = (a: ArticleMetadata, b: ArticleMetadata): number => {
   return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
 }
 
+const isArticleComplete = (article: ArticleMetadata): boolean => {
+  const schema = article.schema ?? []
+  if (schema.length === 0) return false
+  return schema.every((f) => isFieldFilled(f, article.fields?.[f.name]))
+}
+
 // ---------- Flat row model ----------
-// The virtualizer needs a flat ordered list. We render dossier section
-// headers, the column header inside each section, and the article rows as
-// distinct "row types" so we can give each a sensible height estimate.
 
 type FlatRow =
   | {
@@ -154,12 +169,17 @@ const estimateRowHeight = (row: FlatRow): number => {
 function ArticleRow({
   article,
   selected,
+  isMultiDragGhost,
   onToggle,
   onOpen,
   onDelete,
 }: {
   article: ArticleMetadata
   selected: boolean
+  // True when this row is part of a multi-drag selection but isn't the
+  // pointer-grabbed item. We dim it so the user sees the whole group is
+  // moving even though only one row has a useSortable transform.
+  isMultiDragGhost: boolean
   onToggle: () => void
   onOpen: () => void
   onDelete: () => void
@@ -170,14 +190,20 @@ function ArticleRow({
     listeners,
     setNodeRef,
     transform,
-    transition,
     isDragging,
   } = useSortable({ id: article.id, data: { dossierId: article.dossierId } })
 
+  // Drop indicator: outline the row currently hovered as a drop target.
+  const { active, over } = useDndContext()
+  const isOverTarget =
+    !!over && over.id === article.id && !!active && active.id !== article.id
+
+  // No `transition` — the drop should be instant. The default useSortable
+  // transition animates the row's transform back to zero on release, which
+  // reads as "flying home".
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.4 : undefined,
+    opacity: isDragging || isMultiDragGhost ? 0.4 : undefined,
   }
 
   return (
@@ -186,7 +212,7 @@ function ArticleRow({
         <div
           ref={setNodeRef}
           style={style}
-          className={`${ROW_GRID} px-3 py-2.5 border-b border-border/40 last:border-b-0 hover:bg-muted/40 cursor-pointer ${isDragging ? 'relative z-10 bg-muted/40 shadow-sm' : ''}`}
+          className={`${ROW_GRID} px-3 py-2.5 border-b border-border/40 last:border-b-0 hover:bg-muted/40 cursor-pointer ${isDragging ? 'relative z-10 bg-muted/40 shadow-sm' : ''} ${isOverTarget ? 'bg-primary/10 outline outline-2 outline-primary/60 -outline-offset-1' : ''}`}
           onClick={onOpen}
           {...attributes}
           {...listeners}
@@ -229,24 +255,36 @@ function ArticleRow({
 
 function SectionHeader({
   dossier,
-  selectedIds,
   articleIds,
   onEditScope,
   onRenameDossier,
   onDeleteDossier,
 }: {
   dossier: DossierView | null
-  selectedIds: Set<string>
   articleIds: string[]
   onEditScope: () => void
   onRenameDossier?: () => void
   onDeleteDossier?: () => void
 }) {
-  void selectedIds
-  void articleIds
+  const dossierId = dossier?.id ?? null
   const label = dossier ? dossier.name : 'Sans dossier'
+
+  // Make the whole section header a drop target — gives empty dossiers
+  // something to receive a cross-dossier drag, and lets the user move
+  // articles to a dossier by aiming at its title without needing an
+  // existing row to land on.
+  const { setNodeRef, isOver, active } = useDroppable({
+    id: `section:${dossierId ?? 'orphans'}`,
+    data: { dossierId, isSection: true },
+  })
+  const activeDossierId = active?.data.current?.dossierId as string | null | undefined
+  const isOverTarget = isOver && active && activeDossierId !== dossierId
+
   return (
-    <div className="flex items-center justify-between gap-4 pt-2 pb-3 px-6">
+    <div
+      ref={setNodeRef}
+      className={`flex items-center justify-between gap-4 pt-2 pb-3 px-6 ${isOverTarget ? 'bg-primary/10 outline outline-2 outline-primary/60 -outline-offset-1 rounded-md' : ''}`}
+    >
       <h2 className="text-xl font-semibold tracking-tight">{label}</h2>
       <div className="flex items-center gap-1">
         <Button
@@ -316,7 +354,13 @@ function ColHeader({
 
 // ---------- ArticlesView ----------
 
-export function ArticlesView({ projectId }: { projectId: string }) {
+export function ArticlesView({
+  projectId,
+  incompleteOnly = false,
+}: {
+  projectId: string
+  incompleteOnly?: boolean
+}) {
   const navigate = useNavigate()
   const {
     dossiers,
@@ -324,11 +368,16 @@ export function ArticlesView({ projectId }: { projectId: string }) {
     renameDossier,
     deleteDossier,
     deleteArticle,
+    moveArticle,
     moveArticlesBulk,
     reorderArticles,
   } = useProjectStore()
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  // Live ID of whatever the user is currently grabbing. Drives the
+  // multi-drag visual (ghosting the other selected rows) and tells
+  // handleDragEnd whether to act on the selection or on just the active row.
+  const [activeDragId, setActiveDragId] = useState<string | null>(null)
   const [renameDossierId, setRenameDossierId] = useState<string | null>(null)
   const [renameDossierName, setRenameDossierName] = useState('')
   const [deleteDossierId, setDeleteDossierId] = useState<string | null>(null)
@@ -338,8 +387,6 @@ export function ArticlesView({ projectId }: { projectId: string }) {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
 
-  // Pre-sorted per-dossier and orphan lists. Used both for the flat row
-  // build and for the DnD reorder math.
   const orphanArticles = useMemo(
     () => articles.filter((a) => a.dossierId === null).sort(compareArticles),
     [articles]
@@ -352,7 +399,22 @@ export function ArticlesView({ projectId }: { projectId: string }) {
     return map
   }, [dossiers, articles])
 
-  // The flat, ordered list of rows the virtualizer consumes.
+  const visibleOrphans = useMemo(
+    () =>
+      incompleteOnly
+        ? orphanArticles.filter((a) => !isArticleComplete(a))
+        : orphanArticles,
+    [orphanArticles, incompleteOnly]
+  )
+  const visibleByDossier = useMemo(() => {
+    if (!incompleteOnly) return articlesByDossier
+    const out = new Map<string, ArticleMetadata[]>()
+    for (const [id, items] of articlesByDossier) {
+      out.set(id, items.filter((a) => !isArticleComplete(a)))
+    }
+    return out
+  }, [articlesByDossier, incompleteOnly])
+
   const flatRows: FlatRow[] = useMemo(() => {
     const rows: FlatRow[] = []
     const pushSection = (dossier: DossierView | null, items: ArticleMetadata[]) => {
@@ -382,14 +444,15 @@ export function ArticlesView({ projectId }: { projectId: string }) {
       }
       rows.push({ type: 'section-gap', key: `g:${dossier?.id ?? 'orphans'}` })
     }
-    for (const d of dossiers) pushSection(d, articlesByDossier.get(d.id) ?? [])
-    if (orphanArticles.length > 0) pushSection(null, orphanArticles)
+    for (const d of dossiers) {
+      const items = visibleByDossier.get(d.id) ?? []
+      if (incompleteOnly && items.length === 0) continue
+      pushSection(d, items)
+    }
+    if (visibleOrphans.length > 0) pushSection(null, visibleOrphans)
     return rows
-  }, [dossiers, articlesByDossier, orphanArticles])
+  }, [dossiers, visibleByDossier, visibleOrphans, incompleteOnly])
 
-  // SortableContext takes the FULL ordered article-id list. dnd-kit picks
-  // up each <ArticleRow>'s useSortable as it mounts; rows scrolled out of
-  // view are simply not registered (their listeners cost nothing).
   const sortableIds = useMemo(() => {
     const ids: string[] = []
     for (const d of dossiers) {
@@ -400,11 +463,9 @@ export function ArticlesView({ projectId }: { projectId: string }) {
     return ids
   }, [dossiers, articlesByDossier, orphanArticles])
 
-  // The layout's flex chain isn't height-constrained — neither <main> here
-  // actually clips, the window itself scrolls. So we use useWindowVirtualizer
-  // which subscribes to window scroll/resize directly. scrollMargin tells
-  // it the offset between document top and where our list begins (the
-  // header above us), measured from a sentinel ref.
+  // Single window virtualizer for the whole flat row list. Sentinel-measured
+  // scrollMargin so positions stay correct under AppLayout's flex chain
+  // (where neither <main> actually clips — the window itself scrolls).
   const sentinelRef = useRef<HTMLDivElement>(null)
   const virtualizer = useWindowVirtualizer({
     count: flatRows.length,
@@ -416,9 +477,6 @@ export function ArticlesView({ projectId }: { projectId: string }) {
       : 0,
   })
 
-  // Re-measure when the row list changes (dossier collapsed/added,
-  // articles created/deleted, etc.) — heights are stable per row type so a
-  // recompute keeps positions accurate.
   useLayoutEffect(() => {
     virtualizer.measure()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -428,25 +486,162 @@ export function ArticlesView({ projectId }: { projectId: string }) {
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   )
 
+  // The set of article IDs that should move together for the current drag.
+  // - User grabs a selected row → the whole selection moves.
+  // - User grabs an unselected row → just that row moves (the selection is
+  //   ignored, matching the convention in most file managers / IDEs).
+  const draggingIds = useMemo(() => {
+    if (!activeDragId) return new Set<string>()
+    if (selectedIds.has(activeDragId)) return new Set(selectedIds)
+    return new Set([activeDragId])
+  }, [activeDragId, selectedIds])
+  const isMultiDrag = draggingIds.size > 1
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveDragId(String(event.active.id))
+  }
+  const handleDragCancel = () => setActiveDragId(null)
+
+  // Intra-section → reorder. Cross-section → move + reorder so the article
+  // lands at the user's drop position. Drop on a section header → append.
+  // Multi-drag (active row was part of the selection): same scenarios but
+  // applied to every selected article in their source-display order.
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
+    setActiveDragId(null)
     if (!over || active.id === over.id) return
+
+    const activeId = String(active.id)
     const activeDossierId = active.data.current?.dossierId as string | null | undefined
-    const overDossierId = over.data.current?.dossierId as string | null | undefined
-    // Intra-section only — cross-dossier moves go through the explicit
-    // "Déplacer" action (different semantics: changes dossierId on disk).
-    if (activeDossierId === undefined || activeDossierId !== overDossierId) return
+    const overData = over.data.current as
+      | { dossierId?: string | null; isSection?: boolean }
+      | undefined
+    const overDossierId = overData?.dossierId
+    if (activeDossierId === undefined || overDossierId === undefined) return
 
-    const list =
-      activeDossierId === null
+    // Which IDs are moving together. The active grab on a selected row
+    // promotes the whole selection; an unselected row drags alone.
+    const movingIds = selectedIds.has(activeId) && selectedIds.size > 1
+      ? Array.from(selectedIds)
+      : [activeId]
+    const movingSet = new Set(movingIds)
+    // Order them by their current display position (so consecutive moves
+    // preserve user intent rather than scrambling).
+    const movingInOrder: string[] = []
+    for (const d of dossiers) {
+      const items = articlesByDossier.get(d.id) ?? []
+      for (const a of items) if (movingSet.has(a.id)) movingInOrder.push(a.id)
+    }
+    for (const a of orphanArticles) {
+      if (movingSet.has(a.id)) movingInOrder.push(a.id)
+    }
+
+    const projectId = useProjectStore.getState().project?.id
+    if (!projectId) return
+
+    // ---- Drop on section header → append all moving items to that dossier ----
+    if (overData?.isSection) {
+      if (activeDossierId === overDossierId && movingIds.length === 1) return
+      const destList =
+        overDossierId === null
+          ? orphanArticles
+          : articlesByDossier.get(overDossierId) ?? []
+      const baseOrder =
+        typeof destList[destList.length - 1]?.order === 'number'
+          ? (destList[destList.length - 1].order as number) + 1
+          : destList.length
+      // Optimistic: each moving id gets a consecutive order at the tail
+      // of the destination.
+      const orderById = new Map<string, number>()
+      movingInOrder.forEach((id, i) => orderById.set(id, baseOrder + i))
+      useProjectStore.setState((s) => ({
+        articles: s.articles.map((a) =>
+          orderById.has(a.id)
+            ? { ...a, dossierId: overDossierId, order: orderById.get(a.id)! }
+            : a
+        ),
+      }))
+      ;(async () => {
+        const ok = await window.api.v2_articlesMoveBulk(projectId, movingInOrder, {
+          dossierId: overDossierId,
+        })
+        if (!ok) return
+        const desired = destList.map((a) => a.id).filter((id) => !movingSet.has(id))
+        desired.push(...movingInOrder)
+        await reorderArticles(overDossierId, desired)
+      })()
+      return
+    }
+
+    const overId = String(over.id)
+
+    // ---- Intra-section reorder ----
+    if (activeDossierId === overDossierId) {
+      const list =
+        activeDossierId === null
+          ? orphanArticles
+          : articlesByDossier.get(activeDossierId) ?? []
+      const overIndex = list.findIndex((a) => a.id === overId)
+      if (overIndex < 0) return
+      if (movingIds.length === 1) {
+        // Single-row case: arrayMove preserves the existing semantics.
+        const oldIndex = list.findIndex((a) => a.id === active.id)
+        if (oldIndex === -1) return
+        const reordered = arrayMove(list, oldIndex, overIndex).map((a) => a.id)
+        void reorderArticles(activeDossierId, reordered)
+        return
+      }
+      // Multi-row reorder: pull out all moving ids, re-insert them as a
+      // contiguous block at the over target. If the over target is itself
+      // one of the moving ids, fall back to its position after extraction.
+      const remaining = list.map((a) => a.id).filter((id) => !movingSet.has(id))
+      // Adjust target: count how many moving ids sat before overIndex.
+      let adjustedTarget = overIndex
+      for (let i = 0; i < overIndex; i++) {
+        if (movingSet.has(list[i].id)) adjustedTarget--
+      }
+      // Clamp into [0, remaining.length] (overIndex itself may have been
+      // a moving id).
+      adjustedTarget = Math.max(0, Math.min(adjustedTarget, remaining.length))
+      remaining.splice(adjustedTarget, 0, ...movingInOrder)
+      void reorderArticles(activeDossierId, remaining)
+      return
+    }
+
+    // ---- Cross-section: move all moving ids into destination at over's
+    //      position, in source order. ----
+    const destListBefore =
+      overDossierId === null
         ? orphanArticles
-        : articlesByDossier.get(activeDossierId) ?? []
-    const oldIndex = list.findIndex((a) => a.id === active.id)
-    const newIndex = list.findIndex((a) => a.id === over.id)
-    if (oldIndex === -1 || newIndex === -1) return
-
-    const reordered = arrayMove(list, oldIndex, newIndex).map((a) => a.id)
-    void reorderArticles(activeDossierId, reordered)
+        : articlesByDossier.get(overDossierId) ?? []
+    const targetIndex = destListBefore.findIndex((a) => a.id === overId)
+    if (targetIndex < 0) return
+    const overOrder = destListBefore[targetIndex].order ?? targetIndex
+    // Optimistic: insert moving rows just before the over target so
+    // compareArticles puts them in the right block. Fractional orders get
+    // integerised by reorderArticles below.
+    const orderById = new Map<string, number>()
+    movingInOrder.forEach((id, i) => {
+      orderById.set(id, overOrder - 0.5 + i * 1e-6)
+    })
+    useProjectStore.setState((s) => ({
+      articles: s.articles.map((a) =>
+        orderById.has(a.id)
+          ? { ...a, dossierId: overDossierId, order: orderById.get(a.id)! }
+          : a
+      ),
+    }))
+    ;(async () => {
+      const ok = await window.api.v2_articlesMoveBulk(projectId, movingInOrder, {
+        dossierId: overDossierId,
+      })
+      if (!ok) return
+      const desired = destListBefore.map((a) => a.id).filter((id) => !movingSet.has(id))
+      desired.splice(targetIndex, 0, ...movingInOrder)
+      await reorderArticles(overDossierId, desired)
+    })()
+    // Silence the unused destructure — moveArticle isn't called here.
+    void moveArticle
   }
 
   void selectArticlesInDossier
@@ -543,9 +738,6 @@ export function ArticlesView({ projectId }: { projectId: string }) {
   const { state: sidebarState, isMobile } = useSidebar()
   const sidebarOffset = isMobile ? '0px' : sidebarState === 'expanded' ? '16rem' : '3rem'
 
-  // ---------- Render ----------
-
-  // Empty state pre-empts the virtualizer entirely (no rows to size).
   if (totalArticles === 0 && dossiers.length === 0) {
     return (
       <div className="rounded-md py-12 text-center text-sm text-muted-foreground">
@@ -553,12 +745,25 @@ export function ArticlesView({ projectId }: { projectId: string }) {
       </div>
     )
   }
+  if (incompleteOnly && flatRows.length === 0) {
+    return (
+      <div className="rounded-md py-12 text-center text-sm text-muted-foreground">
+        Tous les éléments sont complétés.
+      </div>
+    )
+  }
 
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-      <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
-        {/* Sentinel — its first parent with overflow:auto/scroll is the
-            real scroll container, which we hand to the virtualizer. */}
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
+    >
+      <SortableContext items={sortableIds} strategy={noopStrategy}>
+        {/* Sentinel — its doc-top offset is fed to the virtualizer as
+            scrollMargin so visible-range math is correct. */}
         <div ref={sentinelRef} />
         <div
           style={{
@@ -569,10 +774,6 @@ export function ArticlesView({ projectId }: { projectId: string }) {
         >
           {virtualizer.getVirtualItems().map((vi) => {
             const row = flatRows[vi.index]
-            // useWindowVirtualizer's `start` is in document coordinates
-            // (includes scrollMargin). Our container is already positioned
-            // there by the page flow, so subtract scrollMargin to get the
-            // offset relative to our container.
             const offset = vi.start - virtualizer.options.scrollMargin
             return (
               <div
@@ -590,7 +791,6 @@ export function ArticlesView({ projectId }: { projectId: string }) {
                 {row.type === 'section-header' && (
                   <SectionHeader
                     dossier={row.dossier}
-                    selectedIds={selectedIds}
                     articleIds={row.articleIds}
                     onEditScope={() =>
                       navigate(
@@ -623,6 +823,11 @@ export function ArticlesView({ projectId }: { projectId: string }) {
                   <ArticleRow
                     article={row.article}
                     selected={selectedIds.has(row.article.id)}
+                    isMultiDragGhost={
+                      isMultiDrag &&
+                      draggingIds.has(row.article.id) &&
+                      row.article.id !== activeDragId
+                    }
                     onToggle={() => toggleArticle(row.article.id)}
                     onOpen={() => handleOpenArticle(row.article.id)}
                     onDelete={() => handleDeleteArticle(row.article.id)}

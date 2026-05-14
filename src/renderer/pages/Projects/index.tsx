@@ -1,11 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { ProjectView } from '@shared/types'
 import {
   selectHasAnyApiKey,
-  selectProjectsDone,
-  selectProjectsToExtract,
-  selectProjectsToTranscribe,
   useProjectsStoreV2,
   useSettingsStore,
   useUIStore,
@@ -29,43 +26,10 @@ import {
   DialogTitle,
   Input,
 } from '@/components/ui'
-import { AlertTriangle, CheckCircle, FileText, FolderOpen, Home, Plus, Scissors, Upload } from 'lucide-react'
+import { AlertTriangle, FolderOpen, Home, Plus, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 
-export type ProjectFilter = 'all' | 'extraction' | 'transcription' | 'completed'
-
-interface ProjectsPageProps {
-  filter?: ProjectFilter
-}
-
-const filterConfig: Record<ProjectFilter, { title: string; subtitle: string; icon: React.ElementType; emptyMessage: string }> = {
-  all: {
-    title: 'Tous les projets',
-    subtitle: "Vue d'ensemble de tous vos projets",
-    icon: Home,
-    emptyMessage: 'Aucun projet',
-  },
-  extraction: {
-    title: 'Extraction',
-    subtitle: 'Projets avec des éléments à extraire',
-    icon: Scissors,
-    emptyMessage: 'Aucun élément à extraire',
-  },
-  transcription: {
-    title: 'Transcription',
-    subtitle: 'Projets avec des éléments à transcrire',
-    icon: FileText,
-    emptyMessage: 'Aucun élément à transcrire',
-  },
-  completed: {
-    title: 'Terminés',
-    subtitle: 'Projets complétés',
-    icon: CheckCircle,
-    emptyMessage: 'Aucun projet terminé',
-  },
-}
-
-export function ProjectsPage({ filter = 'all' }: ProjectsPageProps) {
+export function ProjectsPage() {
   const navigate = useNavigate()
   const {
     projects,
@@ -92,22 +56,7 @@ export function ProjectsPage({ filter = 'all' }: ProjectsPageProps) {
     loadProjects()
   }, [loadProjects])
 
-  const filteredProjects = useMemo(() => {
-    const state = { projects } as Parameters<typeof selectProjectsToExtract>[0]
-    switch (filter) {
-      case 'extraction':
-        return selectProjectsToExtract(state)
-      case 'transcription':
-        return selectProjectsToTranscribe(state)
-      case 'completed':
-        return selectProjectsDone(state)
-      default:
-        return projects
-    }
-  }, [projects, filter])
-
-  const config = filterConfig[filter]
-  const Icon = config.icon
+  const filteredProjects = projects
 
   const handleCreateProject = async (name: string, templateId: string) => {
     const project = await createProject(name, templateId)
@@ -151,10 +100,10 @@ export function ProjectsPage({ filter = 'all' }: ProjectsPageProps) {
 
       <header className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-3">
-          <Icon className="h-8 w-8 text-primary" />
+          <Home className="h-8 w-8 text-primary" />
           <div>
-            <h1 className="text-2xl font-bold">{config.title}</h1>
-            <p className="text-muted-foreground text-sm">{config.subtitle}</p>
+            <h1 className="text-2xl font-bold">Tous les projets</h1>
+            <p className="text-muted-foreground text-sm">Vue d'ensemble de tous vos projets</p>
           </div>
         </div>
         <div className="flex gap-2">
@@ -180,13 +129,11 @@ export function ProjectsPage({ filter = 'all' }: ProjectsPageProps) {
       ) : filteredProjects.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-64 text-center">
           <FolderOpen className="h-16 w-16 text-muted-foreground/50 mb-4" />
-          <p className="text-muted-foreground mb-4">{config.emptyMessage}</p>
-          {filter === 'all' && (
-            <Button onClick={() => setShowCreateModal(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Créer votre premier projet
-            </Button>
-          )}
+          <p className="text-muted-foreground mb-4">Aucun projet</p>
+          <Button onClick={() => setShowCreateModal(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Créer votre premier projet
+          </Button>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">

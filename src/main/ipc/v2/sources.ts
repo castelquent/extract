@@ -1,7 +1,7 @@
 // v2 sources handlers. A source = a PDF imported into a project. Stored under
 // projects/{projectId}/sources/{sourceId}/source.pdf with a metadata.json.
 import { ipcMain, dialog } from 'electron'
-import { copyFileSync, existsSync, readFileSync, rmSync } from 'fs'
+import { copyFileSync, existsSync, readFileSync, rmSync, statSync } from 'fs'
 import type { SourceMetadata, SourceView } from '@shared/types'
 import {
   ensureDir,
@@ -27,9 +27,19 @@ import {
 const buildSourceView = (projectId: string, sourceId: string): SourceView | null => {
   const entry = idx.getSource(sourceId)
   if (!entry || entry.projectId !== projectId) return null
+  const thumbPath = entry.hasThumbnail ? getSourceThumbnailPath(projectId, sourceId) : null
+  let thumbnailMtime: number | null = null
+  if (thumbPath) {
+    try {
+      thumbnailMtime = statSync(thumbPath).mtimeMs
+    } catch {
+      /* file went missing between hasThumbnail check and stat — leave null */
+    }
+  }
   return {
     ...entry.meta,
-    thumbnailPath: entry.hasThumbnail ? getSourceThumbnailPath(projectId, sourceId) : null,
+    thumbnailPath: thumbPath,
+    thumbnailMtime,
     articlesCount: idx.countArticlesUsingSource(projectId, sourceId),
   }
 }
@@ -162,6 +172,122 @@ export function setupV2SourceHandlers(): void {
       } catch (err) {
         console.error('Source delete failed:', err)
         return { ok: false }
+      }
+    }
+  )
+
+  // Patch source metadata. Today only `name` (display label) is editable
+  // — extending this with other fields stays a one-liner.
+  ipcMain.handle(
+    'v2:sources:update',
+    async (
+      _,
+      projectId: string,
+      sourceId: string,
+      patch: { name?: string }
+    ): Promise<boolean> => {
+      const current = idx.getSource(sourceId)
+      if (!current || current.projectId !== projectId) return false
+      const trimmed = patch.name?.trim()
+      const updated: SourceMetadata = {
+        ...current.meta,
+        // Empty string → drop the override and fall back to originalFilename.
+        name: trimmed && trimmed.length > 0 ? trimmed : undefined,
+      }
+      const ok = writeJson(getSourceMetadataPath(projectId, sourceId), updated)
+      if (ok) {
+        patchSource(projectId, sourceId, updated)
+        touchProject(projectId)
+      }
+      return ok
+    }
+  )
+
+  // Replace the underlying source.pdf in place. The sourceId and all
+  // article links (sourceId references) are preserved — only the file
+  // contents, pageCount, and thumbnail change. Article zones are kept as-is
+  // (their normalized coordinates carry over numerically; the user can
+  // re-extract if the new PDF's layout differs enough to matter).
+  ipcMain.handle(
+    'v2:sources:replacePdf',
+    async (_, projectId: string, sourceId: string): Promise<SourceView | null> => {
+      const current = idx.getSource(sourceId)
+      if (!current || current.projectId !== projectId) return null
+
+      const result = await dialog.showOpenDialog({
+        properties: ['openFile'],
+        filters: [
+          { name: 'Documents', extensions: ['pdf', 'jpg', 'jpeg', 'png'] },
+          { name: 'PDF', extensions: ['pdf'] },
+          { name: 'Images', extensions: ['jpg', 'jpeg', 'png'] },
+        ],
+      })
+      if (result.canceled || result.filePaths.length === 0) return null
+
+      const filePath = result.filePaths[0]
+      const ext = filePath.split('.').pop()?.toLowerCase() ?? ''
+      const isImage = ['jpg', 'jpeg', 'png'].includes(ext)
+      const sourcePdfPath = getSourcePdfPath(projectId, sourceId)
+
+      // Convert (image) or copy (pdf) over the existing file.
+      if (isImage) {
+        const ok = await convertImageToPdf(filePath, sourcePdfPath)
+        if (!ok) return null
+      } else {
+        try {
+          copyFileSync(filePath, sourcePdfPath)
+        } catch (err) {
+          console.error('Failed to replace source PDF:', err)
+          return null
+        }
+      }
+
+      const pageCount = await getPdfPageCount(sourcePdfPath)
+      const updated: SourceMetadata = {
+        ...current.meta,
+        pageCount,
+      }
+      writeJson(getSourceMetadataPath(projectId, sourceId), updated)
+      patchSource(projectId, sourceId, updated)
+
+      // Regenerate the source thumbnail from the new PDF's first page.
+      const sourceThumbPath = getSourceThumbnailPath(projectId, sourceId)
+      const thumbOk = await generateThumbnail(sourcePdfPath, sourceThumbPath)
+      patchSourceThumbnail(sourceId, thumbOk)
+
+      touchProject(projectId)
+      return buildSourceView(projectId, sourceId)
+    }
+  )
+
+  // Save-as for the source PDF. Defaults the filename to the source's
+  // display name (user-set name, or originalFilename) so the file lands
+  // recognizable on disk.
+  ipcMain.handle(
+    'v2:sources:downloadPdf',
+    async (_, projectId: string, sourceId: string): Promise<boolean> => {
+      const entry = idx.getSource(sourceId)
+      if (!entry || entry.projectId !== projectId) return false
+      const pdfPath = getSourcePdfPath(projectId, sourceId)
+      if (!existsSync(pdfPath)) return false
+
+      // Build a default filename. Strip any extension on `name` (the user
+      // might or might not have typed one) and re-append .pdf.
+      const baseName = entry.meta.name?.trim() || entry.meta.originalFilename
+      const withoutExt = baseName.replace(/\.[^.]+$/, '')
+      const defaultPath = `${withoutExt || 'source'}.pdf`
+
+      const result = await dialog.showSaveDialog({
+        defaultPath,
+        filters: [{ name: 'PDF', extensions: ['pdf'] }],
+      })
+      if (result.canceled || !result.filePath) return false
+      try {
+        copyFileSync(pdfPath, result.filePath)
+        return true
+      } catch (err) {
+        console.error('Failed to download source PDF:', err)
+        return false
       }
     }
   )

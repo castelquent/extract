@@ -62,15 +62,23 @@ export interface ProjectView extends ProjectMetadataV2 {
 }
 
 // --- Source (a PDF imported into a project) ---
+// `name` is a user-editable display label. `originalFilename` is the
+// immutable name of the file at import time (kept for reference / debug).
+// The UI shows `name ?? originalFilename`.
 export interface SourceMetadata {
   id: string
   originalFilename: string
   pageCount: number
   importedAt: string
+  name?: string
 }
 
 export interface SourceView extends SourceMetadata {
   thumbnailPath: string | null
+  // mtime (in ms) of the thumbnail file, when present. Used by the
+  // renderer as a cache-buster: the file is overwritten in place on PDF
+  // replacement, so the path alone wouldn't change.
+  thumbnailMtime: number | null
   articlesCount: number
 }
 
@@ -263,6 +271,14 @@ export interface ElectronAPI {
   v2_sourcesList: (projectId: string) => Promise<SourceView[]>
   v2_sourcesGet: (projectId: string, sourceId: string) => Promise<SourceView | null>
   v2_sourcesDelete: (projectId: string, sourceId: string, force?: boolean) => Promise<{ ok: boolean; reason?: 'has-articles'; articlesCount?: number }>
+  v2_sourcesUpdate: (projectId: string, sourceId: string, patch: { name?: string }) => Promise<boolean>
+  // Open a file picker, replace this source's PDF in place, regenerate
+  // page count + thumbnail. Returns the refreshed SourceView, or null when
+  // the user cancels or the import fails.
+  v2_sourcesReplacePdf: (projectId: string, sourceId: string) => Promise<SourceView | null>
+  // Open a save dialog and copy the source PDF to the chosen path.
+  // Returns true on success, false on cancel/error.
+  v2_sourcesDownloadPdf: (projectId: string, sourceId: string) => Promise<boolean>
   v2_sourcesGetPdfData: (projectId: string, sourceId: string) => Promise<ArrayBuffer | null>
   v2_sourcesGetThumbnail: (projectId: string, sourceId: string) => Promise<string | null>
 

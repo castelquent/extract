@@ -555,7 +555,20 @@ export function EditorV2Page() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => navigate(backTo ?? `/project/${project.id}`)}
+            onClick={() => {
+              // Prefer browser-style back: it restores the previous page's
+              // scroll position natively (no custom state-save dance needed).
+              // location.key === 'default' means we're on the first history
+              // entry (deep link / Ctrl+R while in the editor) — there's
+              // nowhere to go back, so fall back to a direct navigate.
+              if (backTo) {
+                navigate(backTo)
+              } else if (location.key !== 'default') {
+                navigate(-1)
+              } else {
+                navigate(`/project/${project.id}`)
+              }
+            }}
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             {backTo ? backLabel : 'Projet'}

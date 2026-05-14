@@ -92,6 +92,9 @@ const api: ElectronAPI & {
   v2_sourcesList: (projectId) => ipcRenderer.invoke('v2:sources:list', projectId),
   v2_sourcesGet: (projectId, sourceId) => ipcRenderer.invoke('v2:sources:get', projectId, sourceId),
   v2_sourcesDelete: (projectId, sourceId, force) => ipcRenderer.invoke('v2:sources:delete', projectId, sourceId, force),
+  v2_sourcesUpdate: (projectId, sourceId, patch) => ipcRenderer.invoke('v2:sources:update', projectId, sourceId, patch),
+  v2_sourcesReplacePdf: (projectId, sourceId) => ipcRenderer.invoke('v2:sources:replacePdf', projectId, sourceId),
+  v2_sourcesDownloadPdf: (projectId, sourceId) => ipcRenderer.invoke('v2:sources:downloadPdf', projectId, sourceId),
   v2_sourcesGetPdfData: (projectId, sourceId) => ipcRenderer.invoke('v2:sources:getPdfData', projectId, sourceId),
   v2_sourcesGetThumbnail: (projectId, sourceId) => ipcRenderer.invoke('v2:sources:getThumbnail', projectId, sourceId),
 

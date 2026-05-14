@@ -11,12 +11,7 @@ export { useSettingsStore, selectAISettings, selectAppSettings, selectHasAnyApiK
 export { useTemplatesStore } from './templatesStore'
 
 // v2 stores (Project > Dossier > Article, filesystem-as-truth)
-export {
-  useProjectsStoreV2,
-  selectProjectsToExtract,
-  selectProjectsToTranscribe,
-  selectProjectsDone,
-} from './projectsStoreV2'
+export { useProjectsStoreV2 } from './projectsStoreV2'
 export {
   useProjectStore,
   selectArticlesInDossier,

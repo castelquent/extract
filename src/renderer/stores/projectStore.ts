@@ -27,6 +27,8 @@ interface ProjectState {
   // Sources
   addSources: () => Promise<SourceView[]>
   deleteSource: (sourceId: string, force?: boolean) => Promise<boolean>
+  renameSource: (sourceId: string, name: string) => Promise<boolean>
+  replaceSourcePdf: (sourceId: string) => Promise<SourceView | null>
 
   // Dossiers
   createDossier: (name: string) => Promise<DossierView | null>
@@ -117,6 +119,44 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       console.error(err)
       toast.error('Erreur lors de la suppression')
       return false
+    }
+  },
+
+  renameSource: async (sourceId, name) => {
+    const projectId = get().project?.id
+    if (!projectId) return false
+    try {
+      const ok = await window.api.v2_sourcesUpdate(projectId, sourceId, { name })
+      if (ok) {
+        set((s) => ({
+          sources: s.sources.map((src) =>
+            src.id === sourceId ? { ...src, name: name.trim() || undefined } : src
+          ),
+        }))
+        toast.success('Source renommée')
+      }
+      return ok
+    } catch (err) {
+      console.error(err)
+      toast.error('Erreur lors du renommage')
+      return false
+    }
+  },
+
+  replaceSourcePdf: async (sourceId) => {
+    const projectId = get().project?.id
+    if (!projectId) return null
+    try {
+      const view = await window.api.v2_sourcesReplacePdf(projectId, sourceId)
+      if (view) {
+        toast.success('PDF remplacé')
+        await get().refresh()
+      }
+      return view
+    } catch (err) {
+      console.error(err)
+      toast.error('Erreur lors du remplacement du PDF')
+      return null
     }
   },
 
