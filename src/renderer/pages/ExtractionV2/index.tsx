@@ -32,7 +32,9 @@ import {
   ChevronLeft,
   ChevronRight,
   FileImage,
+  Lasso,
   Layers,
+  Maximize2,
   MousePointer2,
   Save,
   Square,
@@ -42,7 +44,7 @@ import {
 } from 'lucide-react'
 import { ApplyTemplateDialog } from '@/components/ApplyTemplateDialog'
 import { PdfViewer } from '../Extraction/PdfViewer'
-import { ZonesOverlay } from '../Extraction/ZonesOverlay'
+import { ZonesOverlay, type DrawingMode } from '../Extraction/ZonesOverlay'
 import { ArticleItem } from '../Extraction/ArticleItem'
 import { ZoneItem } from '../Extraction/ZoneItem'
 import { UnsavedChangesModal } from '../Editor/UnsavedChangesModal'
@@ -98,6 +100,8 @@ export function ExtractionV2Page() {
   const [generateOpen, setGenerateOpen] = useState(false)
   const [unlockTarget, setUnlockTarget] = useState<WorkingArticle | null>(null)
   const [changeModelTarget, setChangeModelTarget] = useState<WorkingArticle | null>(null)
+  const [drawingMode, setDrawingMode] = useState<DrawingMode>('rect')
+  const [isDrafting, setIsDrafting] = useState(false)
 
   const ZOOM_MIN = 1
   const ZOOM_MAX = 5
@@ -242,7 +246,7 @@ export function ExtractionV2Page() {
   }, [currentArticleId, selectedZoneIndex, removeZoneFromArticle, currentPage, totalPages, setCurrentPage, saveArticles])
 
   const handleSelectEntirePage = () => {
-    handleZoneCreated({ page: currentPage, x1: 0, y1: 0, x2: 1, y2: 1 })
+    handleZoneCreated({ kind: 'rect', page: currentPage, x1: 0, y1: 0, x2: 1, y2: 1 })
   }
 
   // Number of orphan draft articles needing a dossier choice at Generate
@@ -392,15 +396,50 @@ export function ExtractionV2Page() {
                   articles={articles}
                   currentArticleId={currentArticleId}
                   selectedZoneIndex={selectedZoneIndex}
+                  drawingMode={drawingMode}
                   onZoneCreated={handleZoneCreated}
                   onZoneUpdated={updateZoneInArticle}
                   onZoneDeleted={removeZoneFromArticle}
                   onZoneSelected={selectZoneInArticle}
                   onZoneMoveToArticle={moveZone}
+                  onDraftingChange={setIsDrafting}
                 />
               </div>
             </div>
           </div>
+
+          {pdfLoaded && (
+            <div className="absolute top-4 left-4 flex flex-col items-center gap-1 bg-background/90 backdrop-blur-sm rounded-lg shadow-lg border p-1 z-10">
+              <Button
+                variant={drawingMode === 'rect' ? 'default' : 'ghost'}
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setDrawingMode('rect')}
+                title="Rectangle"
+              >
+                <Square className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={drawingMode === 'polygon' ? 'default' : 'ghost'}
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setDrawingMode('polygon')}
+                title="Tracé libre — segments orthogonaux par défaut (Shift = diagonale), Entrée ou clic sur le premier point pour fermer"
+              >
+                <Lasso className="h-4 w-4" />
+              </Button>
+              <div className="h-px w-6 bg-border my-0.5" />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={handleSelectEntirePage}
+                title="Sélectionner toute la page"
+              >
+                <Maximize2 className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
 
           {pdfLoaded && (
             <div className="absolute top-4 right-4 flex items-center gap-1 bg-background/90 backdrop-blur-sm rounded-lg shadow-lg border p-1 z-10">
@@ -416,25 +455,15 @@ export function ExtractionV2Page() {
             </div>
           )}
 
-          {pdfLoaded && articles.length === 0 && (
+          {pdfLoaded && articles.length === 0 && !isDrafting && (
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-background/90 backdrop-blur-sm rounded-lg px-4 py-2 shadow-lg border z-10">
               <p className="text-sm text-muted-foreground flex items-center gap-2">
                 <MousePointer2 className="h-4 w-4" />
-                Dessinez un rectangle sur le PDF pour créer votre premier élément
+                {drawingMode === 'rect'
+                  ? 'Dessinez un rectangle sur le PDF pour créer votre premier élément'
+                  : 'Cliquez pour poser les sommets (Shift pour diagonale) ; Entrée ou clic sur le premier point pour fermer'}
               </p>
             </div>
-          )}
-
-          {pdfLoaded && (
-            <Button
-              variant="secondary"
-              size="sm"
-              className="absolute bottom-4 right-4 shadow-lg z-10"
-              onClick={handleSelectEntirePage}
-            >
-              <Square className="h-4 w-4 mr-2" />
-              Sélectionner toute la page
-            </Button>
           )}
         </div>
 

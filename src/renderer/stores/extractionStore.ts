@@ -393,6 +393,9 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
         savedArticles: deepClone(hydrated),
         currentArticleId: null,
         selectedZoneIndex: null,
+        // Reset to page 1 — currentPage is shared across the store and
+        // would otherwise leak from the previously-open source.
+        currentPage: 1,
       })
     } catch (err) {
       console.error(err)

@@ -30,13 +30,48 @@ export interface DeleteTemplateResult {
 // under %AppData%/Local/ExtrAct/projects/{projectId}/...
 // ============================================================
 
-// Generic PDF zone (article zones still use normalized coordinates)
-export interface Zone {
+// PDF zones use normalized coordinates (0-1). Two shapes are supported:
+//   - rect: axis-aligned rectangle (kind omitted = legacy rect on disk)
+//   - polygon: closed polyline with N vertices
+export interface RectZone {
+  kind?: 'rect'
   page: number
   x1: number
   y1: number
   x2: number
   y2: number
+}
+
+export interface PolygonZone {
+  kind: 'polygon'
+  page: number
+  points: Array<[number, number]>
+}
+
+export type Zone = RectZone | PolygonZone
+
+export const isPolygonZone = (z: Zone): z is PolygonZone => z.kind === 'polygon'
+export const isRectZone = (z: Zone): z is RectZone => z.kind === undefined || z.kind === 'rect'
+
+export interface ZoneBBox {
+  x1: number
+  y1: number
+  x2: number
+  y2: number
+}
+
+export const zoneBBox = (z: Zone): ZoneBBox => {
+  if (isPolygonZone(z)) {
+    const xs = z.points.map((p) => p[0])
+    const ys = z.points.map((p) => p[1])
+    return {
+      x1: Math.min(...xs),
+      y1: Math.min(...ys),
+      x2: Math.max(...xs),
+      y2: Math.max(...ys),
+    }
+  }
+  return { x1: z.x1, y1: z.y1, x2: z.x2, y2: z.y2 }
 }
 
 // --- Project (corpus / theme) ---
