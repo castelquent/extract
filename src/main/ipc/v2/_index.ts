@@ -14,6 +14,7 @@ import type {
   ArticleScope,
   DossierMetadata,
   ProjectMetadataV2,
+  SourceDossierMetadata,
   SourceMetadata,
 } from '@shared/types'
 import {
@@ -22,12 +23,14 @@ import {
   getOrphansDir,
   getProjectThumbnailPath,
   getProjectsRoot,
+  getSourceDossiersDir,
   getSourceThumbnailPath,
   getSourcesDir,
   listSubdirs,
   readArticleMetadata,
   readDossierMetadata,
   readProjectMetadata,
+  readSourceDossierMetadata,
   readSourceMetadata,
 } from '../_fs'
 
@@ -44,6 +47,10 @@ interface DossierEntry {
   meta: DossierMetadata
   projectId: string
 }
+interface SourceDossierEntry {
+  meta: SourceDossierMetadata
+  projectId: string
+}
 interface ArticleEntry {
   meta: ArticleMetadata
   projectId: string
@@ -53,11 +60,13 @@ interface ArticleEntry {
 const projects = new Map<string, ProjectEntry>()
 const sources = new Map<string, SourceEntry>()
 const dossiers = new Map<string, DossierEntry>()
+const sourceDossiers = new Map<string, SourceDossierEntry>()
 const articles = new Map<string, ArticleEntry>()
 
 // Reverse indexes — Sets for O(1) add/remove during rebuilds.
 const sourceIdsByProject = new Map<string, Set<string>>()
 const dossierIdsByProject = new Map<string, Set<string>>()
+const sourceDossierIdsByProject = new Map<string, Set<string>>()
 const articleIdsByProject = new Map<string, Set<string>>()
 
 const ensureSet = (m: Map<string, Set<string>>, k: string): Set<string> => {
@@ -71,9 +80,11 @@ const ensureSet = (m: Map<string, Set<string>>, k: string): Set<string> => {
 const clearProjectSlice = (projectId: string): void => {
   for (const id of sourceIdsByProject.get(projectId) ?? []) sources.delete(id)
   for (const id of dossierIdsByProject.get(projectId) ?? []) dossiers.delete(id)
+  for (const id of sourceDossierIdsByProject.get(projectId) ?? []) sourceDossiers.delete(id)
   for (const id of articleIdsByProject.get(projectId) ?? []) articles.delete(id)
   sourceIdsByProject.delete(projectId)
   dossierIdsByProject.delete(projectId)
+  sourceDossierIdsByProject.delete(projectId)
   articleIdsByProject.delete(projectId)
 }
 
@@ -105,6 +116,15 @@ export const rebuildProject = (projectId: string): boolean => {
       hasThumbnail: existsSync(getSourceThumbnailPath(projectId, sourceId)),
     })
     sourceSet.add(sourceId)
+  }
+
+  // Source-dossiers (organisational labels — no nested content on disk)
+  const sourceDossierSet = ensureSet(sourceDossierIdsByProject, projectId)
+  for (const sdId of listSubdirs(getSourceDossiersDir(projectId))) {
+    const meta = readSourceDossierMetadata(projectId, sdId)
+    if (!meta) continue
+    sourceDossiers.set(sdId, { meta, projectId })
+    sourceDossierSet.add(sdId)
   }
 
   // Dossiers + their articles
@@ -199,6 +219,22 @@ export const removeDossierFromIndex = (dossierId: string): void => {
   dossiers.delete(dossierId)
 }
 
+export const patchSourceDossier = (
+  projectId: string,
+  sourceDossierId: string,
+  meta: SourceDossierMetadata
+): void => {
+  sourceDossiers.set(sourceDossierId, { meta, projectId })
+  ensureSet(sourceDossierIdsByProject, projectId).add(sourceDossierId)
+}
+
+export const removeSourceDossierFromIndex = (sourceDossierId: string): void => {
+  const entry = sourceDossiers.get(sourceDossierId)
+  if (!entry) return
+  sourceDossierIdsByProject.get(entry.projectId)?.delete(sourceDossierId)
+  sourceDossiers.delete(sourceDossierId)
+}
+
 export const patchArticle = (projectId: string, articleId: string, meta: ArticleMetadata): void => {
   const prev = articles.get(articleId)
   // Cross-project move: tear down the old project's bucket entry first.
@@ -222,9 +258,11 @@ export const buildIndex = (): void => {
   projects.clear()
   sources.clear()
   dossiers.clear()
+  sourceDossiers.clear()
   articles.clear()
   sourceIdsByProject.clear()
   dossierIdsByProject.clear()
+  sourceDossierIdsByProject.clear()
   articleIdsByProject.clear()
 
   for (const projectId of listSubdirs(getProjectsRoot())) {
@@ -289,6 +327,33 @@ export const idx = {
   getDossier: (dossierId: string): DossierEntry | undefined => dossiers.get(dossierId),
   countDossiersInProject: (projectId: string): number =>
     dossierIdsByProject.get(projectId)?.size ?? 0,
+
+  // Source-dossiers
+  listSourceDossiersInProject: (projectId: string): SourceDossierMetadata[] => {
+    const ids = sourceDossierIdsByProject.get(projectId)
+    if (!ids) return []
+    const result: SourceDossierMetadata[] = []
+    for (const id of ids) {
+      const e = sourceDossiers.get(id)
+      if (e) result.push(e.meta)
+    }
+    return result
+  },
+  getSourceDossier: (sourceDossierId: string): SourceDossierEntry | undefined =>
+    sourceDossiers.get(sourceDossierId),
+  countSourcesInSourceDossier: (projectId: string, sourceDossierId: string | null): number => {
+    const ids = sourceIdsByProject.get(projectId)
+    if (!ids) return 0
+    let count = 0
+    for (const id of ids) {
+      const e = sources.get(id)
+      if (!e) continue
+      const sdId = e.meta.sourceDossierId ?? null
+      if (sdId !== sourceDossierId) continue
+      count += 1
+    }
+    return count
+  },
 
   // Articles
   getArticle: (articleId: string): ArticleEntry | undefined => articles.get(articleId),

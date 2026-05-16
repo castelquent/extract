@@ -8,12 +8,16 @@ import type {
   DossierDeleteMode,
   DossierView,
   ProjectView,
+  SourceDossierDeleteMode,
+  SourceDossierView,
+  SourceMoveTarget,
   SourceView,
 } from '@shared/types'
 
 interface ProjectState {
   project: ProjectView | null
   sources: SourceView[]
+  sourceDossiers: SourceDossierView[]
   dossiers: DossierView[]
   articles: ArticleMetadata[]
   loading: boolean
@@ -29,6 +33,15 @@ interface ProjectState {
   deleteSource: (sourceId: string, force?: boolean) => Promise<boolean>
   renameSource: (sourceId: string, name: string) => Promise<boolean>
   replaceSourcePdf: (sourceId: string) => Promise<SourceView | null>
+  moveSourcesBulk: (sourceIds: string[], target: SourceMoveTarget) => Promise<boolean>
+
+  // Source-dossiers
+  createSourceDossier: (name: string) => Promise<SourceDossierView | null>
+  renameSourceDossier: (sourceDossierId: string, name: string) => Promise<boolean>
+  deleteSourceDossier: (
+    sourceDossierId: string,
+    mode: SourceDossierDeleteMode
+  ) => Promise<boolean>
 
   // Dossiers
   createDossier: (name: string) => Promise<DossierView | null>
@@ -45,6 +58,7 @@ interface ProjectState {
 const initialState = {
   project: null as ProjectView | null,
   sources: [] as SourceView[],
+  sourceDossiers: [] as SourceDossierView[],
   dossiers: [] as DossierView[],
   articles: [] as ArticleMetadata[],
   loading: false,
@@ -57,13 +71,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   loadProject: async (projectId) => {
     set({ loading: true, error: null })
     try {
-      const [project, sources, dossiers, articles] = await Promise.all([
+      const [project, sources, sourceDossiers, dossiers, articles] = await Promise.all([
         window.api.v2_projectsGet(projectId),
         window.api.v2_sourcesList(projectId),
+        window.api.v2_sourceDossiersList(projectId),
         window.api.v2_dossiersList(projectId),
         window.api.v2_articlesList(projectId),
       ])
-      set({ project, sources, dossiers, articles, loading: false })
+      set({ project, sources, sourceDossiers, dossiers, articles, loading: false })
     } catch (err) {
       console.error(err)
       toast.error('Erreur lors du chargement du projet')
@@ -157,6 +172,95 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       console.error(err)
       toast.error('Erreur lors du remplacement du PDF')
       return null
+    }
+  },
+
+  moveSourcesBulk: async (sourceIds, target) => {
+    const projectId = get().project?.id
+    if (!projectId) return false
+    // Optimistic: patch local sources so the sidebar regroups before the
+    // watcher round-trip lands.
+    const idSet = new Set(sourceIds)
+    set((s) => ({
+      sources: s.sources.map((src) =>
+        idSet.has(src.id) ? { ...src, sourceDossierId: target.sourceDossierId } : src
+      ),
+    }))
+    try {
+      const ok = await window.api.v2_sourcesMoveBulk(projectId, sourceIds, target)
+      if (!ok) {
+        toast.error('Erreur lors du déplacement')
+        await get().refresh()
+      } else {
+        toast.success(`${sourceIds.length} source(s) déplacée(s)`)
+      }
+      return ok
+    } catch (err) {
+      console.error(err)
+      toast.error('Erreur lors du déplacement')
+      await get().refresh()
+      return false
+    }
+  },
+
+  createSourceDossier: async (name) => {
+    const projectId = get().project?.id
+    if (!projectId) return null
+    try {
+      const view = await window.api.v2_sourceDossiersCreate(projectId, name)
+      if (view) {
+        set((s) => ({ sourceDossiers: [...s.sourceDossiers, view] }))
+        toast.success('Dossier créé')
+      }
+      return view
+    } catch (err) {
+      console.error(err)
+      toast.error('Erreur lors de la création du dossier')
+      return null
+    }
+  },
+
+  renameSourceDossier: async (sourceDossierId, name) => {
+    const projectId = get().project?.id
+    if (!projectId) return false
+    try {
+      const ok = await window.api.v2_sourceDossiersRename(projectId, sourceDossierId, name)
+      if (ok) {
+        set((s) => ({
+          sourceDossiers: s.sourceDossiers.map((d) =>
+            d.id === sourceDossierId
+              ? { ...d, name, modifiedAt: new Date().toISOString() }
+              : d
+          ),
+        }))
+        toast.success('Dossier renommé')
+      }
+      return ok
+    } catch (err) {
+      console.error(err)
+      toast.error('Erreur lors du renommage')
+      return false
+    }
+  },
+
+  deleteSourceDossier: async (sourceDossierId, mode) => {
+    const projectId = get().project?.id
+    if (!projectId) return false
+    try {
+      const ok = await window.api.v2_sourceDossiersDelete(projectId, sourceDossierId, mode)
+      if (ok) {
+        toast.success(
+          mode === 'orphan-sources'
+            ? 'Dossier supprimé, sources rendues orphelines'
+            : 'Dossier et sources supprimés'
+        )
+        await get().refresh()
+      }
+      return ok
+    } catch (err) {
+      console.error(err)
+      toast.error('Erreur lors de la suppression du dossier')
+      return false
     }
   },
 

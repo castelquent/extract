@@ -22,7 +22,13 @@ import { app } from 'electron'
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, statSync } from 'fs'
 import { join } from 'path'
 import { ulid } from 'ulid'
-import type { ArticleMetadata, DossierMetadata, ProjectMetadataV2, SourceMetadata } from '@shared/types'
+import type {
+  ArticleMetadata,
+  DossierMetadata,
+  ProjectMetadataV2,
+  SourceDossierMetadata,
+  SourceMetadata,
+} from '@shared/types'
 
 // ---- ID generation ----
 export const newId = (): string => ulid()
@@ -55,6 +61,14 @@ export const getSourcePdfPath = (projectId: string, sourceId: string): string =>
   join(getSourceDir(projectId, sourceId), 'source.pdf')
 export const getSourceThumbnailPath = (projectId: string, sourceId: string): string =>
   join(getSourceDir(projectId, sourceId), 'thumbnail.png')
+
+// ---- Source-dossier paths (parallel to dossier paths; for grouping sources) ----
+export const getSourceDossiersDir = (projectId: string): string =>
+  join(getProjectDir(projectId), 'source-dossiers')
+export const getSourceDossierDir = (projectId: string, sourceDossierId: string): string =>
+  join(getSourceDossiersDir(projectId), sourceDossierId)
+export const getSourceDossierMetadataPath = (projectId: string, sourceDossierId: string): string =>
+  join(getSourceDossierDir(projectId, sourceDossierId), 'metadata.json')
 
 // ---- Dossier paths ----
 export const getDossiersDir = (projectId: string): string =>
@@ -171,6 +185,12 @@ export const readDossierMetadata = (
   dossierId: string
 ): DossierMetadata | null =>
   readJson<DossierMetadata>(getDossierMetadataPath(projectId, dossierId))
+
+export const readSourceDossierMetadata = (
+  projectId: string,
+  sourceDossierId: string
+): SourceDossierMetadata | null =>
+  readJson<SourceDossierMetadata>(getSourceDossierMetadataPath(projectId, sourceDossierId))
 
 export const readArticleMetadata = (
   projectId: string,

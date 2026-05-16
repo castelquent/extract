@@ -65,12 +65,16 @@ export interface ProjectView extends ProjectMetadataV2 {
 // `name` is a user-editable display label. `originalFilename` is the
 // immutable name of the file at import time (kept for reference / debug).
 // The UI shows `name ?? originalFilename`.
+// `sourceDossierId` groups sources into source-dossiers (purely an
+// organisational label; the file stays at sources/{sourceId}/source.pdf
+// regardless). null = no source-dossier (orphan).
 export interface SourceMetadata {
   id: string
   originalFilename: string
   pageCount: number
   importedAt: string
   name?: string
+  sourceDossierId?: string | null
 }
 
 export interface SourceView extends SourceMetadata {
@@ -80,6 +84,28 @@ export interface SourceView extends SourceMetadata {
   // replacement, so the path alone wouldn't change.
   thumbnailMtime: number | null
   articlesCount: number
+}
+
+// --- Source-dossier (optional grouping of sources inside a project) ---
+// Distinct from DossierMetadata (which groups articles). They're parallel,
+// not shared: a researcher might organise sources by provenance while
+// articles get organised by topic.
+export interface SourceDossierMetadata {
+  id: string
+  name: string
+  createdAt: string
+  modifiedAt: string
+}
+
+export interface SourceDossierView extends SourceDossierMetadata {
+  sourcesCount: number
+}
+
+export type SourceDossierDeleteMode = 'delete-content' | 'orphan-sources'
+
+// Move target for sources (intra-project only — no cross-project moves yet).
+export interface SourceMoveTarget {
+  sourceDossierId: string | null
 }
 
 // --- Dossier (optional grouping of articles inside a project) ---
@@ -272,6 +298,8 @@ export interface ElectronAPI {
   v2_sourcesGet: (projectId: string, sourceId: string) => Promise<SourceView | null>
   v2_sourcesDelete: (projectId: string, sourceId: string, force?: boolean) => Promise<{ ok: boolean; reason?: 'has-articles'; articlesCount?: number }>
   v2_sourcesUpdate: (projectId: string, sourceId: string, patch: { name?: string }) => Promise<boolean>
+  // Bulk move sources into a different source-dossier (null = orphan).
+  v2_sourcesMoveBulk: (projectId: string, sourceIds: string[], target: SourceMoveTarget) => Promise<boolean>
   // Open a file picker, replace this source's PDF in place, regenerate
   // page count + thumbnail. Returns the refreshed SourceView, or null when
   // the user cancels or the import fails.
@@ -288,6 +316,12 @@ export interface ElectronAPI {
   v2_dossiersGet: (projectId: string, dossierId: string) => Promise<DossierView | null>
   v2_dossiersRename: (projectId: string, dossierId: string, name: string) => Promise<boolean>
   v2_dossiersDelete: (projectId: string, dossierId: string, mode: DossierDeleteMode) => Promise<boolean>
+
+  // Source-dossiers (parallel hierarchy to Dossiers, for sources)
+  v2_sourceDossiersCreate: (projectId: string, name: string) => Promise<SourceDossierView | null>
+  v2_sourceDossiersList: (projectId: string) => Promise<SourceDossierView[]>
+  v2_sourceDossiersRename: (projectId: string, sourceDossierId: string, name: string) => Promise<boolean>
+  v2_sourceDossiersDelete: (projectId: string, sourceDossierId: string, mode: SourceDossierDeleteMode) => Promise<boolean>
 
   // Articles
   v2_articlesList: (projectId: string, scope?: ArticleScope) => Promise<ArticleMetadata[]>

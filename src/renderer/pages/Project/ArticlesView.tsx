@@ -656,6 +656,14 @@ export function ArticlesView({
     )
   }, [dossiers, urlDossier, setSearchParams])
 
+  // Reset the multi-select when the user switches dossier in the sidebar.
+  // Mirrors SourcesView; intra-dossier DnD already filters out cross-dossier
+  // ids in practice, but resetting also avoids stale check states leaking
+  // into the bulk-action bar.
+  useEffect(() => {
+    setSelectedIds(new Set())
+  }, [selectedDossierKey])
+
   const activeDossier: DossierView | null =
     selectedDossierKey === ORPHANS_KEY
       ? null
@@ -973,7 +981,6 @@ export function ArticlesView({
                 className={`flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer ${selectedDossierKey === ORPHANS_KEY ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground hover:bg-muted/40'} ${orphansDropActive ? 'bg-primary/10 outline outline-2 outline-primary/60 -outline-offset-1' : ''}`}
                 title="Sans dossier"
               >
-                <Folder className="h-3.5 w-3.5 shrink-0 fill-muted-foreground/60 text-muted-foreground/60" />
                 <span className="truncate">Sans dossier</span>
               </li>
             </ul>

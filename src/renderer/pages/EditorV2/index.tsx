@@ -381,7 +381,7 @@ export function EditorV2Page() {
     const wasLast = articles.length === 1
     await deleteArticle(deleteConfirmId)
     setDeleteConfirmId(null)
-    if (wasLast && projectId) navigate(`/project/${projectId}`)
+    if (wasLast && projectId) navigate(-1)
   }
 
   const handleBulkDelete = async () => {
@@ -391,7 +391,7 @@ export function EditorV2Page() {
     }
     setBulkDeleteIds(null)
     if (useEditorStore.getState().articles.length === 0 && projectId) {
-      navigate(`/project/${projectId}`)
+      navigate(-1)
     }
   }
 

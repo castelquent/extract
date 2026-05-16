@@ -2,7 +2,7 @@
 // Header + tabs (Articles | Sources). Inside-project article/dossier/source
 // management, multi-select bulk moves, etc.
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useProjectStore, useTemplatesStore } from '@/stores'
 import { isFieldFilled } from '@shared/fieldValue'
 import {
@@ -36,7 +36,21 @@ export function ProjectDetailPage() {
   const navigate = useNavigate()
   const { project, articles, loadProject, loading, reset } = useProjectStore()
   const { templates, loadTemplates } = useTemplatesStore()
-  const [tab, setTab] = useState<'articles' | 'sources'>('articles')
+  // Tab lives in the URL (?tab=articles|sources) so back-nav from the
+  // editor / extractor lands on whatever tab the user left from.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tabParam = searchParams.get('tab')
+  const tab: 'articles' | 'sources' = tabParam === 'sources' ? 'sources' : 'articles'
+  const setTab = (v: 'articles' | 'sources') => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        next.set('tab', v)
+        return next
+      },
+      { replace: true }
+    )
+  }
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [draftName, setDraftName] = useState('')
   const [draftTemplateId, setDraftTemplateId] = useState('')
@@ -271,7 +285,7 @@ export function ProjectDetailPage() {
         <TabsContent value="articles" className="flex-1 min-h-0 mt-0 overflow-hidden">
           <ArticlesView projectId={project.id} incompleteOnly={incompleteOnly} />
         </TabsContent>
-        <TabsContent value="sources" className="flex-1 min-h-0 mt-0 overflow-y-auto pt-4">
+        <TabsContent value="sources" className="flex-1 min-h-0 mt-0 overflow-y-auto">
           <SourcesView projectId={project.id} />
         </TabsContent>
       </Tabs>

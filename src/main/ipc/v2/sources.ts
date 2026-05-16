@@ -2,7 +2,7 @@
 // projects/{projectId}/sources/{sourceId}/source.pdf with a metadata.json.
 import { ipcMain, dialog } from 'electron'
 import { copyFileSync, existsSync, readFileSync, rmSync, statSync } from 'fs'
-import type { SourceMetadata, SourceView } from '@shared/types'
+import type { SourceMetadata, SourceMoveTarget, SourceView } from '@shared/types'
 import {
   ensureDir,
   getProjectThumbnailPath,
@@ -318,6 +318,38 @@ export function setupV2SourceHandlers(): void {
       } catch {
         return null
       }
+    }
+  )
+
+  // Move sources into a (possibly null) source-dossier. The PDF stays at
+  // sources/{sourceId}/source.pdf — only metadata.json.sourceDossierId is
+  // updated. Returns true if every source updated successfully (the call is
+  // best-effort: a partial failure still reports the disk writes that landed).
+  ipcMain.handle(
+    'v2:sources:moveBulk',
+    async (
+      _,
+      projectId: string,
+      sourceIds: string[],
+      target: SourceMoveTarget
+    ): Promise<boolean> => {
+      let allOk = true
+      for (const sourceId of sourceIds) {
+        const entry = idx.getSource(sourceId)
+        if (!entry || entry.projectId !== projectId) {
+          allOk = false
+          continue
+        }
+        const updated: SourceMetadata = {
+          ...entry.meta,
+          sourceDossierId: target.sourceDossierId,
+        }
+        const ok = writeJson(getSourceMetadataPath(projectId, sourceId), updated)
+        if (ok) patchSource(projectId, sourceId, updated)
+        else allOk = false
+      }
+      if (sourceIds.length > 0) touchProject(projectId)
+      return allOk
     }
   )
 }

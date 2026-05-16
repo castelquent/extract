@@ -97,6 +97,13 @@ const api: ElectronAPI & {
   v2_sourcesDownloadPdf: (projectId, sourceId) => ipcRenderer.invoke('v2:sources:downloadPdf', projectId, sourceId),
   v2_sourcesGetPdfData: (projectId, sourceId) => ipcRenderer.invoke('v2:sources:getPdfData', projectId, sourceId),
   v2_sourcesGetThumbnail: (projectId, sourceId) => ipcRenderer.invoke('v2:sources:getThumbnail', projectId, sourceId),
+  v2_sourcesMoveBulk: (projectId, sourceIds, target) => ipcRenderer.invoke('v2:sources:moveBulk', projectId, sourceIds, target),
+
+  // Source-dossiers v2
+  v2_sourceDossiersCreate: (projectId, name) => ipcRenderer.invoke('v2:sourceDossiers:create', projectId, name),
+  v2_sourceDossiersList: (projectId) => ipcRenderer.invoke('v2:sourceDossiers:list', projectId),
+  v2_sourceDossiersRename: (projectId, id, name) => ipcRenderer.invoke('v2:sourceDossiers:rename', projectId, id, name),
+  v2_sourceDossiersDelete: (projectId, id, mode) => ipcRenderer.invoke('v2:sourceDossiers:delete', projectId, id, mode),
 
   // Dossiers v2
   v2_dossiersCreate: (projectId, name) => ipcRenderer.invoke('v2:dossiers:create', projectId, name),

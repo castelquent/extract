@@ -266,7 +266,7 @@ export function ExtractionV2Page() {
     }
     // Otherwise just regen (modifications on existing dossiered articles).
     const ok = await generateArticles({ kind: 'no-dossier' })
-    if (ok) navigate(`/project/${projectId}`)
+    if (ok) navigate(-1)
   }
 
   const handleConfirmGenerate = async (target: {
@@ -285,7 +285,7 @@ export function ExtractionV2Page() {
           ? ({ kind: 'existing-dossier', dossierId: target.existingDossierId } as const)
           : ({ kind: 'no-dossier' } as const)
     const ok = await generateArticles(generateTarget)
-    if (ok) navigate(`/project/${projectId}`)
+    if (ok) navigate(-1)
   }
 
   if (!project) {
@@ -310,7 +310,7 @@ export function ExtractionV2Page() {
 
       <header className="bg-card border-b px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="outline" size="sm" onClick={() => navigate(`/project/${projectId}`)}>
+          <Button variant="outline" size="sm" onClick={() => navigate(-1)}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Projet
           </Button>

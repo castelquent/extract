@@ -1,5 +1,6 @@
 import { setupV2ProjectHandlers } from './projects'
 import { setupV2SourceHandlers } from './sources'
+import { setupV2SourceDossierHandlers } from './sourceDossiers'
 import { setupV2DossierHandlers } from './dossiers'
 import { setupV2ArticleHandlers } from './articles'
 import { setupV2TranscriptionHandlers } from './transcription'
@@ -11,6 +12,7 @@ import { setupV2ZipHandlers } from './zip'
 export function setupV2Handlers(): void {
   setupV2ProjectHandlers()
   setupV2SourceHandlers()
+  setupV2SourceDossierHandlers()
   setupV2DossierHandlers()
   setupV2ArticleHandlers()
   setupV2TranscriptionHandlers()
