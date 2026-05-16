@@ -26,7 +26,7 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/ui'
-import { Download, FileText, FolderOpen, Plus, Settings } from 'lucide-react'
+import { Download, FileText, FolderOpen, Settings } from 'lucide-react'
 import { ArticlesView } from './ArticlesView'
 import { SourcesView } from './SourcesView'
 import { ExportModal, ExportFormat } from '../Editor/ExportModal'
@@ -34,14 +34,12 @@ import { ExportModal, ExportFormat } from '../Editor/ExportModal'
 export function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>()
   const navigate = useNavigate()
-  const { project, articles, loadProject, loading, reset, createDossier } = useProjectStore()
+  const { project, articles, loadProject, loading, reset } = useProjectStore()
   const { templates, loadTemplates } = useTemplatesStore()
   const [tab, setTab] = useState<'articles' | 'sources'>('articles')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [draftName, setDraftName] = useState('')
   const [draftTemplateId, setDraftTemplateId] = useState('')
-  const [newDossierOpen, setNewDossierOpen] = useState(false)
-  const [newDossierName, setNewDossierName] = useState('')
   const [exportOpen, setExportOpen] = useState(false)
   // "Show only incomplete" filter for the articles list. Session-only.
   const [incompleteOnly, setIncompleteOnly] = useState(false)
@@ -100,14 +98,6 @@ export function ProjectDetailPage() {
       if (ok) await loadProject(project.id)
     }
     setSettingsOpen(false)
-  }
-
-  const handleCreateDossier = async () => {
-    const created = await createDossier(newDossierName)
-    if (created) {
-      setNewDossierOpen(false)
-      setNewDossierName('')
-    }
   }
 
   // Group by dossier (in dossiers list order) then orphans, so the exported
@@ -171,8 +161,8 @@ export function ProjectDetailPage() {
   const fillPct = fieldsTotal > 0 ? Math.round((fieldsFilled / fieldsTotal) * 100) : 0
 
   return (
-    <div className="min-h-screen">
-      <header className="p-6 border-b">
+    <div className="h-screen flex flex-col overflow-hidden">
+      <header className="p-6 border-b shrink-0">
         <div className="flex items-center justify-between gap-4 mb-1">
           <div className="flex items-center min-w-0 flex-1">
             <h1 className="text-2xl font-bold">{project.name}</h1>
@@ -218,16 +208,16 @@ export function ProjectDetailPage() {
                 Exporter
               </Button>
             )}
-            <Button variant="outline" size="sm" onClick={() => setNewDossierOpen(true)}>
-              <Plus className="h-4 w-4 mr-1" />
-              Nouveau dossier
-            </Button>
           </div>
         </div>
       </header>
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as 'articles' | 'sources')}>
-        <div className="border-b py-4 px-6 flex items-center justify-between gap-4">
+      <Tabs
+        value={tab}
+        onValueChange={(v) => setTab(v as 'articles' | 'sources')}
+        className="flex-1 min-h-0 flex flex-col"
+      >
+        <div className="border-b py-4 px-6 flex items-center justify-between gap-4 shrink-0">
           <TabsList className="bg-transparent p-0 h-auto gap-1">
             <TabsTrigger
               value="articles"
@@ -278,10 +268,10 @@ export function ProjectDetailPage() {
             )}
           </div>
         </div>
-        <TabsContent value="articles" className="pt-4">
+        <TabsContent value="articles" className="flex-1 min-h-0 mt-0 overflow-hidden">
           <ArticlesView projectId={project.id} incompleteOnly={incompleteOnly} />
         </TabsContent>
-        <TabsContent value="sources" className="pt-4">
+        <TabsContent value="sources" className="flex-1 min-h-0 mt-0 overflow-y-auto pt-4">
           <SourcesView projectId={project.id} />
         </TabsContent>
       </Tabs>
@@ -327,29 +317,6 @@ export function ProjectDetailPage() {
             </Button>
             <Button onClick={saveSettings} disabled={!draftName.trim()}>
               Enregistrer
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={newDossierOpen} onOpenChange={setNewDossierOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Nouveau dossier</DialogTitle>
-          </DialogHeader>
-          <Input
-            value={newDossierName}
-            onChange={(e) => setNewDossierName(e.target.value)}
-            placeholder="Nom du dossier"
-            autoFocus
-            onKeyDown={(e) => e.key === 'Enter' && handleCreateDossier()}
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setNewDossierOpen(false)}>
-              Annuler
-            </Button>
-            <Button onClick={handleCreateDossier} disabled={!newDossierName.trim()}>
-              Créer
             </Button>
           </DialogFooter>
         </DialogContent>

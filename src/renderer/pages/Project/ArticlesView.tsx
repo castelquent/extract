@@ -1,37 +1,29 @@
-// Articles tab of ProjectDetail. Lists all articles in the project, grouped by
-// dossier (one section per dossier, plus a "Sans dossier" section). Supports
-// multi-select + bulk actions (delete, move to dossier, move to project).
+// Articles tab of ProjectDetail. Two-pane layout: left sidebar lists all
+// dossiers (+ "Sans dossier"), right pane shows the articles of the currently
+// selected dossier only. Click a sidebar item to switch.
 //
-// The list is virtualized via @tanstack/react-virtual so that only the rows
-// actually in the viewport pay the React/DnD cost. At 300+ articles, mounting
-// every <ArticleRow> with its own useSortable hook is the main bottleneck —
-// virtualization caps the rendered count at ~20 regardless of total size.
-//
-// DnD: one SortableContext for the whole list with a no-op strategy (no row
-// shifting during drag). The active row follows the cursor; the drop target
-// is highlighted via a border. Intra-section drops reorder; cross-section
-// drops move the article AND reorder so it lands at the user's drop position.
-import { useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+// DnD: intra-section drag-to-reorder within the visible dossier.
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   DndContext,
+  DragOverlay,
   PointerSensor,
-  closestCenter,
+  pointerWithin,
   useDndContext,
   useDroppable,
   useSensor,
   useSensors,
+  type CollisionDetection,
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core'
 import {
   SortableContext,
-  arrayMove,
   useSortable,
   type SortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { useWindowVirtualizer } from '@tanstack/react-virtual'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -54,14 +46,23 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
   Input,
   useSidebar,
 } from '@/components/ui'
 import {
   Download,
   FileText,
+  Folder,
   MoveRight,
   Pencil,
+  Plus,
+  Settings2,
   Trash2,
   X,
 } from 'lucide-react'
@@ -76,13 +77,18 @@ import { isFieldFilled } from '@shared/fieldValue'
 import { MoveDialog } from './MoveDialog'
 import { ExportModal, ExportFormat } from '../Editor/ExportModal'
 
-// No-op sorting strategy: items don't shift to "make space" during drag.
-// dnd-kit's default (rectSortingStrategy) treats every member of the
-// SortableContext as part of one big list, so dragging into a destination
-// section pushes its rows — including the bottom one — into the next
-// section. We just want the active row to follow the cursor; the drop
-// position is resolved from the over target in onDragEnd.
+// noop strategy: rows don't shift to make room during drag. Active row
+// follows the cursor; drop position resolved from over target in onDragEnd.
 const noopStrategy: SortingStrategy = () => null
+
+// Strict pointer-within: a drop only registers when the cursor is actually
+// inside a droppable rect. We deliberately don't fall back to closestCenter,
+// because it would otherwise capture the nearest sidebar dossier when the
+// cursor hovers an empty area of the sidebar (below the last item, etc.).
+const collisionDetection: CollisionDetection = pointerWithin
+
+// Sentinel key for the "Sans dossier" bucket in selectedDossierKey state.
+const ORPHANS_KEY = '__orphans__'
 
 const completionBadge = (article: ArticleMetadata): React.ReactNode => {
   const schema = article.schema ?? []
@@ -103,7 +109,36 @@ const formatShortDate = (iso: string): string => {
   return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
 }
 
-const ROW_GRID = 'grid grid-cols-[28px_minmax(0,1fr)_72px_96px_88px] gap-4 items-center'
+// Toggleable columns — Titre and the checkbox column are always visible.
+type ColumnKey = 'source' | 'pages' | 'completion' | 'modified'
+type ColumnVisibility = Record<ColumnKey, boolean>
+
+const DEFAULT_COLUMNS: ColumnVisibility = {
+  source: true,
+  pages: false,
+  completion: true,
+  modified: false,
+}
+
+const COLUMN_LABELS: Record<ColumnKey, string> = {
+  source: 'Source',
+  pages: 'Pages',
+  completion: 'Remplissage',
+  modified: 'Modifié',
+}
+
+const COLUMNS_STORAGE_KEY = 'extract:articleColumns'
+
+const ROW_BASE_CLASS = 'grid gap-4 items-center'
+
+const buildGridStyle = (visible: ColumnVisibility): React.CSSProperties => {
+  const cols = ['28px', 'minmax(0,1fr)']
+  if (visible.source) cols.push('minmax(120px,180px)')
+  if (visible.pages) cols.push('72px')
+  if (visible.completion) cols.push('96px')
+  if (visible.modified) cols.push('88px')
+  return { gridTemplateColumns: cols.join(' ') }
+}
 
 const compareArticles = (a: ArticleMetadata, b: ArticleMetadata): number => {
   const ao = typeof a.order === 'number' ? a.order : Number.POSITIVE_INFINITY
@@ -118,68 +153,25 @@ const isArticleComplete = (article: ArticleMetadata): boolean => {
   return schema.every((f) => isFieldFilled(f, article.fields?.[f.name]))
 }
 
-// ---------- Flat row model ----------
-
-type FlatRow =
-  | {
-      type: 'section-header'
-      key: string
-      dossier: DossierView | null
-      articleIds: string[]
-    }
-  | {
-      type: 'col-header'
-      key: string
-      dossierId: string | null
-      articleIds: string[]
-    }
-  | {
-      type: 'article'
-      key: string
-      article: ArticleMetadata
-    }
-  | {
-      type: 'section-empty'
-      key: string
-      dossier: DossierView | null
-    }
-  | {
-      type: 'section-gap'
-      key: string
-    }
-
-const SECTION_HEADER_HEIGHT = 52
-const COL_HEADER_HEIGHT = 38
-const ARTICLE_ROW_HEIGHT = 44
-const SECTION_GAP_HEIGHT = 32
-const EMPTY_NOTICE_HEIGHT = 56
-
-const estimateRowHeight = (row: FlatRow): number => {
-  switch (row.type) {
-    case 'section-header': return SECTION_HEADER_HEIGHT
-    case 'col-header': return COL_HEADER_HEIGHT
-    case 'article': return ARTICLE_ROW_HEIGHT
-    case 'section-empty': return EMPTY_NOTICE_HEIGHT
-    case 'section-gap': return SECTION_GAP_HEIGHT
-  }
-}
-
 // ---------- Article row (sortable) ----------
 
 function ArticleRow({
   article,
+  sourceLabel,
   selected,
   isMultiDragGhost,
+  columns,
+  gridStyle,
   onToggle,
   onOpen,
   onDelete,
 }: {
   article: ArticleMetadata
+  sourceLabel: string
   selected: boolean
-  // True when this row is part of a multi-drag selection but isn't the
-  // pointer-grabbed item. We dim it so the user sees the whole group is
-  // moving even though only one row has a useSortable transform.
   isMultiDragGhost: boolean
+  columns: ColumnVisibility
+  gridStyle: React.CSSProperties
   onToggle: () => void
   onOpen: () => void
   onDelete: () => void
@@ -193,17 +185,31 @@ function ArticleRow({
     isDragging,
   } = useSortable({ id: article.id, data: { dossierId: article.dossierId } })
 
-  // Drop indicator: outline the row currently hovered as a drop target.
   const { active, over } = useDndContext()
   const isOverTarget =
     !!over && over.id === article.id && !!active && active.id !== article.id
 
-  // No `transition` — the drop should be instant. The default useSortable
-  // transition animates the row's transform back to zero on release, which
-  // reads as "flying home".
+  // Drop indicator: a thin line at the top or bottom of this row, depending on
+  // whether the dragged item's vertical center is above or below this row's
+  // center. Tells the user exactly where the drop will land instead of just
+  // outlining the whole row (ambiguous "before or after?").
+  let dropEdge: 'above' | 'below' | null = null
+  if (isOverTarget) {
+    const activeRect = active!.rect.current.translated
+    const overRect = over!.rect
+    if (activeRect && overRect) {
+      const activeMid = (activeRect.top + activeRect.bottom) / 2
+      const overMid = (overRect.top + overRect.bottom) / 2
+      dropEdge = activeMid < overMid ? 'above' : 'below'
+    }
+  }
+
+  // Source rows fully hidden while dragged — the floating preview rendered
+  // by <DragOverlay> below is the single visual element following the cursor.
   const style: React.CSSProperties = {
+    ...gridStyle,
     transform: CSS.Transform.toString(transform),
-    opacity: isDragging || isMultiDragGhost ? 0.4 : undefined,
+    opacity: isDragging || isMultiDragGhost ? 0 : undefined,
   }
 
   return (
@@ -211,12 +217,19 @@ function ArticleRow({
       <ContextMenuTrigger asChild>
         <div
           ref={setNodeRef}
+          data-article-row
           style={style}
-          className={`${ROW_GRID} px-3 py-2.5 border-b border-border/40 last:border-b-0 hover:bg-muted/40 cursor-pointer ${isDragging ? 'relative z-10 bg-muted/40 shadow-sm' : ''} ${isOverTarget ? 'bg-primary/10 outline outline-2 outline-primary/60 -outline-offset-1' : ''}`}
+          className={`relative ${ROW_BASE_CLASS} px-3 py-2.5 border-b border-border/40 last:border-b-0 hover:bg-muted/40 cursor-pointer ${isDragging ? 'z-10 bg-muted/40 shadow-sm' : ''}`}
           onClick={onOpen}
           {...attributes}
           {...listeners}
         >
+          {dropEdge === 'above' && (
+            <div className="pointer-events-none absolute -top-px left-0 right-0 h-0.5 bg-primary z-20" />
+          )}
+          {dropEdge === 'below' && (
+            <div className="pointer-events-none absolute -bottom-px left-0 right-0 h-0.5 bg-primary z-20" />
+          )}
           <Checkbox
             checked={selected}
             onClick={(e) => {
@@ -227,13 +240,35 @@ function ArticleRow({
           <div className="flex items-center gap-2 min-w-0">
             <span className="truncate text-sm">{title}</span>
           </div>
-          <span className="text-xs text-muted-foreground tabular-nums text-right">
-            {article.pages.length}p
-          </span>
-          <div className="flex justify-center">{completionBadge(article)}</div>
-          <span className="text-xs text-muted-foreground tabular-nums text-right">
-            {formatShortDate(article.modifiedAt)}
-          </span>
+          {columns.source && (() => {
+            const firstPage = article.zones[0]?.page
+            const display =
+              firstPage !== undefined ? `${sourceLabel}, p${firstPage}` : sourceLabel
+            return (
+              <span
+                className="flex items-center gap-1 text-xs text-muted-foreground min-w-0"
+                title={display}
+              >
+                <span className="truncate">{sourceLabel}</span>
+                {firstPage !== undefined && (
+                  <span className="shrink-0">, p{firstPage}</span>
+                )}
+              </span>
+            )
+          })()}
+          {columns.pages && (
+            <span className="text-xs text-muted-foreground tabular-nums text-right">
+              {article.pages.length}p
+            </span>
+          )}
+          {columns.completion && (
+            <div className="flex justify-center">{completionBadge(article)}</div>
+          )}
+          {columns.modified && (
+            <span className="text-xs text-muted-foreground tabular-nums text-right">
+              {formatShortDate(article.modifiedAt)}
+            </span>
+          )}
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
@@ -251,40 +286,149 @@ function ArticleRow({
   )
 }
 
-// ---------- Section header (non-sortable) ----------
+// ---------- Floating preview shown by <DragOverlay> while dragging ----------
+
+const PREVIEW_MAX_TITLES = 3
+
+function DragPreview({
+  articles,
+  grabOffsetX,
+}: {
+  articles: ArticleMetadata[]
+  grabOffsetX: number
+}) {
+  if (articles.length === 0) return null
+  const titles = articles
+    .slice(0, PREVIEW_MAX_TITLES)
+    .map(
+      (a) =>
+        (a.fields['Titre'] ?? a.fields['title'] ?? '').trim() || 'Sans titre'
+    )
+  const extra = articles.length - titles.length
+  // <DragOverlay> sizes its wrapper to the full source row width and pins
+  // the cursor at grabOffsetX inside that wrapper. We need an inner wrapper
+  // with position:relative so we can absolutely position the preview at
+  // exactly the cursor's x; otherwise a 30%-wide preview glued to the left
+  // looks detached from the cursor when the user grabs near the right edge.
+  return (
+    <div className="relative w-full h-full">
+      <div
+        style={{
+          position: 'absolute',
+          left: `${grabOffsetX + 12}px`,
+          top: 8,
+        }}
+        className="w-[30%] rounded-md border border-border bg-background shadow-lg cursor-grabbing py-1"
+      >
+        {titles.map((t, i) => (
+          <div key={i} className="px-3 py-1 text-sm truncate">
+            {t}
+          </div>
+        ))}
+        {extra > 0 && (
+          <div className="px-3 py-1 text-xs text-muted-foreground italic">
+            et {extra} autre{extra > 1 ? 's' : ''}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ---------- Sidebar dossier item (droppable target for cross-dossier moves) ----------
+
+function DossierSidebarItem({
+  dossier,
+  isActive,
+  isEditing,
+  inlineRenameName,
+  onChangeName,
+  onSelect,
+  onStartRename,
+  onCommitRename,
+  onCancelRename,
+  onDelete,
+}: {
+  dossier: DossierView
+  isActive: boolean
+  isEditing: boolean
+  inlineRenameName: string
+  onChangeName: (v: string) => void
+  onSelect: () => void
+  onStartRename: () => void
+  onCommitRename: () => void
+  onCancelRename: () => void
+  onDelete: () => void
+}) {
+  const { setNodeRef, isOver, active } = useDroppable({
+    id: `dossier-drop:${dossier.id}`,
+    data: { kind: 'dossier-drop', dossierId: dossier.id },
+  })
+  // Highlight only when an article drag is in progress AND the dossier is
+  // not the one the dragged article already lives in.
+  const dragSourceDossierId = active?.data.current?.dossierId as string | null | undefined
+  const showDrop = isOver && !!active && dragSourceDossierId !== dossier.id
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <li
+          ref={setNodeRef}
+          onClick={() => !isEditing && onSelect()}
+          className={`flex items-center gap-2 px-3 py-1.5 text-sm ${isEditing ? '' : 'cursor-pointer'} ${isActive ? 'bg-muted font-medium' : 'hover:bg-muted/40'} ${showDrop ? 'bg-primary/10 outline outline-2 outline-primary/60 -outline-offset-1' : ''}`}
+          title={dossier.name}
+        >
+          <Folder className="h-3.5 w-3.5 shrink-0 fill-muted-foreground/60 text-muted-foreground/60" />
+          {isEditing ? (
+            <Input
+              value={inlineRenameName}
+              onChange={(e) => onChangeName(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') onCommitRename()
+                else if (e.key === 'Escape') onCancelRename()
+              }}
+              onBlur={onCommitRename}
+              autoFocus
+              className="h-6 px-1 py-0 text-sm"
+            />
+          ) : (
+            <span className="truncate">{dossier.name}</span>
+          )}
+        </li>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onClick={onStartRename}>
+          <Pencil className="h-4 w-4 mr-2" />
+          Renommer
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
+          <Trash2 className="h-4 w-4 mr-2" />
+          Supprimer
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  )
+}
+
+// ---------- Section header (no longer a drop target — single dossier view) ----------
 
 function SectionHeader({
   dossier,
   articleIds,
+  columns,
+  onToggleColumn,
   onEditScope,
-  onRenameDossier,
-  onDeleteDossier,
 }: {
   dossier: DossierView | null
   articleIds: string[]
+  columns: ColumnVisibility
+  onToggleColumn: (key: ColumnKey, value: boolean) => void
   onEditScope: () => void
-  onRenameDossier?: () => void
-  onDeleteDossier?: () => void
 }) {
-  const dossierId = dossier?.id ?? null
   const label = dossier ? dossier.name : 'Sans dossier'
-
-  // Make the whole section header a drop target — gives empty dossiers
-  // something to receive a cross-dossier drag, and lets the user move
-  // articles to a dossier by aiming at its title without needing an
-  // existing row to land on.
-  const { setNodeRef, isOver, active } = useDroppable({
-    id: `section:${dossierId ?? 'orphans'}`,
-    data: { dossierId, isSection: true },
-  })
-  const activeDossierId = active?.data.current?.dossierId as string | null | undefined
-  const isOverTarget = isOver && active && activeDossierId !== dossierId
-
   return (
-    <div
-      ref={setNodeRef}
-      className={`flex items-center justify-between gap-4 pt-2 pb-3 px-6 ${isOverTarget ? 'bg-primary/10 outline outline-2 outline-primary/60 -outline-offset-1 rounded-md' : ''}`}
-    >
+    <div className="flex items-center justify-between gap-4 pt-2 pb-3 px-6">
       <h2 className="text-xl font-semibold tracking-tight">{label}</h2>
       <div className="flex items-center gap-1">
         <Button
@@ -297,21 +441,32 @@ function SectionHeader({
         >
           <FileText className="h-3.5 w-3.5" />
         </Button>
-        {dossier && onRenameDossier && (
-          <Button variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={onRenameDossier}>
-            <Pencil className="h-3.5 w-3.5" />
-          </Button>
-        )}
-        {dossier && onDeleteDossier && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 text-xs px-2 text-muted-foreground hover:text-destructive"
-            onClick={onDeleteDossier}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
-        )}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs px-2 text-muted-foreground"
+              title="Colonnes affichées"
+            >
+              <Settings2 className="h-3.5 w-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuLabel>Colonnes</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {(Object.keys(COLUMN_LABELS) as ColumnKey[]).map((key) => (
+              <DropdownMenuCheckboxItem
+                key={key}
+                checked={columns[key]}
+                onCheckedChange={(v) => onToggleColumn(key, v === true)}
+                onSelect={(e) => e.preventDefault()}
+              >
+                {COLUMN_LABELS[key]}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   )
@@ -322,10 +477,14 @@ function SectionHeader({
 function ColHeader({
   articleIds,
   selectedIds,
+  columns,
+  gridStyle,
   onToggleAll,
 }: {
   articleIds: string[]
   selectedIds: Set<string>
+  columns: ColumnVisibility
+  gridStyle: React.CSSProperties
   onToggleAll: (ids: string[], select: boolean) => void
 }) {
   const selectedInSection = articleIds.reduce((n, id) => (selectedIds.has(id) ? n + 1 : n), 0)
@@ -337,7 +496,8 @@ function ColHeader({
         : 'indeterminate'
   return (
     <div
-      className={`${ROW_GRID} px-3 py-2 text-[11px] uppercase tracking-wide text-muted-foreground border-t border-b border-border/60 bg-background`}
+      style={gridStyle}
+      className={`${ROW_BASE_CLASS} px-3 py-2 text-[11px] uppercase tracking-wide text-muted-foreground border-t border-b border-border/60 bg-background`}
     >
       <Checkbox
         checked={headerCheckState}
@@ -345,9 +505,10 @@ function ColHeader({
         aria-label="Tout sélectionner dans cette section"
       />
       <div>Titre</div>
-      <div className="text-right">Pages</div>
-      <div className="text-center">Remplissage</div>
-      <div className="text-right">Modifié</div>
+      {columns.source && <div>Source</div>}
+      {columns.pages && <div className="text-right">Pages</div>}
+      {columns.completion && <div className="text-center">Remplissage</div>}
+      {columns.modified && <div className="text-right">Modifié</div>}
     </div>
   )
 }
@@ -365,27 +526,91 @@ export function ArticlesView({
   const {
     dossiers,
     articles,
+    sources,
+    createDossier,
     renameDossier,
     deleteDossier,
     deleteArticle,
-    moveArticle,
     moveArticlesBulk,
     reorderArticles,
   } = useProjectStore()
 
+  // Per-row "Source" column: resolve sourceId → friendly name (with
+  // .pdf-extension fallback to originalFilename when the user hasn't named
+  // the source).
+  const sourceLabelById = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const s of sources) {
+      const label = (s.name?.trim() || s.originalFilename || '').trim()
+      map.set(s.id, label)
+    }
+    return map
+  }, [sources])
+
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  // Live ID of whatever the user is currently grabbing. Drives the
-  // multi-drag visual (ghosting the other selected rows) and tells
-  // handleDragEnd whether to act on the selection or on just the active row.
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
-  const [renameDossierId, setRenameDossierId] = useState<string | null>(null)
-  const [renameDossierName, setRenameDossierName] = useState('')
   const [deleteDossierId, setDeleteDossierId] = useState<string | null>(null)
   const [deleteDossierMode, setDeleteDossierMode] =
     useState<DossierDeleteMode>('orphan-articles')
   const [moveOpen, setMoveOpen] = useState(false)
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
+  const [newDossierOpen, setNewDossierOpen] = useState(false)
+  const [newDossierName, setNewDossierName] = useState('')
+  // Inline rename in the sidebar: when set, the matching <li> renders an
+  // <input> in place of its label.
+  const [inlineRenameId, setInlineRenameId] = useState<string | null>(null)
+  const [inlineRenameName, setInlineRenameName] = useState('')
+  // Cross-dossier drag-drop opens a confirm dialog before persisting the
+  // move (cheap insurance against accidental drops on the sidebar).
+  const [pendingMove, setPendingMove] = useState<
+    | { articleIds: string[]; targetDossierId: string | null }
+    | null
+  >(null)
+  const [grabOffsetX, setGrabOffsetX] = useState(0)
+
+  // Column visibility — persisted across sessions in localStorage so the
+  // user's "hide Modifié" choice survives a reload.
+  const [columns, setColumns] = useState<ColumnVisibility>(() => {
+    try {
+      const raw = localStorage.getItem(COLUMNS_STORAGE_KEY)
+      if (raw) return { ...DEFAULT_COLUMNS, ...JSON.parse(raw) }
+    } catch {
+      // Ignore — fall through to defaults.
+    }
+    return DEFAULT_COLUMNS
+  })
+  useEffect(() => {
+    try {
+      localStorage.setItem(COLUMNS_STORAGE_KEY, JSON.stringify(columns))
+    } catch {
+      // Ignore quota / disabled storage.
+    }
+  }, [columns])
+  const gridStyle = useMemo(() => buildGridStyle(columns), [columns])
+  const handleToggleColumn = (key: ColumnKey, value: boolean) =>
+    setColumns((prev) => ({ ...prev, [key]: value }))
+
+  // Selected dossier lives in the URL (?dossier=X) so back/forward navigation
+  // — including back from the editor — restores the right tab.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const urlDossier = searchParams.get('dossier')
+  const selectedDossierKey: string =
+    urlDossier === ORPHANS_KEY
+      ? ORPHANS_KEY
+      : urlDossier && dossiers.some((d) => d.id === urlDossier)
+        ? urlDossier
+        : dossiers[0]?.id ?? ORPHANS_KEY
+  const setSelectedDossierKey = (key: string) => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        next.set('dossier', key)
+        return next
+      },
+      { replace: true }
+    )
+  }
 
   const orphanArticles = useMemo(
     () => articles.filter((a) => a.dossierId === null).sort(compareArticles),
@@ -415,81 +640,36 @@ export function ArticlesView({
     return out
   }, [articlesByDossier, incompleteOnly])
 
-  const flatRows: FlatRow[] = useMemo(() => {
-    const rows: FlatRow[] = []
-    const pushSection = (dossier: DossierView | null, items: ArticleMetadata[]) => {
-      const ids = items.map((a) => a.id)
-      rows.push({
-        type: 'section-header',
-        key: `h:${dossier?.id ?? 'orphans'}`,
-        dossier,
-        articleIds: ids,
-      })
-      if (items.length === 0) {
-        rows.push({
-          type: 'section-empty',
-          key: `e:${dossier?.id ?? 'orphans'}`,
-          dossier,
-        })
-      } else {
-        rows.push({
-          type: 'col-header',
-          key: `c:${dossier?.id ?? 'orphans'}`,
-          dossierId: dossier?.id ?? null,
-          articleIds: ids,
-        })
-        for (const a of items) {
-          rows.push({ type: 'article', key: `a:${a.id}`, article: a })
-        }
-      }
-      rows.push({ type: 'section-gap', key: `g:${dossier?.id ?? 'orphans'}` })
-    }
-    for (const d of dossiers) {
-      const items = visibleByDossier.get(d.id) ?? []
-      if (incompleteOnly && items.length === 0) continue
-      pushSection(d, items)
-    }
-    if (visibleOrphans.length > 0) pushSection(null, visibleOrphans)
-    return rows
-  }, [dossiers, visibleByDossier, visibleOrphans, incompleteOnly])
+  // Clean up the URL if it points to a deleted dossier — the derived
+  // selectedDossierKey already falls back, but the stale param would survive
+  // until the next click otherwise.
+  useEffect(() => {
+    if (!urlDossier || urlDossier === ORPHANS_KEY) return
+    if (dossiers.some((d) => d.id === urlDossier)) return
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        next.set('dossier', dossiers[0]?.id ?? ORPHANS_KEY)
+        return next
+      },
+      { replace: true }
+    )
+  }, [dossiers, urlDossier, setSearchParams])
 
-  const sortableIds = useMemo(() => {
-    const ids: string[] = []
-    for (const d of dossiers) {
-      const items = articlesByDossier.get(d.id) ?? []
-      for (const a of items) ids.push(a.id)
-    }
-    for (const a of orphanArticles) ids.push(a.id)
-    return ids
-  }, [dossiers, articlesByDossier, orphanArticles])
-
-  // Single window virtualizer for the whole flat row list. Sentinel-measured
-  // scrollMargin so positions stay correct under AppLayout's flex chain
-  // (where neither <main> actually clips — the window itself scrolls).
-  const sentinelRef = useRef<HTMLDivElement>(null)
-  const virtualizer = useWindowVirtualizer({
-    count: flatRows.length,
-    estimateSize: (i) => estimateRowHeight(flatRows[i]),
-    overscan: 8,
-    getItemKey: (i) => flatRows[i].key,
-    scrollMargin: sentinelRef.current?.getBoundingClientRect().top
-      ? sentinelRef.current.getBoundingClientRect().top + window.scrollY
-      : 0,
-  })
-
-  useLayoutEffect(() => {
-    virtualizer.measure()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [flatRows.length])
+  const activeDossier: DossierView | null =
+    selectedDossierKey === ORPHANS_KEY
+      ? null
+      : dossiers.find((d) => d.id === selectedDossierKey) ?? null
+  const activeItems: ArticleMetadata[] =
+    selectedDossierKey === ORPHANS_KEY
+      ? visibleOrphans
+      : visibleByDossier.get(selectedDossierKey) ?? []
+  const activeArticleIds = useMemo(() => activeItems.map((a) => a.id), [activeItems])
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   )
 
-  // The set of article IDs that should move together for the current drag.
-  // - User grabs a selected row → the whole selection moves.
-  // - User grabs an unselected row → just that row moves (the selection is
-  //   ignored, matching the convention in most file managers / IDEs).
   const draggingIds = useMemo(() => {
     if (!activeDragId) return new Set<string>()
     if (selectedIds.has(activeDragId)) return new Set(selectedIds)
@@ -499,149 +679,101 @@ export function ArticlesView({
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveDragId(String(event.active.id))
+    // event.active.rect.current.initial is null at dragStart for our setup,
+    // so walk up from the original click target to the row (data-article-row)
+    // and measure that.
+    const evt = event.activatorEvent as PointerEvent | undefined
+    const target = (evt?.target as HTMLElement | null) ?? null
+    const row = target?.closest('[data-article-row]') as HTMLElement | null
+    if (evt && typeof evt.clientX === 'number' && row) {
+      const rect = row.getBoundingClientRect()
+      setGrabOffsetX(evt.clientX - rect.left)
+    } else {
+      setGrabOffsetX(0)
+    }
   }
   const handleDragCancel = () => setActiveDragId(null)
 
-  // Intra-section → reorder. Cross-section → move + reorder so the article
-  // lands at the user's drop position. Drop on a section header → append.
-  // Multi-drag (active row was part of the selection): same scenarios but
-  // applied to every selected article in their source-display order.
+  // Two scenarios resolved by the over target:
+  //   1. Drop on a sidebar dossier (data.kind === 'dossier-drop') →
+  //      cross-dossier move. Articles land at the END of the destination,
+  //      since the sidebar can't show a precise insertion point.
+  //   2. Drop on another row in the visible dossier → intra-dossier reorder
+  //      using the same midpoint comparison as the visual line indicator.
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
     setActiveDragId(null)
-    if (!over || active.id === over.id) return
+    if (!over) return
 
     const activeId = String(active.id)
-    const activeDossierId = active.data.current?.dossierId as string | null | undefined
-    const overData = over.data.current as
-      | { dossierId?: string | null; isSection?: boolean }
-      | undefined
-    const overDossierId = overData?.dossierId
-    if (activeDossierId === undefined || overDossierId === undefined) return
+    const list = activeItems
 
-    // Which IDs are moving together. The active grab on a selected row
-    // promotes the whole selection; an unselected row drags alone.
-    const movingIds = selectedIds.has(activeId) && selectedIds.size > 1
-      ? Array.from(selectedIds)
-      : [activeId]
+    // Compute the set of articles that move together: a grab on a selected
+    // row promotes the whole selection; a grab on an unselected row moves
+    // just that row (matches the convention in most file managers).
+    const movingIds =
+      selectedIds.has(activeId) && selectedIds.size > 1
+        ? Array.from(selectedIds).filter((id) => list.some((a) => a.id === id))
+        : [activeId]
     const movingSet = new Set(movingIds)
-    // Order them by their current display position (so consecutive moves
-    // preserve user intent rather than scrambling).
-    const movingInOrder: string[] = []
-    for (const d of dossiers) {
-      const items = articlesByDossier.get(d.id) ?? []
-      for (const a of items) if (movingSet.has(a.id)) movingInOrder.push(a.id)
-    }
-    for (const a of orphanArticles) {
-      if (movingSet.has(a.id)) movingInOrder.push(a.id)
-    }
+    const movingInOrder = list.filter((a) => movingSet.has(a.id)).map((a) => a.id)
 
-    const projectId = useProjectStore.getState().project?.id
-    if (!projectId) return
+    const overData = over.data.current as
+      | { kind?: 'dossier-drop'; dossierId?: string | null }
+      | undefined
 
-    // ---- Drop on section header → append all moving items to that dossier ----
-    if (overData?.isSection) {
-      if (activeDossierId === overDossierId && movingIds.length === 1) return
-      const destList =
-        overDossierId === null
-          ? orphanArticles
-          : articlesByDossier.get(overDossierId) ?? []
-      const baseOrder =
-        typeof destList[destList.length - 1]?.order === 'number'
-          ? (destList[destList.length - 1].order as number) + 1
-          : destList.length
-      // Optimistic: each moving id gets a consecutive order at the tail
-      // of the destination.
-      const orderById = new Map<string, number>()
-      movingInOrder.forEach((id, i) => orderById.set(id, baseOrder + i))
-      useProjectStore.setState((s) => ({
-        articles: s.articles.map((a) =>
-          orderById.has(a.id)
-            ? { ...a, dossierId: overDossierId, order: orderById.get(a.id)! }
-            : a
-        ),
-      }))
-      ;(async () => {
-        const ok = await window.api.v2_articlesMoveBulk(projectId, movingInOrder, {
-          dossierId: overDossierId,
-        })
-        if (!ok) return
-        const desired = destList.map((a) => a.id).filter((id) => !movingSet.has(id))
-        desired.push(...movingInOrder)
-        await reorderArticles(overDossierId, desired)
-      })()
+    // ---- Scenario 1: drop on a sidebar dossier — confirm, then move ----
+    if (overData?.kind === 'dossier-drop') {
+      const targetDossierId = overData.dossierId ?? null
+      const currentDossierId = activeDossier?.id ?? null
+      if (targetDossierId === currentDossierId) return
+      setPendingMove({ articleIds: movingInOrder, targetDossierId })
       return
     }
 
+    // ---- Scenario 2: intra-dossier reorder ----
+    if (active.id === over.id) return
     const overId = String(over.id)
+    const overIndex = list.findIndex((a) => a.id === overId)
+    if (overIndex < 0) return
 
-    // ---- Intra-section reorder ----
-    if (activeDossierId === overDossierId) {
-      const list =
-        activeDossierId === null
-          ? orphanArticles
-          : articlesByDossier.get(activeDossierId) ?? []
-      const overIndex = list.findIndex((a) => a.id === overId)
-      if (overIndex < 0) return
-      if (movingIds.length === 1) {
-        // Single-row case: arrayMove preserves the existing semantics.
-        const oldIndex = list.findIndex((a) => a.id === active.id)
-        if (oldIndex === -1) return
-        const reordered = arrayMove(list, oldIndex, overIndex).map((a) => a.id)
-        void reorderArticles(activeDossierId, reordered)
-        return
-      }
-      // Multi-row reorder: pull out all moving ids, re-insert them as a
-      // contiguous block at the over target. If the over target is itself
-      // one of the moving ids, fall back to its position after extraction.
-      const remaining = list.map((a) => a.id).filter((id) => !movingSet.has(id))
-      // Adjust target: count how many moving ids sat before overIndex.
-      let adjustedTarget = overIndex
-      for (let i = 0; i < overIndex; i++) {
-        if (movingSet.has(list[i].id)) adjustedTarget--
-      }
-      // Clamp into [0, remaining.length] (overIndex itself may have been
-      // a moving id).
-      adjustedTarget = Math.max(0, Math.min(adjustedTarget, remaining.length))
-      remaining.splice(adjustedTarget, 0, ...movingInOrder)
-      void reorderArticles(activeDossierId, remaining)
+    // Same drop-edge logic as the visual indicator in ArticleRow: if the
+    // dragged item's center is above the over row's center, drop above
+    // (insert at overIndex). Otherwise drop below (insert at overIndex + 1).
+    const activeRect = active.rect.current.translated
+    const overRect = over.rect
+    let dropAbove = true
+    if (activeRect && overRect) {
+      const activeMid = (activeRect.top + activeRect.bottom) / 2
+      const overMid = (overRect.top + overRect.bottom) / 2
+      dropAbove = activeMid < overMid
+    }
+    const baseInsertAt = dropAbove ? overIndex : overIndex + 1
+
+    if (movingIds.length === 1) {
+      const oldIndex = list.findIndex((a) => a.id === activeId)
+      if (oldIndex === -1) return
+      // Removing oldIndex first shifts everything after it left by 1, so the
+      // insertion target needs adjustment when oldIndex precedes the target.
+      const insertAt = oldIndex < baseInsertAt ? baseInsertAt - 1 : baseInsertAt
+      if (oldIndex === insertAt) return
+      const ids = list.map((a) => a.id)
+      const [moved] = ids.splice(oldIndex, 1)
+      ids.splice(insertAt, 0, moved)
+      void reorderArticles(activeDossier?.id ?? null, ids)
       return
     }
 
-    // ---- Cross-section: move all moving ids into destination at over's
-    //      position, in source order. ----
-    const destListBefore =
-      overDossierId === null
-        ? orphanArticles
-        : articlesByDossier.get(overDossierId) ?? []
-    const targetIndex = destListBefore.findIndex((a) => a.id === overId)
-    if (targetIndex < 0) return
-    const overOrder = destListBefore[targetIndex].order ?? targetIndex
-    // Optimistic: insert moving rows just before the over target so
-    // compareArticles puts them in the right block. Fractional orders get
-    // integerised by reorderArticles below.
-    const orderById = new Map<string, number>()
-    movingInOrder.forEach((id, i) => {
-      orderById.set(id, overOrder - 0.5 + i * 1e-6)
-    })
-    useProjectStore.setState((s) => ({
-      articles: s.articles.map((a) =>
-        orderById.has(a.id)
-          ? { ...a, dossierId: overDossierId, order: orderById.get(a.id)! }
-          : a
-      ),
-    }))
-    ;(async () => {
-      const ok = await window.api.v2_articlesMoveBulk(projectId, movingInOrder, {
-        dossierId: overDossierId,
-      })
-      if (!ok) return
-      const desired = destListBefore.map((a) => a.id).filter((id) => !movingSet.has(id))
-      desired.splice(targetIndex, 0, ...movingInOrder)
-      await reorderArticles(overDossierId, desired)
-    })()
-    // Silence the unused destructure — moveArticle isn't called here.
-    void moveArticle
+    const remaining = list.map((a) => a.id).filter((id) => !movingSet.has(id))
+    // Same adjustment for multi: count how many moving rows sat before the
+    // base insertion point, since removing them shifts the target left.
+    let adjustedTarget = baseInsertAt
+    for (let i = 0; i < baseInsertAt; i++) {
+      if (movingSet.has(list[i].id)) adjustedTarget--
+    }
+    adjustedTarget = Math.max(0, Math.min(adjustedTarget, remaining.length))
+    remaining.splice(adjustedTarget, 0, ...movingInOrder)
+    void reorderArticles(activeDossier?.id ?? null, remaining)
   }
 
   void selectArticlesInDossier
@@ -680,25 +812,70 @@ export function ArticlesView({
     })
   }
 
-  const handleRenameDossier = async () => {
-    if (!renameDossierId) return
-    await renameDossier(renameDossierId, renameDossierName.trim())
-    setRenameDossierId(null)
-    setRenameDossierName('')
-  }
-
-  const startRenameDossier = (id: string) => {
-    const d = dossiers.find((x) => x.id === id)
-    if (!d) return
-    setRenameDossierId(id)
-    setRenameDossierName(d.name)
-  }
-
   const handleDeleteDossier = async () => {
     if (!deleteDossierId) return
     await deleteDossier(deleteDossierId, deleteDossierMode)
     setDeleteDossierId(null)
   }
+
+  // Executes a confirmed cross-dossier drop: ships the bulk move, then
+  // re-orders the destination so the moved ids land at the tail.
+  const confirmPendingMove = async () => {
+    if (!pendingMove) return
+    const { articleIds, targetDossierId } = pendingMove
+    const ok = await moveArticlesBulk(articleIds, { dossierId: targetDossierId })
+    if (!ok) {
+      setPendingMove(null)
+      return
+    }
+    const movingSet = new Set(articleIds)
+    const dest = useProjectStore
+      .getState()
+      .articles.filter((a) => a.dossierId === targetDossierId)
+      .sort(compareArticles)
+    const desired = dest.map((a) => a.id).filter((id) => !movingSet.has(id))
+    desired.push(...articleIds)
+    await reorderArticles(targetDossierId, desired)
+    setPendingMove(null)
+  }
+
+  const handleCreateDossier = async () => {
+    const created = await createDossier(newDossierName)
+    if (created) {
+      setNewDossierOpen(false)
+      setNewDossierName('')
+      setSelectedDossierKey(created.id)
+    }
+  }
+
+  const startInlineRename = (id: string) => {
+    const d = dossiers.find((x) => x.id === id)
+    if (!d) return
+    setInlineRenameId(id)
+    setInlineRenameName(d.name)
+  }
+  const commitInlineRename = async () => {
+    if (!inlineRenameId) return
+    const trimmed = inlineRenameName.trim()
+    if (trimmed) await renameDossier(inlineRenameId, trimmed)
+    setInlineRenameId(null)
+    setInlineRenameName('')
+  }
+  const cancelInlineRename = () => {
+    setInlineRenameId(null)
+    setInlineRenameName('')
+  }
+
+  // Sidebar drop targets — dossier items use <DossierSidebarItem>, orphans
+  // is rendered inline so we register its useDroppable here.
+  const orphansDrop = useDroppable({
+    id: 'dossier-drop:orphans',
+    data: { kind: 'dossier-drop', dossierId: null },
+  })
+  const orphansDropActive =
+    orphansDrop.isOver &&
+    !!orphansDrop.active &&
+    (orphansDrop.active.data.current?.dossierId as string | null | undefined) !== null
 
   const handleMoveConfirm = async (target: ArticleMoveTarget): Promise<void> => {
     const ids = Array.from(selectedIds)
@@ -745,105 +922,123 @@ export function ArticlesView({
       </div>
     )
   }
-  if (incompleteOnly && flatRows.length === 0) {
-    return (
-      <div className="rounded-md py-12 text-center text-sm text-muted-foreground">
-        Tous les éléments sont complétés.
-      </div>
-    )
-  }
 
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCenter}
+      collisionDetection={collisionDetection}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
-      <SortableContext items={sortableIds} strategy={noopStrategy}>
-        {/* Sentinel — its doc-top offset is fed to the virtualizer as
-            scrollMargin so visible-range math is correct. */}
-        <div ref={sentinelRef} />
-        <div
-          style={{
-            height: virtualizer.getTotalSize(),
-            position: 'relative',
-            width: '100%',
-          }}
-        >
-          {virtualizer.getVirtualItems().map((vi) => {
-            const row = flatRows[vi.index]
-            const offset = vi.start - virtualizer.options.scrollMargin
-            return (
-              <div
-                key={vi.key}
-                data-index={vi.index}
-                ref={virtualizer.measureElement}
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  transform: `translateY(${offset}px)`,
-                }}
+      <div className="flex h-full">
+        <aside className="h-full shrink-0 border-r overflow-hidden w-56">
+          <div className="flex h-full flex-col">
+            <div className="flex items-center justify-between gap-1 p-1.5 border-b shrink-0">
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pl-1.5 truncate">
+                Dossiers
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0 shrink-0"
+                onClick={() => setNewDossierOpen(true)}
+                title="Nouveau dossier"
               >
-                {row.type === 'section-header' && (
-                  <SectionHeader
-                    dossier={row.dossier}
-                    articleIds={row.articleIds}
-                    onEditScope={() =>
-                      navigate(
-                        row.dossier
-                          ? `/editor/${projectId}?dossier=${row.dossier.id}`
-                          : `/editor/${projectId}?orphans=1`
-                      )
-                    }
-                    onRenameDossier={
-                      row.dossier ? () => startRenameDossier(row.dossier!.id) : undefined
-                    }
-                    onDeleteDossier={
-                      row.dossier
-                        ? () => {
-                            setDeleteDossierId(row.dossier!.id)
-                            setDeleteDossierMode('orphan-articles')
-                          }
-                        : undefined
-                    }
-                  />
-                )}
-                {row.type === 'col-header' && (
-                  <ColHeader
-                    articleIds={row.articleIds}
-                    selectedIds={selectedIds}
-                    onToggleAll={toggleArticlesInSection}
-                  />
-                )}
-                {row.type === 'article' && (
-                  <ArticleRow
-                    article={row.article}
-                    selected={selectedIds.has(row.article.id)}
-                    isMultiDragGhost={
-                      isMultiDrag &&
-                      draggingIds.has(row.article.id) &&
-                      row.article.id !== activeDragId
-                    }
-                    onToggle={() => toggleArticle(row.article.id)}
-                    onOpen={() => handleOpenArticle(row.article.id)}
-                    onDelete={() => handleDeleteArticle(row.article.id)}
-                  />
-                )}
-                {row.type === 'section-empty' && (
-                  <div className="text-sm text-muted-foreground py-3 border-t border-border/60 px-6">
-                    Aucun élément
-                  </div>
-                )}
-                {row.type === 'section-gap' && <div className="h-8" />}
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+            <ul className="flex-1 overflow-y-auto py-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full">
+              {dossiers.map((d) => (
+                <DossierSidebarItem
+                  key={d.id}
+                  dossier={d}
+                  isActive={selectedDossierKey === d.id}
+                  isEditing={inlineRenameId === d.id}
+                  inlineRenameName={inlineRenameName}
+                  onChangeName={setInlineRenameName}
+                  onSelect={() => setSelectedDossierKey(d.id)}
+                  onStartRename={() => startInlineRename(d.id)}
+                  onCommitRename={commitInlineRename}
+                  onCancelRename={cancelInlineRename}
+                  onDelete={() => {
+                    setDeleteDossierId(d.id)
+                    setDeleteDossierMode('orphan-articles')
+                  }}
+                />
+              ))}
+              <li
+                ref={orphansDrop.setNodeRef}
+                onClick={() => setSelectedDossierKey(ORPHANS_KEY)}
+                className={`flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer ${selectedDossierKey === ORPHANS_KEY ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground hover:bg-muted/40'} ${orphansDropActive ? 'bg-primary/10 outline outline-2 outline-primary/60 -outline-offset-1' : ''}`}
+                title="Sans dossier"
+              >
+                <Folder className="h-3.5 w-3.5 shrink-0 fill-muted-foreground/60 text-muted-foreground/60" />
+                <span className="truncate">Sans dossier</span>
+              </li>
+            </ul>
+          </div>
+        </aside>
+        <div className="flex-1 min-w-0 h-full overflow-y-auto">
+          <SortableContext items={activeArticleIds} strategy={noopStrategy}>
+            <div className="sticky top-0 z-10 bg-background">
+              <SectionHeader
+                dossier={activeDossier}
+                articleIds={activeArticleIds}
+                columns={columns}
+                onToggleColumn={handleToggleColumn}
+                onEditScope={() =>
+                  navigate(
+                    activeDossier
+                      ? `/editor/${projectId}?dossier=${activeDossier.id}`
+                      : `/editor/${projectId}?orphans=1`
+                  )
+                }
+              />
+              {activeItems.length > 0 && (
+                <ColHeader
+                  articleIds={activeArticleIds}
+                  selectedIds={selectedIds}
+                  columns={columns}
+                  gridStyle={gridStyle}
+                  onToggleAll={toggleArticlesInSection}
+                />
+              )}
+            </div>
+            {activeItems.length === 0 ? (
+              <div className="text-sm text-muted-foreground py-3 border-t border-border/60 px-6">
+                {incompleteOnly ? 'Tous les éléments sont complétés.' : 'Aucun élément'}
               </div>
-            )
-          })}
+            ) : (
+              activeItems.map((a) => (
+                <ArticleRow
+                  key={a.id}
+                  article={a}
+                  sourceLabel={sourceLabelById.get(a.sourceId) ?? ''}
+                  selected={selectedIds.has(a.id)}
+                  isMultiDragGhost={
+                    isMultiDrag && draggingIds.has(a.id) && a.id !== activeDragId
+                  }
+                  columns={columns}
+                  gridStyle={gridStyle}
+                  onToggle={() => toggleArticle(a.id)}
+                  onOpen={() => handleOpenArticle(a.id)}
+                  onDelete={() => handleDeleteArticle(a.id)}
+                />
+              ))
+            )}
+          </SortableContext>
         </div>
-      </SortableContext>
+      </div>
+
+      <DragOverlay dropAnimation={null}>
+        {activeDragId ? (
+          <DragPreview
+            articles={activeItems.filter((a) => draggingIds.has(a.id))}
+            grabOffsetX={grabOffsetX}
+          />
+        ) : null}
+      </DragOverlay>
 
       {selectedCount > 0 && (
         <div
@@ -907,23 +1102,24 @@ export function ArticlesView({
         </div>
       )}
 
-      <Dialog open={!!renameDossierId} onOpenChange={(open) => !open && setRenameDossierId(null)}>
+      <Dialog open={newDossierOpen} onOpenChange={setNewDossierOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Renommer le dossier</DialogTitle>
+            <DialogTitle>Nouveau dossier</DialogTitle>
           </DialogHeader>
           <Input
-            value={renameDossierName}
-            onChange={(e) => setRenameDossierName(e.target.value)}
+            value={newDossierName}
+            onChange={(e) => setNewDossierName(e.target.value)}
+            placeholder="Nom du dossier"
             autoFocus
-            onKeyDown={(e) => e.key === 'Enter' && handleRenameDossier()}
+            onKeyDown={(e) => e.key === 'Enter' && handleCreateDossier()}
           />
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRenameDossierId(null)}>
+            <Button variant="outline" onClick={() => setNewDossierOpen(false)}>
               Annuler
             </Button>
-            <Button onClick={handleRenameDossier} disabled={!renameDossierName.trim()}>
-              Renommer
+            <Button onClick={handleCreateDossier} disabled={!newDossierName.trim()}>
+              Créer
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -992,6 +1188,37 @@ export function ArticlesView({
         onExport={handleExportSelection}
         articleCount={selectedCount}
       />
+
+      <AlertDialog open={!!pendingMove} onOpenChange={(open) => !open && setPendingMove(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Déplacer {pendingMove?.articleIds.length ?? 0} élément
+              {(pendingMove?.articleIds.length ?? 0) === 1 ? '' : 's'} ?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {(() => {
+                const target =
+                  pendingMove?.targetDossierId == null
+                    ? 'Sans dossier'
+                    : dossiers.find((d) => d.id === pendingMove.targetDossierId)?.name ?? '?'
+                return `Vers : ${target}`
+              })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                void confirmPendingMove()
+              }}
+            >
+              Déplacer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
         <AlertDialogContent>
