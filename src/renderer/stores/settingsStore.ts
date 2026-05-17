@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { toast } from 'sonner'
 import i18n from '@/lib/i18n'
 import type { Settings, AISettings } from '@shared/types'
+import { useTemplatesStore } from './templatesStore'
 
 const t = (key: string, opts?: Record<string, unknown>): string =>
   i18n.t(key, opts ?? {}) as string
@@ -63,6 +64,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       if (success) {
         set({ settings, saving: false })
         toast.success(t('settings:toasts.saved'))
+        // Disk has the new language now (if it changed). Always refetch
+        // templates — the main process re-localizes default templates from
+        // settings.json. Cheap no-op when the language didn't change.
+        void useTemplatesStore.getState().loadTemplates()
       } else {
         toast.error(t('settings:toasts.saveError'))
         set({ error: t('settings:toasts.saveError'), saving: false })

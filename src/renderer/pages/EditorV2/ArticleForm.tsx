@@ -3,8 +3,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactQuill from 'react-quill'
 import 'react-quill/dist/quill.snow.css'
-import type { TemplateField } from '@shared/types'
-import { fieldDisplayName } from '@/lib/templateLabels'
+import type { Template, TemplateField } from '@shared/types'
+import { resolveFieldLabel } from '@shared/fieldLabel'
 import {
   Button,
   Input,
@@ -18,6 +18,8 @@ import { Copy, Download, FileStack, Sparkles } from 'lucide-react'
 interface ArticleFormProps {
   fields: Record<string, string> | undefined
   schema: TemplateField[]
+  templates: Template[]
+  templateId?: string
   currentTemplateName?: string
   transcribing: boolean
   copyingOcr?: boolean
@@ -38,12 +40,13 @@ const quillModules = {
 
 interface DynamicFieldProps {
   field: TemplateField
+  label: string
   value: string
   onChange: (value: string) => void
 }
 
-function RichTextField({ field, value, onChange }: DynamicFieldProps) {
-  const label = fieldDisplayName(field)
+function RichTextField({ field, label, value, onChange }: DynamicFieldProps) {
+  void field
   const [localValue, setLocalValue] = useState(value)
   const prevValueRef = useRef(value)
   const isUpdatingRef = useRef(false)
@@ -93,8 +96,7 @@ function RichTextField({ field, value, onChange }: DynamicFieldProps) {
   )
 }
 
-function DynamicField({ field, value, onChange }: DynamicFieldProps) {
-  const label = fieldDisplayName(field)
+function DynamicField({ field, label, value, onChange }: DynamicFieldProps) {
   switch (field.type) {
     case 'text':
       return (
@@ -122,7 +124,7 @@ function DynamicField({ field, value, onChange }: DynamicFieldProps) {
         </div>
       )
     case 'richtext':
-      return <RichTextField field={field} value={value} onChange={onChange} />
+      return <RichTextField field={field} label={label} value={value} onChange={onChange} />
     default:
       return null
   }
@@ -131,6 +133,8 @@ function DynamicField({ field, value, onChange }: DynamicFieldProps) {
 export function ArticleForm({
   fields,
   schema,
+  templates,
+  templateId,
   currentTemplateName,
   transcribing,
   copyingOcr,
@@ -193,14 +197,18 @@ export function ArticleForm({
         <Separator />
 
         <div className="space-y-4">
-          {sortedFields.map((field) => (
-            <DynamicField
-              key={field.name}
-              field={field}
-              value={fields?.[field.name] ?? ''}
-              onChange={(value) => onUpdate(field.name, value)}
-            />
-          ))}
+          {sortedFields.map((field) => {
+            const { name: label } = resolveFieldLabel(field, templates, templateId)
+            return (
+              <DynamicField
+                key={field.name}
+                field={field}
+                label={label}
+                value={fields?.[field.name] ?? ''}
+                onChange={(value) => onUpdate(field.name, value)}
+              />
+            )
+          })}
         </div>
       </div>
     </ScrollArea>

@@ -2,6 +2,8 @@
   "title": "Modèles",
   "subtitle": "Gérez les modèles de champs pour vos projets",
   "newTemplate": "Nouveau modèle",
+  "titleFieldName": "Titre",
+  "titleFieldHint": "Le titre de l'article",
   "empty": "Aucun modèle",
   "createFirst": "Créer votre premier modèle",
   "defaultBadge": "Défaut",
@@ -46,5 +48,17 @@
     "deleted": "Modèle supprimé",
     "deleteDefaultError": "Impossible de supprimer un modèle par défaut",
     "deleteError": "Erreur lors de la suppression du modèle"
+  },
+  "promptWrapper": {
+    "defaultContext": "Tu es un assistant spécialisé dans l'extraction de texte à partir de documents PDF.",
+    "analyseLine": "Analyse le document et retourne un JSON avec les champs suivants:",
+    "rulesHeader": "RÈGLES STRICTES:",
+    "rules": [
+      "Ne reformule rien, transcris le texte tel quel.",
+      "ENCODAGE: Assure-toi que les caractères accentués (é, à, è, ê, ù, etc.) sont correctement transcrits en UTF-8.",
+      "GUILLEMETS: Si le texte contient des guillemets, tu DOIS les échapper (\\\") pour ne pas casser le JSON.",
+      "Pour les champs de contenu, utilise du HTML (<p>, <strong>, <em>) pour la mise en forme.",
+      "Réponds uniquement avec le JSON, sans explication ni markdown."
+    ]
   }
 }

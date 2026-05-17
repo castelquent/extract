@@ -19,7 +19,6 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import type { Template, TemplateField, FieldType } from '@shared/types'
 import { useTemplatesStore } from '@/stores'
-import { templateDisplayName, templateDisplayDescription, fieldDisplayName, fieldDisplayHint } from '@/lib/templateLabels'
 import {
   Button,
   Card,
@@ -57,32 +56,36 @@ import { Plus, FileStack, Pencil, Trash2, GripVertical, X, ChevronDown, RotateCc
 
 const FIELD_TYPE_KEYS: FieldType[] = ['text', 'textarea', 'richtext']
 
-// Generate prompt from template (same logic as backend)
+// Generate the AI prompt previewed in the template editor. Stays in sync
+// with the backend builder in main/ipc/v2/transcription.ts — both read the
+// localized wrapper for the user's current language so the preview matches
+// what's actually sent to the AI.
+import i18n from '@/lib/i18n'
+
 function buildPromptFromTemplate(template: Partial<Template>): string {
   const fields = template.fields || []
   const fieldsList = fields
     .sort((a, b) => a.order - b.order)
     .filter(f => f.name.trim())
-    .map(f => {
-      let line = `- ${f.name}`
-      if (f.aiHint) line += ` (${f.aiHint})`
-      return line
-    })
+    .map(f => (f.aiHint ? `- ${f.name} (${f.aiHint})` : `- ${f.name}`))
     .join('\n')
 
-  const context = template.aiContext || 'Tu es un assistant spécialisé dans l\'extraction de texte à partir de documents PDF.'
+  const wrap = {
+    defaultContext: i18n.t('templates:promptWrapper.defaultContext') as string,
+    analyseLine: i18n.t('templates:promptWrapper.analyseLine') as string,
+    rulesHeader: i18n.t('templates:promptWrapper.rulesHeader') as string,
+    rules: i18n.t('templates:promptWrapper.rules', { returnObjects: true }) as string[],
+  }
+
+  const context = template.aiContext || wrap.defaultContext
 
   return `${context}
 
-Analyse le document et retourne un JSON avec les champs suivants:
+${wrap.analyseLine}
 ${fieldsList}
 
-RÈGLES STRICTES:
-- Ne reformule rien, transcris le texte tel quel.
-- ENCODAGE: Assure-toi que les caractères accentués français (é, à, è, ê, ù, etc.) sont correctement transcrits en UTF-8.
-- GUILLEMETS: Si le texte contient des guillemets, tu DOIS les échapper (\\") pour ne pas casser le JSON.
-- Pour les champs de contenu, utilise du HTML (<p>, <strong>, <em>) pour la mise en forme.
-- Réponds uniquement avec le JSON, sans explication ni markdown.`
+${wrap.rulesHeader}
+${wrap.rules.map((r) => `- ${r}`).join('\n')}`
 }
 
 function createEmptyField(order: number): TemplateField {
@@ -93,15 +96,18 @@ function createEmptyField(order: number): TemplateField {
   }
 }
 
-// Titre is always mandatory and first. `key='title'` so the localized label
-// resolves via fieldDisplayName() — the on-disk name stays 'Titre' for
-// backward compatibility with article snapshots.
-const TITRE_FIELD: TemplateField = {
-  key: 'title',
-  name: 'Titre',
-  type: 'text',
-  order: 0,
-  aiHint: 'Le titre de l\'article',
+// The first field of any template is always a mandatory "title-like" field.
+// It's pre-named in the user's current language at template-creation time.
+// The editor identifies it solely by `order === 0` from now on (no name or
+// key matching), so the user can rename it to whatever they want without
+// losing the "this is the title field" semantics.
+function createTitreField(): TemplateField {
+  return {
+    name: i18n.t('templates:titleFieldName') as string,
+    type: 'text',
+    order: 0,
+    aiHint: i18n.t('templates:titleFieldHint') as string,
+  }
 }
 
 function createEmptyTemplate(): Template {
@@ -111,7 +117,7 @@ function createEmptyTemplate(): Template {
     description: '',
     aiContext: '',
     fields: [
-      { ...TITRE_FIELD },
+      createTitreField(),
       { name: 'Contenu', type: 'richtext', order: 1 },
     ],
     createdAt: new Date().toISOString(),
@@ -170,7 +176,7 @@ function FieldEditor({ field, fieldId, onChange, onRemove, canRemove, isTitre, d
             {isTitre && <Badge variant="secondary" className="ml-2 text-[10px]">{t('editor.fieldRequiredBadge')}</Badge>}
           </Label>
           <Input
-            value={disabled ? fieldDisplayName(field) : field.name}
+            value={field.name}
             onChange={(e) => onChange({ ...field, name: e.target.value })}
             placeholder={t('editor.fieldNamePlaceholder')}
             disabled={disabled || isTitre}
@@ -198,7 +204,7 @@ function FieldEditor({ field, fieldId, onChange, onRemove, canRemove, isTitre, d
         <div className="space-y-1 col-span-2">
           <Label className="text-xs">{t('editor.fieldHintLabel')}</Label>
           <Input
-            value={disabled ? fieldDisplayHint(field) ?? '' : field.aiHint || ''}
+            value={field.aiHint || ''}
             onChange={(e) => onChange({ ...field, aiHint: e.target.value })}
             placeholder={t('editor.fieldHintPlaceholder')}
             disabled={disabled}
@@ -249,27 +255,19 @@ function TemplateEditorModal({ template, open, onOpenChange, onSave }: TemplateE
 
   useEffect(() => {
     if (template) {
-      // Ensure exactly one Titre field at order 0. Match by `key === 'title'`
-      // OR `name === 'Titre'` so we cover both new key-aware templates and
-      // legacy data. Position is normalized to order 0 here regardless of
-      // where it was on disk — avoids the duplicate-Titre bug for existing
-      // installs whose press-article template was saved with order=1.
-      const titreIdx = template.fields.findIndex(
-        f => f.key === 'title' || f.name === 'Titre'
-      )
-      if (titreIdx < 0) {
+      // Pick the field at order 0 as the "titre" (mandatory first) field. If
+      // none has order 0, the lowest-order one is used. Position is normalized
+      // here so the first field is always at order 0, the rest reindexed.
+      const sorted = [...template.fields].sort((a, b) => a.order - b.order)
+      if (sorted.length === 0) {
         setEditedTemplate({
           ...template,
-          fields: [{ ...TITRE_FIELD }, ...template.fields.map(f => ({ ...f, order: f.order + 1 }))],
+          fields: [createTitreField()],
         })
       } else {
-        const existing = template.fields[titreIdx]
-        const rest = template.fields
-          .filter((_, i) => i !== titreIdx)
-          .map((f, i) => ({ ...f, order: i + 1 }))
         setEditedTemplate({
           ...template,
-          fields: [{ ...existing, order: 0 }, ...rest],
+          fields: sorted.map((f, i) => ({ ...f, order: i })),
         })
       }
     } else {
@@ -383,7 +381,7 @@ function TemplateEditorModal({ template, open, onOpenChange, onSave }: TemplateE
             <div className="space-y-2">
               <Label>{t('editor.nameLabel')}</Label>
               <Input
-                value={isDefault ? templateDisplayName(editedTemplate) : editedTemplate.name}
+                value={editedTemplate.name}
                 onChange={(e) => setEditedTemplate({ ...editedTemplate, name: e.target.value })}
                 placeholder={t('editor.namePlaceholder')}
                 disabled={isDefault}
@@ -393,11 +391,7 @@ function TemplateEditorModal({ template, open, onOpenChange, onSave }: TemplateE
             <div className="space-y-2">
               <Label>{t('editor.descriptionLabel')}</Label>
               <Input
-                value={
-                  isDefault
-                    ? templateDisplayDescription(editedTemplate) ?? ''
-                    : editedTemplate.description || ''
-                }
+                value={editedTemplate.description || ''}
                 onChange={(e) => setEditedTemplate({ ...editedTemplate, description: e.target.value })}
                 placeholder={t('editor.descriptionPlaceholder')}
                 disabled={isDefault}
@@ -425,7 +419,7 @@ function TemplateEditorModal({ template, open, onOpenChange, onSave }: TemplateE
               <SortableContext items={fieldIds} strategy={verticalListSortingStrategy}>
                 <div className="space-y-2">
                   {sortedFields.map((field, index) => {
-                    const isTitre = field.name === 'Titre' && field.order === 0
+                    const isTitre = field.order === 0
                     return (
                       <FieldEditor
                         key={fieldIds[index]}
@@ -564,13 +558,13 @@ export function TemplatesPage() {
                 <div className="flex items-start justify-between">
                   <div>
                     <CardTitle className="flex items-center gap-2">
-                      {templateDisplayName(template)}
+                      {template.name}
                       {template.isDefault && (
                         <Badge variant="secondary" className="text-xs">{t('templates:defaultBadge')}</Badge>
                       )}
                     </CardTitle>
-                    {templateDisplayDescription(template) && (
-                      <CardDescription>{templateDisplayDescription(template)}</CardDescription>
+                    {template.description && (
+                      <CardDescription>{template.description}</CardDescription>
                     )}
                   </div>
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -600,7 +594,7 @@ export function TemplatesPage() {
                       .sort((a, b) => a.order - b.order)
                       .map((field) => (
                         <Badge key={field.name} variant="outline" className="text-xs">
-                          {fieldDisplayName(field)}
+                          {field.name}
                         </Badge>
                       ))}
                   </div>
@@ -625,7 +619,7 @@ export function TemplatesPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>{t('templates:deleteDialog.title')}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t('templates:deleteDialog.description', { name: deleteTarget ? templateDisplayName(deleteTarget) : '' })}
+              {t('templates:deleteDialog.description', { name: deleteTarget?.name ?? '' })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

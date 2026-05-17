@@ -6,11 +6,13 @@ export interface TemplateField {
   type: FieldType
   aiHint?: string
   order: number
-  // Optional stable identifier for built-in default templates. When set, the
-  // UI looks up `templateFields:{key}` in i18n to localize the field label
-  // (e.g. key='title' → "Titre" in FR, "Title" in EN). User-created fields
-  // and legacy data have no key → fall back to `name` as displayed.
-  key?: string
+  // Stable identifier for fields of built-in default templates. When set,
+  // the field's *displayed* name is read from the matching field in the live
+  // template (looked up by templateId + id), so default-template articles
+  // auto-relocalise their labels on UI language switch. Storage still keys
+  // article.fields by the snapshotted `name` — `id` only drives display +
+  // prompt + parser. Never set on user-created templates.
+  id?: string
 }
 
 export interface Template {
@@ -186,6 +188,11 @@ export interface ArticleMetadata {
   status: ArticleStatus
   schema: TemplateField[]
   aiContext?: string
+  // ID of the template the schema was snapshotted from. Used to recognise
+  // the parent template even when the template's strings have since been
+  // relocalised (e.g. UI language switched between EN and FR). Optional:
+  // legacy articles without it fall back to structural schema comparison.
+  templateId?: string
   createdAt: string
   modifiedAt: string
 }
@@ -419,6 +426,7 @@ export interface ElectronAPI {
       fields?: Record<string, string>
       schema: TemplateField[]
       aiContext?: string
+      templateId?: string
       // When true, do NOT run the PDF extraction script (no extract.pdf
       // generated, status stays 'draft'). Used by Sauvegarder in extraction.
       skipExtractGeneration?: boolean
@@ -427,7 +435,7 @@ export interface ElectronAPI {
   v2_articlesUpdate: (
     projectId: string,
     articleId: string,
-    patch: Partial<Pick<ArticleMetadata, 'fields' | 'zones' | 'pages' | 'status' | 'sourceId' | 'dossierId' | 'schema' | 'aiContext'>>
+    patch: Partial<Pick<ArticleMetadata, 'fields' | 'zones' | 'pages' | 'status' | 'sourceId' | 'dossierId' | 'schema' | 'aiContext' | 'templateId'>>
   ) => Promise<boolean>
   v2_articlesDelete: (projectId: string, articleId: string) => Promise<boolean>
   v2_articlesMove: (projectId: string, articleId: string, target: ArticleMoveTarget) => Promise<boolean>

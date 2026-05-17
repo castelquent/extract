@@ -27,7 +27,13 @@
       "WebFetch(domain:openrouter.ai)",
       "WebFetch(domain:github.com)",
       "Bash(node scripts/migrate-v1-backup.mjs --dry-run)",
-      "Bash(node scripts/migrate-v1-backup.mjs)"
+      "Bash(node scripts/migrate-v1-backup.mjs)",
+      "Bash(git ls-remote *)",
+      "WebFetch(domain:svar.dev)",
+      "WebFetch(domain:www.npmjs.com)",
+      "WebFetch(domain:docs.svar.dev)",
+      "WebFetch(domain:chonky.io)",
+      "WebFetch(domain:raw.githubusercontent.com)"
     ]
   }
 }

@@ -25,7 +25,6 @@ import frExport from '@/locales/fr/export.json'
 import frTemplates from '@/locales/fr/templates.json'
 import frHelp from '@/locales/fr/help.json'
 import frOnboarding from '@/locales/fr/onboarding.json'
-import frTemplateFields from '@/locales/fr/templateFields.json'
 import enCommon from '@/locales/en/common.json'
 import enSettings from '@/locales/en/settings.json'
 import enNav from '@/locales/en/nav.json'
@@ -40,7 +39,6 @@ import enExport from '@/locales/en/export.json'
 import enTemplates from '@/locales/en/templates.json'
 import enHelp from '@/locales/en/help.json'
 import enOnboarding from '@/locales/en/onboarding.json'
-import enTemplateFields from '@/locales/en/templateFields.json'
 
 export const SUPPORTED_LANGUAGES = ['fr', 'en'] as const
 export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number]
@@ -65,7 +63,6 @@ void i18n.use(initReactI18next).init({
       templates: frTemplates,
       help: frHelp,
       onboarding: frOnboarding,
-      templateFields: frTemplateFields,
     },
     en: {
       common: enCommon,
@@ -82,7 +79,6 @@ void i18n.use(initReactI18next).init({
       templates: enTemplates,
       help: enHelp,
       onboarding: enOnboarding,
-      templateFields: enTemplateFields,
     },
   },
   lng: 'fr',
@@ -91,7 +87,6 @@ void i18n.use(initReactI18next).init({
   ns: [
     'common', 'settings', 'nav', 'projects', 'project', 'articles', 'sources',
     'extractor', 'editor', 'search', 'export', 'templates', 'help', 'onboarding',
-    'templateFields',
   ],
   interpolation: {
     // React already escapes — disabling i18next's pass avoids double-encoding.

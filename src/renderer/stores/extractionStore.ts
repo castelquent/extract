@@ -379,7 +379,11 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
       const existing = await window.api.v2_articlesList(projectId, { sourceId, includeDrafts: true })
       let counter = 0
       const hydrated: WorkingArticle[] = existing.map((am) => {
-        const matched = templates.find((t) => sameSchema(t.fields, am.schema ?? []))
+        // Prefer the persisted templateId. Fall back to structural schema
+        // comparison for legacy articles created before templateId existed.
+        const matched =
+          (am.templateId && templates.find((t) => t.id === am.templateId)) ||
+          templates.find((t) => sameSchema(t.fields, am.schema ?? []))
         return {
           id: ++counter,
           zones: am.zones,
@@ -431,6 +435,7 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
             fields: article.fields,
             schema: article.schema,
             aiContext: article.aiContext,
+            templateId: article.templateId,
             skipExtractGeneration: true,
           })
           if (created) {
@@ -466,6 +471,7 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
           fields: article.fields,
           schema: article.schema,
           aiContext: article.aiContext,
+          templateId: article.templateId,
           status: newStatus,
         })
         updated.push(ok ? { ...article, persistedStatus: newStatus } : article)

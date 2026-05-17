@@ -44,7 +44,8 @@ interface EditorState {
     articleId: string,
     newSchema: TemplateField[],
     newFields: Record<string, string>,
-    newAiContext: string | undefined
+    newAiContext: string | undefined,
+    newTemplateId: string | undefined
   ) => Promise<boolean>
 }
 
@@ -186,7 +187,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
   },
 
-  applyTemplate: async (articleId, newSchema, newFields, newAiContext) => {
+  applyTemplate: async (articleId, newSchema, newFields, newAiContext, newTemplateId) => {
     const projectId = get().projectId
     if (!projectId) return false
     try {
@@ -194,6 +195,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         schema: newSchema,
         aiContext: newAiContext,
         fields: newFields,
+        templateId: newTemplateId,
       })
       if (!ok) return false
       set((s) => ({
@@ -204,6 +206,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
                 schema: newSchema,
                 aiContext: newAiContext,
                 fields: newFields,
+                templateId: newTemplateId,
                 modifiedAt: new Date().toISOString(),
               }
             : a

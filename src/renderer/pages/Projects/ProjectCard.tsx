@@ -14,7 +14,6 @@ import {
 } from '@/components/ui'
 import { Copy, FileArchive, Trash2, FileStack, FileText, Pencil, FolderOpen, Files, FolderTree } from 'lucide-react'
 import { useTemplatesStore } from '@/stores'
-import { templateDisplayName } from '@/lib/templateLabels'
 
 interface ProjectCardProps {
   project: ProjectView
@@ -40,7 +39,7 @@ export function ProjectCard({
   const { templates } = useTemplatesStore()
 
   const matchedTemplate = templates.find((t) => t.id === project.defaultTemplateId)
-  const templateName = matchedTemplate ? templateDisplayName(matchedTemplate) : undefined
+  const templateName = matchedTemplate?.name
 
   useEffect(() => {
     if (project.thumbnailPath) {

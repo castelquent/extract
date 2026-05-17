@@ -20,6 +20,8 @@ import {
 } from '../_fs'
 import { touchProject } from './projects'
 import { idx, patchArticle } from './_index'
+import { loadTemplates } from '../templates'
+import { resolveFieldLabel } from '@shared/fieldLabel'
 
 const locateArticle = (projectId: string, articleId: string): string | null | undefined =>
   idx.locateArticle(projectId, articleId)
@@ -42,24 +44,88 @@ function appendLog(entry: TranscriptionLog): void {
   }
 }
 
-function buildPromptFromSchema(schema: TemplateField[], aiContext?: string): string {
+// Read the user's preferred UI language from settings.json synchronously.
+// Used to pick the prompt wrapper locale so a coherent monolingual prompt
+// is sent to the AI (mixed-language prompts perform marginally worse).
+function readAppLanguage(): 'fr' | 'en' {
+  try {
+    const path = join(app.getPath('userData'), 'settings.json')
+    if (!existsSync(path)) return 'fr'
+    const parsed = JSON.parse(readFileSync(path, 'utf-8'))
+    const lng = parsed?.app?.language
+    return lng === 'en' ? 'en' : 'fr'
+  } catch {
+    return 'fr'
+  }
+}
+
+interface PromptWrapper {
+  defaultContext: string
+  analyseLine: string
+  rulesHeader: string
+  rules: string[]
+}
+
+const PROMPT_WRAPPERS: Record<'fr' | 'en', PromptWrapper> = {
+  fr: {
+    defaultContext: "Tu es un assistant spécialisé dans l'extraction de texte à partir de documents PDF.",
+    analyseLine: 'Analyse le document et retourne un JSON avec les champs suivants:',
+    rulesHeader: 'RÈGLES STRICTES:',
+    rules: [
+      'Ne reformule rien, transcris le texte tel quel.',
+      "ENCODAGE: Assure-toi que les caractères accentués (é, à, è, ê, ù, etc.) sont correctement transcrits en UTF-8.",
+      'GUILLEMETS: Si le texte contient des guillemets, tu DOIS les échapper (\\") pour ne pas casser le JSON.',
+      'Pour les champs de contenu, utilise du HTML (<p>, <strong>, <em>) pour la mise en forme.',
+      'Réponds uniquement avec le JSON, sans explication ni markdown.',
+    ],
+  },
+  en: {
+    defaultContext: 'You are an assistant specialised in extracting text from PDF documents.',
+    analyseLine: 'Analyse the document and return a JSON with the following fields:',
+    rulesHeader: 'STRICT RULES:',
+    rules: [
+      "Don't reformulate anything; transcribe the text as-is.",
+      'ENCODING: make sure accented characters (é, à, è, ê, ù, etc.) are correctly transcribed in UTF-8.',
+      'QUOTES: if the text contains quotation marks, you MUST escape them (\\") so the JSON stays valid.',
+      'For content fields, use HTML (<p>, <strong>, <em>) for formatting.',
+      'Reply with the JSON only — no explanation, no markdown.',
+    ],
+  },
+}
+
+// Build the AI prompt from the article's snapshotted schema + aiContext.
+// For default-template fields (schema entry has a stable `id`), the live
+// template is consulted so the prompt uses the current UI language's labels
+// even when the snapshot is stale. Custom-template fields fall through to
+// the snapshotted name and hint.
+function buildPromptFromSchema(
+  schema: TemplateField[],
+  templateId: string | undefined,
+  aiContext?: string
+): string {
+  const lang = readAppLanguage()
+  const wrap = PROMPT_WRAPPERS[lang]
+  const templates = loadTemplates()
+  const liveTpl = templateId ? templates.find((t) => t.id === templateId) : undefined
+  // Default templates also get their aiContext refreshed from the live
+  // template so an EN user transcribing an article snapshotted in FR sends
+  // an EN context line.
+  const resolvedContext = liveTpl?.isDefault && liveTpl.aiContext ? liveTpl.aiContext : aiContext
   const fieldsList = [...schema]
     .sort((a, b) => a.order - b.order)
-    .map((f) => (f.aiHint ? `- ${f.name} (${f.aiHint})` : `- ${f.name}`))
+    .map((f) => {
+      const { name, aiHint } = resolveFieldLabel(f, templates, templateId)
+      return aiHint ? `- ${name} (${aiHint})` : `- ${name}`
+    })
     .join('\n')
-  const context = aiContext ||
-    "Tu es un assistant spécialisé dans l'extraction de texte à partir de documents PDF."
+  const context = resolvedContext || wrap.defaultContext
   return `${context}
 
-Analyse le document et retourne un JSON avec les champs suivants:
+${wrap.analyseLine}
 ${fieldsList}
 
-RÈGLES STRICTES:
-- Ne reformule rien, transcris le texte tel quel.
-- ENCODAGE: Assure-toi que les caractères accentués français (é, à, è, ê, ù, etc.) sont correctement transcrits en UTF-8.
-- GUILLEMETS: Si le texte contient des guillemets, tu DOIS les échapper (\\") pour ne pas casser le JSON.
-- Pour les champs de contenu, utilise du HTML (<p>, <strong>, <em>) pour la mise en forme.
-- Réponds uniquement avec le JSON, sans explication ni markdown.`
+${wrap.rulesHeader}
+${wrap.rules.map((r) => `- ${r}`).join('\n')}`
 }
 
 function parseApiError(error: any, provider: string): string {
@@ -105,7 +171,11 @@ function textToHtml(text: string): string {
     .join('')
 }
 
-function parseTranscriptionResponse(content: string, schema: TemplateField[]): TranscriptionResult {
+function parseTranscriptionResponse(
+  content: string,
+  schema: TemplateField[],
+  templateId: string | undefined
+): TranscriptionResult {
   try {
     const refusalPatterns = [
       /^je ne (peux|suis)/i,
@@ -124,9 +194,14 @@ function parseTranscriptionResponse(content: string, schema: TemplateField[]): T
     const fixed = jsonStr.replace(/([a-zA-ZÀ-ÿ0-9])"([a-zA-ZÀ-ÿ0-9])/g, '$1\\"$2')
     const parsed = JSON.parse(fixed)
 
+    // The AI replies under the names we asked for (live names for default
+    // fields, snapshot names for customs). Storage stays keyed by the
+    // snapshot name so on-disk fields keep a stable shape.
+    const templates = loadTemplates()
     const fields: Record<string, string> = {}
     for (const field of schema) {
-      const rawValue = parsed[field.name] || ''
+      const { name: askedName } = resolveFieldLabel(field, templates, templateId)
+      const rawValue = parsed[askedName] ?? parsed[field.name] ?? ''
       fields[field.name] = field.type === 'richtext' && rawValue ? textToHtml(rawValue) : rawValue
     }
     return { success: true, data: { fields } }
@@ -148,7 +223,8 @@ async function transcribeWithOpenAI(
   base64Pdf: string,
   settings: AISettings,
   prompt: string,
-  schema: TemplateField[]
+  schema: TemplateField[],
+  templateId: string | undefined
 ): Promise<ResultWithUsage> {
   // OpenAI vision currently expects image; for PDF we'd need a different flow.
   // For symmetry with the legacy implementation we pass it as an image; in
@@ -179,7 +255,7 @@ async function transcribeWithOpenAI(
   )
   const content = response.data.choices[0]?.message?.content || ''
   const usage = response.data.usage
-  const result = parseTranscriptionResponse(content, schema)
+  const result = parseTranscriptionResponse(content, schema, templateId)
   return {
     ...result,
     usage: { input: usage?.prompt_tokens || 0, output: usage?.completion_tokens || 0 },
@@ -190,7 +266,8 @@ async function transcribeWithAnthropic(
   base64Pdf: string,
   settings: AISettings,
   prompt: string,
-  schema: TemplateField[]
+  schema: TemplateField[],
+  templateId: string | undefined
 ): Promise<ResultWithUsage> {
   const response = await axios.post(
     'https://api.anthropic.com/v1/messages',
@@ -221,7 +298,7 @@ async function transcribeWithAnthropic(
   )
   const content = response.data.content[0]?.text || ''
   const usage = response.data.usage
-  const result = parseTranscriptionResponse(content, schema)
+  const result = parseTranscriptionResponse(content, schema, templateId)
   return {
     ...result,
     usage: { input: usage?.input_tokens || 0, output: usage?.output_tokens || 0 },
@@ -264,11 +341,19 @@ export function setupV2TranscriptionHandlers(): void {
 
         const base64 = readFileSync(pdfPath).toString('base64')
         const schema = article.schema ?? []
-        const prompt = buildPromptFromSchema(schema, article.aiContext)
+        const templateId = article.templateId
+        const prompt = buildPromptFromSchema(schema, templateId, article.aiContext)
+
+        // Surface the full prompt in the dev terminal so the user can audit
+        // exactly what's being sent. Logged verbatim, no truncation.
+        console.log('\n[v2:transcribe] === Prompt ===')
+        console.log(`project=${projectId} article=${articleId} provider=${settings.provider} model=${settings.model}`)
+        console.log(prompt)
+        console.log('[v2:transcribe] ==============\n')
 
         const result = settings.provider === 'openai'
-          ? await transcribeWithOpenAI(base64, settings, prompt, schema)
-          : await transcribeWithAnthropic(base64, settings, prompt, schema)
+          ? await transcribeWithOpenAI(base64, settings, prompt, schema, templateId)
+          : await transcribeWithAnthropic(base64, settings, prompt, schema, templateId)
 
         appendLog({
           date: new Date().toISOString(),

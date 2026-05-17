@@ -111,6 +111,7 @@ export function setupV2ArticleHandlers(): void {
         fields?: Record<string, string>
         schema: TemplateField[]
         aiContext?: string
+        templateId?: string
         skipExtractGeneration?: boolean
       }
     ): Promise<ArticleMetadata | null> => {
@@ -130,6 +131,7 @@ export function setupV2ArticleHandlers(): void {
         status: 'draft',
         schema: payload.schema,
         aiContext: payload.aiContext,
+        templateId: payload.templateId,
         createdAt: now,
         modifiedAt: now,
       }
@@ -166,7 +168,7 @@ export function setupV2ArticleHandlers(): void {
       _,
       projectId: string,
       articleId: string,
-      patch: Partial<Pick<ArticleMetadata, 'fields' | 'zones' | 'pages' | 'status' | 'sourceId' | 'dossierId' | 'schema' | 'aiContext'>>
+      patch: Partial<Pick<ArticleMetadata, 'fields' | 'zones' | 'pages' | 'status' | 'sourceId' | 'dossierId' | 'schema' | 'aiContext' | 'templateId'>>
     ): Promise<boolean> => {
       const dossierId = locateArticle(projectId, articleId)
       if (dossierId === undefined) return false

@@ -19,7 +19,6 @@ import {
 } from '@/components/ui'
 import type { Template, TemplateField } from '@shared/types'
 import { computeMerge, stripHtml } from '@/lib/templateMerge'
-import { templateDisplayName } from '@/lib/templateLabels'
 
 interface ApplyTemplateDialogProps {
   open: boolean
@@ -85,7 +84,7 @@ export function ApplyTemplateDialog({
             <SelectContent>
               {templates.map((tpl) => (
                 <SelectItem key={tpl.id} value={tpl.id}>
-                  {templateDisplayName(tpl)}
+                  {tpl.name}
                 </SelectItem>
               ))}
             </SelectContent>

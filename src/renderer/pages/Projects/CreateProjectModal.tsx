@@ -17,7 +17,6 @@ import {
   SelectValue,
 } from '@/components/ui'
 import { useTemplatesStore } from '@/stores'
-import { templateDisplayName } from '@/lib/templateLabels'
 
 interface CreateProjectModalProps {
   open: boolean
@@ -78,7 +77,7 @@ export function CreateProjectModal({ open, onOpenChange, onCreate }: CreateProje
               <SelectContent>
                 {templates.map((template) => (
                   <SelectItem key={template.id} value={template.id}>
-                    {templateDisplayName(template)}
+                    {template.name}
                   </SelectItem>
                 ))}
               </SelectContent>

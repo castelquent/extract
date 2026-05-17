@@ -58,7 +58,6 @@ import '@react-pdf-viewer/default-layout/lib/styles/index.css'
 import { ArticleForm } from './ArticleForm'
 import { ArticlesTableV2 } from './ArticlesTable'
 import { ApplyTemplateDialog } from '@/components/ApplyTemplateDialog'
-import { templateDisplayName } from '@/lib/templateLabels'
 
 // Returns true when the two schema arrays match field-by-field by name/type/order.
 const sameSchema = (a: TemplateField[], b: TemplateField[]): boolean => {
@@ -446,20 +445,23 @@ export function EditorV2Page() {
     ? currentSchema.filter((f) => isFieldFilled(f, currentArticle.fields?.[f.name])).length
     : 0
 
-  // Find which template (if any) matches the current article's schema for
-  // display in the form header. Exact match on field shape.
+  // Find which template (if any) matches the current article. Prefer the
+  // persisted templateId — it survives UI language switches. Fall back to
+  // structural schema comparison for legacy articles without templateId.
   const currentTemplateName = useMemo(() => {
     if (!currentArticle) return undefined
-    const matched = templates.find((tpl) => sameSchema(tpl.fields, currentArticle.schema))
-    return matched ? templateDisplayName(matched) : t('editor:form.templateCustom')
+    const matched =
+      (currentArticle.templateId && templates.find((tpl) => tpl.id === currentArticle.templateId)) ||
+      templates.find((tpl) => sameSchema(tpl.fields, currentArticle.schema))
+    return matched ? matched.name : t('editor:form.templateCustom')
   }, [currentArticle, templates, t])
 
   const handleApplyTemplate = async (
-    template: { fields: TemplateField[]; aiContext?: string },
+    template: { id: string; fields: TemplateField[]; aiContext?: string },
     mergedFields: Record<string, string>
   ) => {
     if (!currentArticleId) return
-    await applyTemplate(currentArticleId, template.fields, mergedFields, template.aiContext)
+    await applyTemplate(currentArticleId, template.fields, mergedFields, template.aiContext, template.id)
   }
 
   const currentIndex = currentArticleId
@@ -684,6 +686,8 @@ export function EditorV2Page() {
                   key={currentArticleId ?? 'none'}
                   fields={currentFields}
                   schema={currentSchema}
+                  templates={templates}
+                  templateId={currentArticle?.templateId}
                   currentTemplateName={currentTemplateName}
                   transcribing={transcribing}
                   copyingOcr={copyingOcr}

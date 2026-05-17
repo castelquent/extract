@@ -2,6 +2,8 @@
   "title": "Templates",
   "subtitle": "Manage the field templates for your projects",
   "newTemplate": "New template",
+  "titleFieldName": "Title",
+  "titleFieldHint": "The article's title",
   "empty": "No templates",
   "createFirst": "Create your first template",
   "defaultBadge": "Default",
@@ -46,5 +48,17 @@
     "deleted": "Template deleted",
     "deleteDefaultError": "Default templates can't be deleted",
     "deleteError": "Failed to delete the template"
+  },
+  "promptWrapper": {
+    "defaultContext": "You are an assistant specialised in extracting text from PDF documents.",
+    "analyseLine": "Analyse the document and return a JSON with the following fields:",
+    "rulesHeader": "STRICT RULES:",
+    "rules": [
+      "Don't reformulate anything; transcribe the text as-is.",
+      "ENCODING: make sure accented characters (é, à, è, ê, ù, etc.) are correctly transcribed in UTF-8.",
+      "QUOTES: if the text contains quotation marks, you MUST escape them (\\\") so the JSON stays valid.",
+      "For content fields, use HTML (<p>, <strong>, <em>) for formatting.",
+      "Reply with the JSON only — no explanation, no markdown."
+    ]
   }
 }

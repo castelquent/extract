@@ -1,59 +1,175 @@
 import { ipcMain, app } from 'electron'
 import { join } from 'path'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
-import type { Template, DeleteTemplateResult } from '@shared/types'
+import type { Template, TemplateField, FieldType, DeleteTemplateResult } from '@shared/types'
 
-const DEFAULT_TEMPLATES: Template[] = [
+// Default templates carry their strings in both languages. At load time we
+// "freeze" the seed to the user's current language and return a plain
+// Template — the rest of the codebase reads `template.name` as a string
+// without ever knowing about i18n. User-created templates are pure data
+// (single language, never touched by this).
+interface I18nString {
+  fr: string
+  en: string
+}
+interface SeedField {
+  // Stable id within the seed (e.g. 'title', 'author'). Surfaced on the
+  // localized TemplateField so the UI can match snapshotted article schemas
+  // back to the live template even when the localized name has changed.
+  id: string
+  name: I18nString
+  type: FieldType
+  aiHint?: I18nString
+  order: number
+}
+interface SeedTemplate {
+  id: string
+  name: I18nString
+  description: I18nString
+  aiContext: I18nString
+  fields: SeedField[]
+  createdAt: string
+  updatedAt: string
+}
+
+const DEFAULT_SEEDS: SeedTemplate[] = [
   {
     id: 'press-article',
-    name: 'Article de presse',
-    description: 'Journaux, magazines, revues',
-    aiContext: 'Ceci est un article de presse à transcrire.',
+    name: { fr: 'Article de presse', en: 'Press article' },
+    description: { fr: 'Journaux, magazines, revues', en: 'Newspapers, magazines, journals' },
+    aiContext: {
+      fr: 'Ceci est un article de presse à transcrire.',
+      en: 'This is a press article to transcribe.',
+    },
     fields: [
-      { key: 'title', name: 'Titre', type: 'text', order: 0 },
-      { key: 'author', name: 'Auteur', type: 'text', order: 1 },
-      { key: 'content', name: 'Contenu', type: 'richtext', order: 2 }
+      {
+        id: 'title',
+        name: { fr: 'Titre', en: 'Title' },
+        type: 'text',
+        aiHint: { fr: "Le titre de l'article", en: "The article's title" },
+        order: 0,
+      },
+      {
+        id: 'author',
+        name: { fr: 'Auteur', en: 'Author' },
+        type: 'text',
+        aiHint: { fr: "L'auteur de l'article", en: "The article's author" },
+        order: 1,
+      },
+      {
+        id: 'content',
+        name: { fr: 'Contenu', en: 'Content' },
+        type: 'richtext',
+        aiHint: { fr: 'Le contenu principal du document', en: "The document's main content" },
+        order: 2,
+      },
     ],
-    isDefault: true,
     createdAt: '2024-01-01T00:00:00Z',
-    updatedAt: '2024-01-01T00:00:00Z'
+    updatedAt: '2024-01-01T00:00:00Z',
   },
   {
     id: 'correspondence',
-    name: 'Correspondance',
-    description: 'Lettres, courriers',
-    aiContext: 'Ceci est une lettre ou correspondance à transcrire.',
+    name: { fr: 'Correspondance', en: 'Correspondence' },
+    description: { fr: 'Lettres, courriers', en: 'Letters, mail' },
+    aiContext: {
+      fr: 'Ceci est une lettre ou correspondance à transcrire.',
+      en: 'This is a letter or correspondence to transcribe.',
+    },
     fields: [
-      { key: 'date', name: 'Date', type: 'text', order: 1 },
-      { key: 'sender', name: 'Expéditeur', type: 'text', order: 2 },
-      { key: 'recipient', name: 'Destinataire', type: 'text', order: 3 },
-      { key: 'content', name: 'Contenu', type: 'richtext', order: 4 }
+      {
+        id: 'date',
+        name: { fr: 'Date', en: 'Date' },
+        type: 'text',
+        aiHint: { fr: 'La date du document', en: "The document's date" },
+        order: 0,
+      },
+      {
+        id: 'sender',
+        name: { fr: 'Expéditeur', en: 'Sender' },
+        type: 'text',
+        aiHint: { fr: "L'expéditeur de la lettre", en: "The letter's sender" },
+        order: 1,
+      },
+      {
+        id: 'recipient',
+        name: { fr: 'Destinataire', en: 'Recipient' },
+        type: 'text',
+        aiHint: { fr: 'Le destinataire de la lettre', en: "The letter's recipient" },
+        order: 2,
+      },
+      {
+        id: 'content',
+        name: { fr: 'Contenu', en: 'Content' },
+        type: 'richtext',
+        aiHint: { fr: 'Le contenu principal du document', en: "The document's main content" },
+        order: 3,
+      },
     ],
-    isDefault: true,
     createdAt: '2024-01-01T00:00:00Z',
-    updatedAt: '2024-01-01T00:00:00Z'
-  }
+    updatedAt: '2024-01-01T00:00:00Z',
+  },
 ]
+
+// Read the user's UI language straight from settings.json. Sync read keeps
+// the templates IPC handlers non-async at their boundary; the file is tiny.
+function readLang(): 'fr' | 'en' {
+  try {
+    const path = join(app.getPath('userData'), 'settings.json')
+    if (!existsSync(path)) return 'fr'
+    const parsed = JSON.parse(readFileSync(path, 'utf-8'))
+    return parsed?.app?.language === 'en' ? 'en' : 'fr'
+  } catch {
+    return 'fr'
+  }
+}
+
+function localizeSeed(seed: SeedTemplate, lang: 'fr' | 'en'): Template {
+  const fields: TemplateField[] = seed.fields.map((f) => ({
+    id: f.id,
+    name: f.name[lang],
+    type: f.type,
+    aiHint: f.aiHint?.[lang],
+    order: f.order,
+  }))
+  return {
+    id: seed.id,
+    name: seed.name[lang],
+    description: seed.description[lang],
+    aiContext: seed.aiContext[lang],
+    fields,
+    isDefault: true,
+    createdAt: seed.createdAt,
+    updatedAt: seed.updatedAt,
+  }
+}
 
 const getTemplatesPath = (): string => {
   return join(app.getPath('userData'), 'templates.json')
 }
 
-const loadTemplates = (): Template[] => {
+export const loadTemplates = (): Template[] => {
+  const lang = readLang()
   const templatesPath = getTemplatesPath()
 
   if (!existsSync(templatesPath)) {
-    // Initialize with default templates
-    writeFileSync(templatesPath, JSON.stringify(DEFAULT_TEMPLATES, null, 2))
-    return DEFAULT_TEMPLATES
+    const seeded = DEFAULT_SEEDS.map((s) => localizeSeed(s, lang))
+    writeFileSync(templatesPath, JSON.stringify(seeded, null, 2))
+    return seeded
   }
 
   try {
-    const data = readFileSync(templatesPath, 'utf-8')
-    return JSON.parse(data) as Template[]
+    const stored = JSON.parse(readFileSync(templatesPath, 'utf-8')) as Template[]
+    // Re-derive default templates from the bilingual seed at every load so
+    // they always match the current UI language. User-created templates pass
+    // through untouched.
+    return stored.map((t) => {
+      if (!t.isDefault) return t
+      const seed = DEFAULT_SEEDS.find((s) => s.id === t.id)
+      return seed ? localizeSeed(seed, lang) : t
+    })
   } catch (error) {
     console.error('Error loading templates:', error)
-    return DEFAULT_TEMPLATES
+    return DEFAULT_SEEDS.map((s) => localizeSeed(s, lang))
   }
 }
 
@@ -68,51 +184,46 @@ const saveTemplates = (templates: Template[]): boolean => {
 }
 
 export function setupTemplateHandlers(): void {
-  // Get all templates
   ipcMain.handle('templates:getAll', async (): Promise<Template[]> => {
     return loadTemplates()
   })
 
-  // Get template by ID
   ipcMain.handle('templates:getById', async (_, templateId: string): Promise<Template | null> => {
     const templates = loadTemplates()
-    return templates.find(t => t.id === templateId) || null
+    return templates.find((t) => t.id === templateId) || null
   })
 
-  // Save template (create or update)
   ipcMain.handle('templates:save', async (_, template: Template): Promise<boolean> => {
     const templates = loadTemplates()
-    const existingIndex = templates.findIndex(t => t.id === template.id)
+    const existingIndex = templates.findIndex((t) => t.id === template.id)
 
     if (existingIndex >= 0) {
-      // Update existing
       templates[existingIndex] = {
         ...template,
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
       }
     } else {
-      // Create new
       templates.push({
         ...template,
         createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
       })
     }
 
     return saveTemplates(templates)
   })
 
-  // Delete template — articles snapshot their schema, so a deleted model
-  // never breaks anything. Only default models stay protected.
+  // Delete template. Default templates are protected; articles snapshot
+  // their schema so removing a custom template can't break anything live.
   ipcMain.handle('templates:delete', async (_, templateId: string): Promise<DeleteTemplateResult> => {
     const templates = loadTemplates()
-    const template = templates.find(t => t.id === templateId)
+    const template = templates.find((t) => t.id === templateId)
 
     if (template?.isDefault) {
       return { success: false, reason: 'is_default' }
     }
 
-    const filtered = templates.filter(t => t.id !== templateId)
+    const filtered = templates.filter((t) => t.id !== templateId)
     const saved = saveTemplates(filtered)
     return { success: saved }
   })

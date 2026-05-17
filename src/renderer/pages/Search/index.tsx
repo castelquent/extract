@@ -256,7 +256,9 @@ export function SearchPage() {
     const map = new Map<string, string>()
     if (!index) return map
     for (const { article } of index.articles) {
-      const tpl = templates.find((t) => sameSchema(t.fields, article.schema))
+      const tpl =
+        (article.templateId && templates.find((t) => t.id === article.templateId)) ||
+        templates.find((t) => sameSchema(t.fields, article.schema))
       map.set(article.id, tpl?.id ?? 'none')
     }
     return map

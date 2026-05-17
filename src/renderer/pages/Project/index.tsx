@@ -28,7 +28,6 @@ import {
   TabsTrigger,
 } from '@/components/ui'
 import { Download, FileText, FolderOpen, Settings } from 'lucide-react'
-import { templateDisplayName } from '@/lib/templateLabels'
 import { ArticlesView } from './ArticlesView'
 import { SourcesView } from './SourcesView'
 import { ExportModal, ExportFormat, ExportModalChoices, buildExportOptions } from '../Editor/ExportModal'
@@ -314,7 +313,7 @@ export function ProjectDetailPage() {
                 <SelectContent>
                   {templates.map((tpl) => (
                     <SelectItem key={tpl.id} value={tpl.id}>
-                      {templateDisplayName(tpl)}
+                      {tpl.name}
                     </SelectItem>
                   ))}
                 </SelectContent>

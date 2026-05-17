@@ -24,6 +24,9 @@ export function AppLayout() {
 
   // Apply the persisted/detected language to i18n whenever it changes. Runs
   // once after the initial loadSettings resolves, and again on user picks.
+  // Templates reload is done from settingsStore.saveSettings instead — it
+  // can only run after disk has the new language (the main process reads
+  // settings.json to localize default templates).
   useEffect(() => {
     if (language && isSupportedLanguage(language) && language !== i18n.language) {
       void i18n.changeLanguage(language)

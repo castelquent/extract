@@ -14,7 +14,6 @@ import {
 } from '@dnd-kit/sortable'
 import type { WorkingArticle as Article } from '@/stores/extractionStore'
 import type { Template } from '@shared/types'
-import { templateDisplayName } from '@/lib/templateLabels'
 import {
   Badge,
   Button,
@@ -66,9 +65,7 @@ export function ArticleItem({
 }: ArticleItemProps) {
   const { t } = useTranslation('extractor')
   const matchedTpl = templates?.find((tpl) => tpl.id === article.templateId)
-  const currentTemplateName = matchedTpl
-    ? templateDisplayName(matchedTpl)
-    : t('article.templateCustom')
+  const currentTemplateName = matchedTpl ? matchedTpl.name : t('article.templateCustom')
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -194,7 +191,7 @@ export function ArticleItem({
                 <SelectContent>
                   {templates.map((tpl) => (
                     <SelectItem key={tpl.id} value={tpl.id} className="text-xs">
-                      {templateDisplayName(tpl)}
+                      {tpl.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
