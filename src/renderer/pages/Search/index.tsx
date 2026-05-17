@@ -4,7 +4,6 @@ import { ChevronDown, Download, FileText, Loader2, Search as SearchIcon, X } fro
 import type {
   ArticleMetadata,
   DossierView,
-  ExportOptions,
   MultiExportItem,
   ProjectView,
 } from '@shared/types'
@@ -23,7 +22,7 @@ import { useProjectsStoreV2, useSearchStore, useTemplatesStore } from '@/stores'
 import { asString, stripHtml } from '@shared/fieldValue'
 import { sameSchema } from '@/lib/templateMerge'
 import { SearchResult } from './SearchResult'
-import { ExportModal, ExportFormat } from '../Editor/ExportModal'
+import { ExportModal, ExportFormat, ExportModalChoices, buildExportOptions } from '../Editor/ExportModal'
 
 // Per-field, precomputed text used by the live filter. We fold + strip
 // once at index-build time so each keystroke only runs `indexOf` on already-
@@ -487,15 +486,10 @@ export function SearchPage() {
     return items
   }, [hits])
 
-  const handleExportResults = async (
-    format: ExportFormat,
-    choices: { highlightSearchTerm: boolean }
-  ) => {
+  const handleExportResults = async (format: ExportFormat, choices: ExportModalChoices) => {
     if (exportItems.length === 0) return
-    const options: ExportOptions = {}
-    if (choices.highlightSearchTerm && query.trim().length >= 2) {
-      options.highlight = query.trim()
-    }
+    const highlight = query.trim().length >= 2 ? query.trim() : undefined
+    const options = buildExportOptions(format, choices, { highlight })
     switch (format) {
       case 'pdf':
         await window.api.v2_exportMultiArticlesPdf(exportItems, options)
@@ -505,6 +499,9 @@ export function SearchPage() {
         break
       case 'txt':
         await window.api.v2_exportMultiArticlesTxt(exportItems, options)
+        break
+      case 'png':
+        await window.api.v2_exportMultiArticlesPng(exportItems, options)
         break
     }
   }

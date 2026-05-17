@@ -75,7 +75,7 @@ import type {
 } from '@shared/types'
 import { isFieldFilled } from '@shared/fieldValue'
 import { MoveDialog } from './MoveDialog'
-import { ExportModal, ExportFormat } from '../Editor/ExportModal'
+import { ExportModal, ExportFormat, ExportModalChoices, buildExportOptions } from '../Editor/ExportModal'
 
 // noop strategy: rows don't shift to make room during drag. Active row
 // follows the cursor; drop position resolved from over target in onDragEnd.
@@ -901,18 +901,22 @@ export function ArticlesView({
     setBulkDeleteOpen(false)
   }
 
-  const handleExportSelection = async (format: ExportFormat) => {
+  const handleExportSelection = async (format: ExportFormat, choices: ExportModalChoices) => {
     const ids = Array.from(selectedIds)
     if (ids.length === 0) return
+    const options = buildExportOptions(format, choices)
     switch (format) {
       case 'pdf':
-        await window.api.v2_exportArticlesPdf(projectId, ids)
+        await window.api.v2_exportArticlesPdf(projectId, ids, options)
         break
       case 'docx':
-        await window.api.v2_exportArticlesDocx(projectId, ids)
+        await window.api.v2_exportArticlesDocx(projectId, ids, options)
         break
       case 'txt':
-        await window.api.v2_exportArticlesTxt(projectId, ids)
+        await window.api.v2_exportArticlesTxt(projectId, ids, options)
+        break
+      case 'png':
+        await window.api.v2_exportArticlesPng(projectId, ids, options)
         break
     }
   }

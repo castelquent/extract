@@ -203,15 +203,32 @@ export type DossierDeleteMode = 'delete-content' | 'orphan-articles'
 
 // --- Export options ---
 // `dossierTitles` marks the article IDs that should be preceded by a full-page
-// dossier title in the rendered output. The renderer flattens its
-// grouped-by-dossier list into `articleIds` and emits one marker per group
-// boundary so the backend can insert the heading at the right spot.
-// `highlight` makes the renderer wrap occurrences of the term in a yellow
-// highlight in the output. DOCX implements this natively (TextRun.highlight);
-// PDF currently does not — the term is rendered without emphasis.
+// dossier title in the rendered output (only used in `mode: 'single'`). The
+// renderer flattens its grouped-by-dossier list into `articleIds` and emits
+// one marker per group boundary so the backend can insert the heading at the
+// right spot.
+// `highlight` wraps occurrences of the term in a yellow highlight in the
+// output (PDF via <mark>, DOCX via TextRun.highlight).
+// `mode` controls PDF/DOCX packaging:
+//   - 'single'     : one merged document (current behavior, dossier titles inline)
+//   - 'separated'  : one file per article, ZIP grouped by dossier
+// `pngMode` controls PNG granularity:
+//   - 'per-zone'    : one PNG per page of extract.pdf (multi-zone article → multi PNG)
+//   - 'per-element' : one PNG per article, its extract.pdf pages stacked vertically
+// `orderPrefix` (separated/per-zone/per-element) prefixes filenames with the
+// article's order in its dossier so they sort by position rather than by name.
+// `showSource` (PDF/DOCX/TXT) appends the "Source : … page N" line at the end
+// of each article. Default true.
+// `includeSourceImages` (PDF/DOCX) embeds the article's extract.pdf rendered
+// as PNG(s) at the end of the article's section.
 export interface ExportOptions {
   dossierTitles?: { beforeArticleId: string; title: string }[]
   highlight?: string
+  mode?: 'single' | 'separated'
+  pngMode?: 'per-zone' | 'per-element'
+  orderPrefix?: boolean
+  showSource?: boolean
+  includeSourceImages?: boolean
 }
 
 // Multi-project export item: identifies one article in a project. Used by
@@ -220,6 +237,24 @@ export interface ExportOptions {
 export interface MultiExportItem {
   projectId: string
   articleId: string
+}
+
+// Progress updates emitted by the export handlers (main → renderer). Phases:
+//   - 'starting'         : export just kicked off, before any work
+//   - 'rendering-images' : batch-rendering source images via Python
+//   - 'building'         : assembling the output document(s) — incremental
+//                          per article in `separated` mode, one event total
+//                          in single-file mode
+//   - 'writing'          : flushing the final file or ZIP to disk
+//   - 'done'             : export finished (success). Renderer dismisses UI.
+//   - 'error'            : export failed. Includes a human-readable label.
+//   - 'cancelled'        : user clicked Cancel in the save dialog (no error).
+// `current`/`total` are populated for 'rendering-images' and 'building'.
+export interface ExportProgress {
+  phase: 'starting' | 'rendering-images' | 'building' | 'writing' | 'done' | 'error' | 'cancelled'
+  current?: number
+  total?: number
+  label?: string
 }
 
 // --- Move target for articles ---
@@ -415,6 +450,11 @@ export interface ElectronAPI {
     articleIds: string[],
     options?: ExportOptions
   ) => Promise<boolean>
+  v2_exportArticlesPng: (
+    projectId: string,
+    articleIds: string[],
+    options?: ExportOptions
+  ) => Promise<boolean>
   v2_exportMultiArticlesPdf: (
     items: MultiExportItem[],
     options?: ExportOptions
@@ -427,9 +467,17 @@ export interface ElectronAPI {
     items: MultiExportItem[],
     options?: ExportOptions
   ) => Promise<boolean>
+  v2_exportMultiArticlesPng: (
+    items: MultiExportItem[],
+    options?: ExportOptions
+  ) => Promise<boolean>
 
   // PDF export diagnostics (main → renderer DevTools console)
   v2_onExportLog: (callback: (line: string) => void) => () => void
+
+  // Export progress (main → renderer). Subscribed by the global progress
+  // modal in AppLayout so any export from any page shows a progress UI.
+  v2_onExportProgress: (callback: (progress: ExportProgress) => void) => () => void
 
   // File watcher notifications
   v2_onProjectsListChanged: (callback: () => void) => () => void

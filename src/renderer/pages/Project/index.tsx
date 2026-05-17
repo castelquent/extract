@@ -29,7 +29,7 @@ import {
 import { Download, FileText, FolderOpen, Settings } from 'lucide-react'
 import { ArticlesView } from './ArticlesView'
 import { SourcesView } from './SourcesView'
-import { ExportModal, ExportFormat } from '../Editor/ExportModal'
+import { ExportModal, ExportFormat, ExportModalChoices, buildExportOptions } from '../Editor/ExportModal'
 
 export function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>()
@@ -118,10 +118,7 @@ export function ProjectDetailPage() {
   // document follows the same layout as the project page. Without this we'd
   // pass `articles.map(a => a.id)` which is sorted by per-dossier `order`
   // globally → interleaves dossiers.
-  const handleExportAll = async (
-    format: ExportFormat,
-    choices: { includeDossierTitles: boolean }
-  ) => {
+  const handleExportAll = async (format: ExportFormat, choices: ExportModalChoices) => {
     if (!project) return
     const { dossiers } = useProjectStore.getState()
     const compare = (a: typeof articles[number], b: typeof articles[number]) => {
@@ -135,20 +132,16 @@ export function ProjectDetailPage() {
     for (const d of dossiers) {
       const group = articles.filter((a) => a.dossierId === d.id).sort(compare)
       if (group.length === 0) continue
-      if (choices.includeDossierTitles) {
-        dossierTitles.push({ beforeArticleId: group[0].id, title: d.name })
-      }
+      dossierTitles.push({ beforeArticleId: group[0].id, title: d.name })
       for (const a of group) ids.push(a.id)
     }
     const orphans = articles.filter((a) => a.dossierId === null).sort(compare)
     if (orphans.length > 0) {
-      if (choices.includeDossierTitles) {
-        dossierTitles.push({ beforeArticleId: orphans[0].id, title: 'Sans dossier' })
-      }
+      dossierTitles.push({ beforeArticleId: orphans[0].id, title: 'Sans dossier' })
       for (const a of orphans) ids.push(a.id)
     }
     if (ids.length === 0) return
-    const options = choices.includeDossierTitles ? { dossierTitles } : undefined
+    const options = buildExportOptions(format, choices, { dossierTitles })
     switch (format) {
       case 'pdf':
         await window.api.v2_exportArticlesPdf(project.id, ids, options)
@@ -158,6 +151,9 @@ export function ProjectDetailPage() {
         break
       case 'txt':
         await window.api.v2_exportArticlesTxt(project.id, ids, options)
+        break
+      case 'png':
+        await window.api.v2_exportArticlesPng(project.id, ids, options)
         break
     }
   }

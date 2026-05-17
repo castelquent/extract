@@ -70,7 +70,7 @@ const sameSchema = (a: TemplateField[], b: TemplateField[]): boolean => {
 import { TranscriptionModal } from '../Editor/TranscriptionModal'
 import { ModelSelectionModal } from '../Editor/ModelSelectionModal'
 import { UnsavedChangesModal } from '../Editor/UnsavedChangesModal'
-import { ExportModal, ExportFormat } from '../Editor/ExportModal'
+import { ExportModal, ExportFormat, ExportModalChoices, buildExportOptions } from '../Editor/ExportModal'
 
 export function EditorV2Page() {
   const { projectId } = useParams<{ projectId: string }>()
@@ -395,17 +395,21 @@ export function EditorV2Page() {
     }
   }
 
-  const handleExport = async (format: ExportFormat) => {
+  const handleExport = async (format: ExportFormat, choices: ExportModalChoices) => {
     if (!projectId || exportIds.length === 0) return
+    const options = buildExportOptions(format, choices)
     switch (format) {
       case 'pdf':
-        await window.api.v2_exportArticlesPdf(projectId, exportIds)
+        await window.api.v2_exportArticlesPdf(projectId, exportIds, options)
         break
       case 'docx':
-        await window.api.v2_exportArticlesDocx(projectId, exportIds)
+        await window.api.v2_exportArticlesDocx(projectId, exportIds, options)
         break
       case 'txt':
-        await window.api.v2_exportArticlesTxt(projectId, exportIds)
+        await window.api.v2_exportArticlesTxt(projectId, exportIds, options)
+        break
+      case 'png':
+        await window.api.v2_exportArticlesPng(projectId, exportIds, options)
         break
     }
   }

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webFrame } from 'electron'
-import type { ElectronAPI } from '@shared/types'
+import type { ElectronAPI, ExportProgress } from '@shared/types'
 
 // Disable Electron's built-in zoom (Ctrl+wheel, pinch on trackpad) so the
 // extraction page can implement its own zoom on the PDF viewer.
@@ -132,9 +132,11 @@ const api: ElectronAPI & {
   v2_exportArticlesPdf: (projectId, articleIds, options) => ipcRenderer.invoke('v2:export:articlesPdf', projectId, articleIds, options),
   v2_exportArticlesDocx: (projectId, articleIds, options) => ipcRenderer.invoke('v2:export:articlesDocx', projectId, articleIds, options),
   v2_exportArticlesTxt: (projectId, articleIds, options) => ipcRenderer.invoke('v2:export:articlesTxt', projectId, articleIds, options),
+  v2_exportArticlesPng: (projectId, articleIds, options) => ipcRenderer.invoke('v2:export:articlesPng', projectId, articleIds, options),
   v2_exportMultiArticlesPdf: (items, options) => ipcRenderer.invoke('v2:export:multiArticlesPdf', items, options),
   v2_exportMultiArticlesDocx: (items, options) => ipcRenderer.invoke('v2:export:multiArticlesDocx', items, options),
   v2_exportMultiArticlesTxt: (items, options) => ipcRenderer.invoke('v2:export:multiArticlesTxt', items, options),
+  v2_exportMultiArticlesPng: (items, options) => ipcRenderer.invoke('v2:export:multiArticlesPng', items, options),
 
   // PDF export diagnostics — main forwards each step here so DevTools
   // shows the trace (helps debug cross-platform issues without stdout).
@@ -143,6 +145,13 @@ const api: ElectronAPI & {
     ipcRenderer.on('v2:export:log', handler)
     return () => {
       ipcRenderer.removeListener('v2:export:log', handler)
+    }
+  },
+  v2_onExportProgress: (callback: (progress: ExportProgress) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, progress: ExportProgress) => callback(progress)
+    ipcRenderer.on('v2:export:progress', handler)
+    return () => {
+      ipcRenderer.removeListener('v2:export:progress', handler)
     }
   },
 

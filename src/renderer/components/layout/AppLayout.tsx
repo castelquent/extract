@@ -5,6 +5,7 @@ import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { NavigationDrawer } from './NavigationDrawer'
 import { SettingsModal } from './SettingsModal'
 import { HelpModal } from './HelpModal'
+import { ExportProgressModal } from './ExportProgressModal'
 import {
   useProjectsStoreV2,
   useProjectStore,
@@ -66,6 +67,7 @@ export function AppLayout() {
       </SidebarInset>
       <SettingsModal />
       <HelpModal />
+      <ExportProgressModal />
       <Toaster position="bottom-right" richColors />
     </SidebarProvider>
   )

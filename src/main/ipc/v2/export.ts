@@ -1,17 +1,26 @@
 // v2 export handlers. Take an array of articleIds, load each article's
-// metadata, and produce a single output file (PDF / DOCX / TXT).
+// metadata, and produce a single output file (PDF / DOCX / TXT / PNG) — or a
+// ZIP of one file per article (mode = 'separated' / PNG).
 //
 // PDF generation runs through Electron's headless BrowserWindow +
 // webContents.printToPDF rather than PDFKit. That gives us native
 // support for everything HTML/CSS does (highlight via <mark>, page
 // breaks via CSS, accented text, real typography) at the cost of
-// spinning up a Chromium renderer per export — still seconds for a
-// few hundred articles.
+// spinning up a Chromium renderer per export.
 import { ipcMain, dialog, BrowserWindow } from 'electron'
-import { writeFileSync, unlinkSync } from 'fs'
+import {
+  writeFileSync,
+  unlinkSync,
+  readFileSync,
+  readdirSync,
+  mkdirSync,
+  rmSync,
+  existsSync,
+} from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { pathToFileURL } from 'url'
+import AdmZip from 'adm-zip'
 
 // Forward export diagnostics to every renderer's DevTools console.
 // (main process stdout isn't visible in a packaged Electron app, so the
@@ -22,16 +31,37 @@ const exportLog = (msg: string, err?: unknown): void => {
     if (!win.isDestroyed()) win.webContents.send('v2:export:log', line)
   }
 }
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, PageBreak, VerticalAlign } from 'docx'
+import {
+  Document,
+  Packer,
+  Paragraph,
+  TextRun,
+  ImageRun,
+  HeadingLevel,
+  AlignmentType,
+  PageBreak,
+  VerticalAlign,
+} from 'docx'
 import { convert } from 'html-to-text'
 import type {
   ArticleMetadata,
   ExportOptions,
+  ExportProgress,
   MultiExportItem,
   TemplateField,
 } from '@shared/types'
 import { isFieldFilled } from '@shared/fieldValue'
 import { idx } from './_index'
+import { getArticleExtractPdfPath } from '../_fs'
+import { renderPdfsBatch, type BatchRenderItem } from './_python'
+
+// Push a progress event to every open renderer. Used to drive the global
+// ExportProgressModal — any open window can show the export status.
+const emitProgress = (p: ExportProgress): void => {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) win.webContents.send('v2:export:progress', p)
+  }
+}
 
 // ============================================================
 // Shared helpers (loading, ordering, source line, formatting)
@@ -46,17 +76,17 @@ const loadArticles = (projectId: string, articleIds: string[]): ArticleMetadata[
   return result
 }
 
-const loadMultiArticles = (items: MultiExportItem[]): ArticleMetadata[] => {
-  const result: ArticleMetadata[] = []
+const loadMultiArticles = (
+  items: MultiExportItem[]
+): { meta: ArticleMetadata; projectId: string }[] => {
+  const result: { meta: ArticleMetadata; projectId: string }[] = []
   for (const { projectId, articleId } of items) {
     const e = idx.getArticle(articleId)
-    if (e && e.projectId === projectId) result.push(e.meta)
+    if (e && e.projectId === projectId) result.push({ meta: e.meta, projectId })
   }
   return result
 }
 
-// Split a piece of text into runs around occurrences of `needle` (case-
-// insensitive). Used by the DOCX export to emit yellow-highlight runs.
 const splitOnNeedle = (
   text: string,
   needle: string | undefined
@@ -67,14 +97,14 @@ const splitOnNeedle = (
   const out: { text: string; match: boolean }[] = []
   let i = 0
   while (i < text.length) {
-    const idx = lowerText.indexOf(lowerNeedle, i)
-    if (idx === -1) {
+    const k = lowerText.indexOf(lowerNeedle, i)
+    if (k === -1) {
       if (i < text.length) out.push({ text: text.slice(i), match: false })
       break
     }
-    if (idx > i) out.push({ text: text.slice(i, idx), match: false })
-    out.push({ text: text.slice(idx, idx + needle.length), match: true })
-    i = idx + needle.length
+    if (k > i) out.push({ text: text.slice(i, k), match: false })
+    out.push({ text: text.slice(k, k + needle.length), match: true })
+    i = k + needle.length
   }
   return out
 }
@@ -96,8 +126,6 @@ const runsFromText = (
   )
 }
 
-// Plain-text per-field (used by DOCX/TXT). Richtext fields go through
-// html-to-text; everything else stays as the raw string.
 const orderedFilledEntries = (
   article: ArticleMetadata
 ): { field: TemplateField; plain: string }[] => {
@@ -149,8 +177,30 @@ const sourceLineFor = (article: ArticleMetadata): string => {
   return `Source : ${sourceName}, ${isPlural ? 'pages' : 'page'} ${pageStr}`
 }
 
+// Article's first filled field — used as the title for naming separated files.
+const articleTitle = (article: ArticleMetadata): string => {
+  const entries = orderedFilledEntries(article)
+  if (entries.length === 0) return 'sans-titre'
+  const t = entries[0].plain.trim()
+  return t.length > 0 ? t : 'sans-titre'
+}
+
+// Sanitize a string to a filesystem-safe filename. Drops chars forbidden on
+// Windows (`/ \ : * ? " < > |`) and control bytes; collapses whitespace.
+const sanitizeFilename = (s: string, maxLen = 80): string => {
+  let cleaned = s
+    .replace(/[\\/:*?"<>|]/g, '_')
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\x00-\x1f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (cleaned.length === 0) cleaned = 'sans-titre'
+  if (cleaned.length > maxLen) cleaned = cleaned.slice(0, maxLen).trim()
+  return cleaned
+}
+
 // ============================================================
-// HTML helpers (used by the printToPDF path)
+// HTML helpers
 // ============================================================
 
 const escapeHtml = (s: string): string =>
@@ -163,9 +213,6 @@ const escapeHtml = (s: string): string =>
 
 const escapeRegex = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
-// Wrap each occurrence of `needle` in <mark>, but only inside text content
-// (not inside tag names or attributes). The regex splits the HTML into
-// `(<tag>) | (text)` alternations and only rewrites the text branches.
 const highlightInHtml = (html: string, needle: string | undefined): string => {
   if (!needle) return html
   const re = new RegExp(escapeRegex(needle), 'gi')
@@ -175,9 +222,6 @@ const highlightInHtml = (html: string, needle: string | undefined): string => {
   })
 }
 
-// HTML-ready per-field entries. Richtext fields keep their Quill HTML
-// (we trust it — same renderer that produced it owns the input). Plain
-// values are escaped. Optional needle inserts <mark> wraps around hits.
 const orderedFilledEntriesHtml = (
   article: ArticleMetadata,
   needle?: string
@@ -194,22 +238,32 @@ const orderedFilledEntriesHtml = (
   return out
 }
 
-// One article's HTML section. The first field is rendered as the H1
-// title; subsequent fields as labelled blocks. The article-level
-// `break-before` is controlled by the caller (first article has no
-// break; subsequent ones get a forced page break).
-const articleSectionHtml = (
-  article: ArticleMetadata,
-  needle: string | undefined,
+// Build the HTML for the "source images" trailer section. The PNGs are
+// referenced via file:// URLs (NOT base64 data URIs): embedding hundreds of
+// megabytes of base64 into a single string can hit V8's max string length
+// (~512MB-1GB), triggering "Invalid string length" on big exports.
+// Chromium loads the file:// images at print time directly from disk.
+const sourceImagesHtml = (pngPaths: string[]): string => {
+  if (pngPaths.length === 0) return ''
+  const imgs = pngPaths
+    .map((p) => `<img class="source-img" src="${pathToFileURL(p).href}" />`)
+    .join('')
+  return `<section class="source-images">${imgs}</section>`
+}
+
+interface ArticleHtmlOpts {
+  needle?: string
   withPageBreak: boolean
-): string => {
-  const entries = orderedFilledEntriesHtml(article, needle)
+  showSource: boolean
+  sourceImagePaths?: string[]
+}
+
+const articleSectionHtml = (article: ArticleMetadata, opts: ArticleHtmlOpts): string => {
+  const entries = orderedFilledEntriesHtml(article, opts.needle)
   let titleHtml = ''
   const fieldBlocks: string[] = []
   entries.forEach(({ field, html }, i) => {
     if (i === 0) {
-      // First field = title. If it's richtext (unusual), strip tags so
-      // it reads as a clean heading.
       const headerInner = field.type === 'richtext' ? html.replace(/<[^>]+>/g, ' ').trim() : html
       titleHtml = `<h1 class="article-title">${headerInner}</h1><hr class="title-rule"/>`
     } else {
@@ -218,9 +272,12 @@ const articleSectionHtml = (
       )
     }
   })
-  const sourceLine = `<div class="source">${highlightInHtml(escapeHtml(sourceLineFor(article)), needle)}</div>`
-  const style = withPageBreak ? ' style="break-before: page;"' : ''
-  return `<article class="article"${style}>${titleHtml}${fieldBlocks.join('')}${sourceLine}</article>`
+  const sourceLine = opts.showSource
+    ? `<div class="source">${highlightInHtml(escapeHtml(sourceLineFor(article)), opts.needle)}</div>`
+    : ''
+  const imagesBlock = sourceImagesHtml(opts.sourceImagePaths ?? [])
+  const style = opts.withPageBreak ? ' style="break-before: page;"' : ''
+  return `<article class="article"${style}>${titleHtml}${fieldBlocks.join('')}${imagesBlock}${sourceLine}</article>`
 }
 
 const dossierTitleSectionHtml = (title: string): string =>
@@ -250,20 +307,15 @@ hr.title-rule {
   border-top: 1px solid #000;
   margin: 0 0 1em 0;
 }
-.field {
-  margin-top: 0.8em;
-}
+.field { margin-top: 0.8em; }
 .field-label {
   font-weight: bold;
   font-size: 10pt;
   margin-bottom: 0.2em;
-  /* Keep the label glued to at least the start of its value (avoid a label
-     stranded at the bottom of a page with its content starting on the next). */
   break-after: avoid;
 }
 .field-value {
   text-align: justify;
-  /* Prevent single-line orphans/widows at page boundaries. */
   orphans: 2;
   widows: 2;
 }
@@ -273,6 +325,17 @@ hr.title-rule {
   margin-top: 1.6em;
   font-size: 9pt;
   color: #666;
+}
+.source-images {
+  margin-top: 1.2em;
+  break-inside: avoid;
+}
+.source-images img.source-img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto 0.8em auto;
+  break-inside: avoid;
 }
 .dossier-title-page {
   break-before: page;
@@ -299,26 +362,17 @@ mark {
 <body>${innerHtml}</body>
 </html>`
 
-// Render an HTML document to a PDF file by loading it in a hidden
-// BrowserWindow and calling webContents.printToPDF. The window is
-// destroyed when done, the temp HTML file is removed on a best-effort
-// basis. We use a temp file rather than a `data:` URL so we don't hit
-// Chromium's data-URL size limits on large exports.
-const renderHtmlToPdf = async (html: string, savePath: string): Promise<boolean> => {
+// Render an HTML document to a PDF buffer. Same plumbing as before but
+// returns the buffer instead of writing it, so the caller can either save
+// it (single-file mode) or pack it into a ZIP (separated mode).
+const renderHtmlToPdfBuffer = async (html: string): Promise<Buffer | null> => {
   let win: BrowserWindow | null = null
-  const tmpHtml = join(tmpdir(), `extract-export-${Date.now()}-${process.pid}.html`)
-  exportLog(`start: htmlLen=${html.length} tmp=${tmpHtml} save=${savePath}`)
+  const tmpHtml = join(tmpdir(), `extract-export-${Date.now()}-${process.pid}-${Math.random().toString(36).slice(2)}.html`)
+  exportLog(`renderHtmlToPdfBuffer start htmlLen=${html.length} tmp=${tmpHtml}`)
   try {
     writeFileSync(tmpHtml, html, 'utf-8')
-    exportLog('wrote tmp html')
-
     win = new BrowserWindow({
       show: false,
-      // CRITICAL on macOS: a `show: false` BrowserWindow doesn't render
-      // its DOM by default — printToPDF would then produce a blank file
-      // or fail silently. paintWhenInitiallyHidden forces the renderer to
-      // paint anyway. Default has been `true` since Electron 14 but we
-      // set it explicitly to be safe across versions.
       paintWhenInitiallyHidden: true,
       webPreferences: {
         sandbox: false,
@@ -327,44 +381,222 @@ const renderHtmlToPdf = async (html: string, savePath: string): Promise<boolean>
         offscreen: false,
       },
     })
-    exportLog('created BrowserWindow')
-
     win.webContents.on('did-fail-load', (_e, code, desc, url) => {
       exportLog(`did-fail-load code=${code} desc=${desc} url=${url}`)
     })
     win.webContents.on('render-process-gone', (_e, details) => {
       exportLog(`render-process-gone reason=${details.reason} exitCode=${details.exitCode}`)
     })
-
     const fileUrl = pathToFileURL(tmpHtml).href
-    exportLog(`loading url: ${fileUrl}`)
     await win.loadURL(fileUrl)
-    exportLog('loadURL resolved')
-
-    // One animation frame's worth of grace so the renderer commits its
-    // layout before we ask for a print. Cheap insurance against races on
-    // slower Macs where loadURL resolves before paint.
     await new Promise((r) => setTimeout(r, 50))
-
     const pdf = await win.webContents.printToPDF({
       pageSize: 'A4',
       printBackground: true,
       preferCSSPageSize: true,
     })
-    exportLog(`printToPDF returned ${pdf.byteLength} bytes`)
-
-    writeFileSync(savePath, pdf)
-    exportLog(`wrote save file (${pdf.byteLength} bytes)`)
-    return true
+    return Buffer.from(pdf)
   } catch (err) {
-    exportLog('failed in renderHtmlToPdf', err)
-    return false
+    exportLog('failed in renderHtmlToPdfBuffer', err)
+    return null
   } finally {
     if (win) {
       try { win.destroy() } catch { /* ignore */ }
     }
-    try { unlinkSync(tmpHtml) } catch { /* best-effort cleanup */ }
+    try { unlinkSync(tmpHtml) } catch { /* best-effort */ }
   }
+}
+
+// ============================================================
+// DOCX helpers
+// ============================================================
+
+interface ArticleDocxOpts {
+  needle?: string
+  showSource: boolean
+  sourceImagePaths?: string[]
+}
+
+// Build the paragraph list for one article. The caller stitches them into a
+// section (with optional dossier-title page break logic).
+const articleDocxParagraphs = (article: ArticleMetadata, opts: ArticleDocxOpts): Paragraph[] => {
+  const children: Paragraph[] = []
+  const entries = orderedFilledEntries(article)
+  entries.forEach(({ field, plain }, fieldIndex) => {
+    if (fieldIndex === 0) {
+      children.push(
+        new Paragraph({
+          children: runsFromText(plain, opts.needle),
+          heading: HeadingLevel.HEADING_1,
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 200 },
+        })
+      )
+    } else {
+      children.push(
+        new Paragraph({
+          children: [new TextRun({ text: field.name, bold: true })],
+          spacing: { before: 200 },
+        })
+      )
+      for (const para of plain.split('\n\n')) {
+        if (para.trim()) {
+          children.push(
+            new Paragraph({
+              children: runsFromText(para.trim(), opts.needle),
+              alignment: AlignmentType.JUSTIFIED,
+              spacing: { after: 100 },
+            })
+          )
+        }
+      }
+    }
+  })
+
+  // Source images — one image paragraph per PNG, sized to the page width.
+  for (const p of opts.sourceImagePaths ?? []) {
+    try {
+      const data = readFileSync(p)
+      // 600 EMU/inch * 6.3" ≈ A4 minus margins. docx wants pixel-ish numbers
+      // — we cap the width at ~620 (≈ 6.5" at 96 DPI) and let height auto.
+      // Without explicit height the image scales proportionally.
+      const W = 600
+      // Cheap aspect inference: we don't decode the PNG, so we let height be
+      // the same as width and rely on docx's image module to use the file's
+      // intrinsic ratio. Wrong; docx requires explicit dims. Fallback: 800.
+      const H = 800
+      children.push(
+        new Paragraph({
+          children: [
+            new ImageRun({
+              data,
+              transformation: { width: W, height: H },
+            }),
+          ],
+          spacing: { before: 200, after: 100 },
+        })
+      )
+    } catch (err) {
+      exportLog(`source image failed: ${p}`, err)
+    }
+  }
+
+  if (opts.showSource) {
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: sourceLineFor(article),
+            italics: true,
+            color: '666666',
+            size: 18,
+          }),
+        ],
+        spacing: { before: 200 },
+      })
+    )
+  }
+  return children
+}
+
+// ============================================================
+// File-naming helpers (separated mode + PNG)
+// ============================================================
+
+const padOrder = (n: number, total: number): string => {
+  const width = Math.max(2, String(Math.max(total, 1)).length)
+  return String(n + 1).padStart(width, '0')
+}
+
+// Resolve the in-ZIP folder for an article: its dossier's name if any,
+// else "Sans dossier" for orphans. Sanitized for safe filesystem use.
+const folderForArticle = (article: ArticleMetadata): string => {
+  const name = article.dossierId
+    ? (idx.getDossier(article.dossierId)?.meta.name ?? 'Sans dossier')
+    : 'Sans dossier'
+  return sanitizeFilename(name, 60) + '/'
+}
+
+// Compute the unique in-ZIP path for `article` given the export's options.
+// Adds (2), (3) suffixes if the same name occurs twice in the same folder.
+const buildZipPath = (
+  article: ArticleMetadata,
+  ext: string,
+  options: ExportOptions | undefined,
+  used: Set<string>,
+  totalArticles: number,
+  pageSuffix?: string,
+): string => {
+  const folder = folderForArticle(article)
+  const titlePart = sanitizeFilename(articleTitle(article), 60)
+  const order = article.order ?? 0
+  const prefix = options?.orderPrefix ? `${padOrder(order, totalArticles)}_` : ''
+  const suffix = pageSuffix ? `_${pageSuffix}` : ''
+  let candidate = `${folder}${prefix}${titlePart}${suffix}.${ext}`
+  if (!used.has(candidate)) {
+    used.add(candidate)
+    return candidate
+  }
+  // Collision — append (2), (3), ...
+  let n = 2
+  for (;;) {
+    candidate = `${folder}${prefix}${titlePart}${suffix} (${n}).${ext}`
+    if (!used.has(candidate)) {
+      used.add(candidate)
+      return candidate
+    }
+    n++
+  }
+}
+
+// ============================================================
+// Source-image rendering for one article (used by PDF/DOCX with the
+// `includeSourceImages` toggle)
+// ============================================================
+
+const tmpScratchDir = (label: string): string => {
+  const d = join(tmpdir(), `extract-${label}-${Date.now()}-${process.pid}-${Math.random().toString(36).slice(2)}`)
+  mkdirSync(d, { recursive: true })
+  return d
+}
+
+// Batch-render the extract.pdf of every article whose images need embedding,
+// in a SINGLE Python process. Returns a map articleId → list of PNG paths
+// plus a cleanup callback that removes the scratch root once the export is
+// done. Cuts ~300ms/article on Windows compared to per-article spawns.
+const renderAllArticleSourcePngs = async (
+  articles: { meta: ArticleMetadata; projectId: string }[],
+  onProgress?: (done: number, total: number) => void
+): Promise<{ byArticle: Map<string, string[]>; cleanup: () => void }> => {
+  const root = tmpScratchDir('srcimg-batch')
+  const cleanup = () => {
+    try { rmSync(root, { recursive: true, force: true }) } catch { /* ignore */ }
+  }
+  const manifest: BatchRenderItem[] = []
+  const outDirByArticle = new Map<string, string>()
+  for (const { meta, projectId } of articles) {
+    const dossier = idx.locateArticle(projectId, meta.id)
+    if (dossier === undefined) continue
+    const pdfPath = getArticleExtractPdfPath(projectId, dossier, meta.id)
+    if (!existsSync(pdfPath)) continue
+    const outDir = join(root, meta.id)
+    mkdirSync(outDir, { recursive: true })
+    outDirByArticle.set(meta.id, outDir)
+    manifest.push({ kind: 'pages', pdf: pdfPath, outDir, dpi: 150 })
+  }
+  const byArticle = new Map<string, string[]>()
+  if (manifest.length === 0) return { byArticle, cleanup }
+  await renderPdfsBatch(manifest, onProgress)
+  // Collect the produced files in deterministic order per article.
+  for (const [articleId, outDir] of outDirByArticle) {
+    if (!existsSync(outDir)) continue
+    const files = readdirSync(outDir)
+      .filter((f) => f.startsWith('page_') && f.endsWith('.png'))
+      .sort()
+      .map((f) => join(outDir, f))
+    byArticle.set(articleId, files)
+  }
+  return { byArticle, cleanup }
 }
 
 // ============================================================
@@ -372,6 +604,7 @@ const renderHtmlToPdf = async (html: string, savePath: string): Promise<boolean>
 // ============================================================
 
 export function setupV2ExportHandlers(): void {
+  // ─── Single-project PDF ────────────────────────────────────────────────
   ipcMain.handle(
     'v2:export:articlesPdf',
     async (
@@ -380,36 +613,122 @@ export function setupV2ExportHandlers(): void {
       articleIds: string[],
       options?: ExportOptions
     ): Promise<boolean> => {
-      const result = await dialog.showSaveDialog({
-        defaultPath: 'articles.pdf',
-        filters: [{ name: 'PDF', extensions: ['pdf'] }],
-      })
-      if (result.canceled || !result.filePath) return false
-
       const articles = loadArticles(projectId, articleIds)
       if (articles.length === 0) return false
 
-      const dossierTitleByArticleId = new Map(
-        (options?.dossierTitles ?? []).map((m) => [m.beforeArticleId, m.title])
-      )
+      const mode = options?.mode ?? 'single'
+      const showSource = options?.showSource ?? true
+      const includeImages = options?.includeSourceImages ?? false
+      const needle = options?.highlight
 
-      const parts: string[] = []
-      articles.forEach((article, index) => {
-        const dossierTitle = dossierTitleByArticleId.get(article.id)
-        if (dossierTitle) {
-          parts.push(dossierTitleSectionHtml(dossierTitle))
-          // The article that follows a dossier title already starts on
-          // a fresh page (dossier-title-page has break-after: page).
-          parts.push(articleSectionHtml(article, undefined, false))
-        } else {
-          parts.push(articleSectionHtml(article, undefined, index > 0))
+      // Ask for the save path BEFORE doing any heavy work — if the user
+      // cancels we save them the cost of rendering images for nothing.
+      const isSeparated = mode === 'separated' && articles.length > 1
+      const defaultName = isSeparated
+        ? 'articles.zip'
+        : articles.length === 1
+          ? `${sanitizeFilename(articleTitle(articles[0]), 60)}.pdf`
+          : 'articles.pdf'
+      const filters = isSeparated
+        ? [{ name: 'ZIP', extensions: ['zip'] }]
+        : [{ name: 'PDF', extensions: ['pdf'] }]
+      const saveResult = await dialog.showSaveDialog({ defaultPath: defaultName, filters })
+      if (saveResult.canceled || !saveResult.filePath) {
+        emitProgress({ phase: 'cancelled' })
+        return false
+      }
+
+      emitProgress({ phase: 'starting' })
+      let imagesCleanup: (() => void) | null = null
+      try {
+        // 1) Pre-render source images for every article (single batch).
+        let imagesByArticle = new Map<string, string[]>()
+        if (includeImages) {
+          emitProgress({ phase: 'rendering-images', current: 0, total: articles.length })
+          const { byArticle, cleanup } = await renderAllArticleSourcePngs(
+            articles.map((meta) => ({ meta, projectId })),
+            (done, total) => emitProgress({ phase: 'rendering-images', current: done, total })
+          )
+          imagesByArticle = byArticle
+          imagesCleanup = cleanup
         }
-      })
 
-      return renderHtmlToPdf(fullDocumentHtml(parts.join('')), result.filePath)
+        // 2) Build the document(s).
+        if (isSeparated) {
+          const zip = new AdmZip()
+          const used = new Set<string>()
+          for (let i = 0; i < articles.length; i++) {
+            const article = articles[i]
+            emitProgress({ phase: 'building', current: i, total: articles.length })
+            const html = fullDocumentHtml(
+              articleSectionHtml(article, {
+                needle,
+                withPageBreak: false,
+                showSource,
+                sourceImagePaths: imagesByArticle.get(article.id),
+              })
+            )
+            const buf = await renderHtmlToPdfBuffer(html)
+            if (!buf) continue
+            const path = buildZipPath(article, 'pdf', options, used, articles.length)
+            zip.addFile(path, buf)
+          }
+          emitProgress({ phase: 'writing' })
+          zip.writeZip(saveResult.filePath)
+          emitProgress({ phase: 'done' })
+          return true
+        }
+
+        // Single file
+        emitProgress({ phase: 'building', current: 0, total: 1 })
+        const dossierTitleByArticleId = new Map(
+          (options?.dossierTitles ?? []).map((m) => [m.beforeArticleId, m.title])
+        )
+        const parts: string[] = []
+        articles.forEach((article, index) => {
+          const dossierTitle = dossierTitleByArticleId.get(article.id)
+          if (dossierTitle) {
+            parts.push(dossierTitleSectionHtml(dossierTitle))
+            parts.push(
+              articleSectionHtml(article, {
+                needle,
+                withPageBreak: false,
+                showSource,
+                sourceImagePaths: imagesByArticle.get(article.id),
+              })
+            )
+          } else {
+            parts.push(
+              articleSectionHtml(article, {
+                needle,
+                withPageBreak: index > 0,
+                showSource,
+                sourceImagePaths: imagesByArticle.get(article.id),
+              })
+            )
+          }
+        })
+        const html = fullDocumentHtml(parts.join(''))
+        const buf = await renderHtmlToPdfBuffer(html)
+        if (!buf) {
+          emitProgress({ phase: 'error', label: 'Échec du rendu PDF' })
+          return false
+        }
+        emitProgress({ phase: 'writing' })
+        writeFileSync(saveResult.filePath, buf)
+        emitProgress({ phase: 'done' })
+        return true
+      } catch (err) {
+        exportLog('articlesPdf export failed', err)
+        emitProgress({ phase: 'error', label: 'Erreur lors de l\'export' })
+        return false
+      } finally {
+        if (imagesCleanup) imagesCleanup()
+      }
     }
   )
 
+  // ─── Single-project DOCX ───────────────────────────────────────────────
   ipcMain.handle(
     'v2:export:articlesDocx',
     async (
@@ -418,20 +737,70 @@ export function setupV2ExportHandlers(): void {
       articleIds: string[],
       options?: ExportOptions
     ): Promise<boolean> => {
-      const result = await dialog.showSaveDialog({
-        defaultPath: 'articles.docx',
-        filters: [{ name: 'Word Document', extensions: ['docx'] }],
-      })
-      if (result.canceled || !result.filePath) return false
-
       const articles = loadArticles(projectId, articleIds)
       if (articles.length === 0) return false
 
-      const dossierTitleByArticleId = new Map(
-        (options?.dossierTitles ?? []).map((m) => [m.beforeArticleId, m.title])
-      )
+      const mode = options?.mode ?? 'single'
+      const showSource = options?.showSource ?? true
+      const includeImages = options?.includeSourceImages ?? false
+      const needle = options?.highlight
+      const isSeparated = mode === 'separated' && articles.length > 1
 
+      const defaultName = isSeparated
+        ? 'articles.zip'
+        : articles.length === 1
+          ? `${sanitizeFilename(articleTitle(articles[0]), 60)}.docx`
+          : 'articles.docx'
+      const filters = isSeparated
+        ? [{ name: 'ZIP', extensions: ['zip'] }]
+        : [{ name: 'Word Document', extensions: ['docx'] }]
+      const saveResult = await dialog.showSaveDialog({ defaultPath: defaultName, filters })
+      if (saveResult.canceled || !saveResult.filePath) {
+        emitProgress({ phase: 'cancelled' })
+        return false
+      }
+
+      emitProgress({ phase: 'starting' })
+      let imagesCleanup: (() => void) | null = null
       try {
+        let imagesByArticle = new Map<string, string[]>()
+        if (includeImages) {
+          emitProgress({ phase: 'rendering-images', current: 0, total: articles.length })
+          const { byArticle, cleanup } = await renderAllArticleSourcePngs(
+            articles.map((meta) => ({ meta, projectId })),
+            (done, total) => emitProgress({ phase: 'rendering-images', current: done, total })
+          )
+          imagesByArticle = byArticle
+          imagesCleanup = cleanup
+        }
+
+        if (isSeparated) {
+          const zip = new AdmZip()
+          const used = new Set<string>()
+          for (let i = 0; i < articles.length; i++) {
+            const article = articles[i]
+            emitProgress({ phase: 'building', current: i, total: articles.length })
+            const paragraphs = articleDocxParagraphs(article, {
+              needle,
+              showSource,
+              sourceImagePaths: imagesByArticle.get(article.id),
+            })
+            const doc = new Document({ sections: [{ properties: {}, children: paragraphs }] })
+            const buf = await Packer.toBuffer(doc)
+            const path = buildZipPath(article, 'docx', options, used, articles.length)
+            zip.addFile(path, buf)
+          }
+          emitProgress({ phase: 'writing' })
+          zip.writeZip(saveResult.filePath)
+          emitProgress({ phase: 'done' })
+          return true
+        }
+
+        emitProgress({ phase: 'building', current: 0, total: 1 })
+        const dossierTitleByArticleId = new Map(
+          (options?.dossierTitles ?? []).map((m) => [m.beforeArticleId, m.title])
+        )
+
         type Section = {
           properties: { verticalAlign?: typeof VerticalAlign.CENTER }
           children: Paragraph[]
@@ -460,50 +829,13 @@ export function setupV2ExportHandlers(): void {
           } else if (index > 0) {
             current.children.push(new Paragraph({ children: [new PageBreak()] }))
           }
-          const entries = orderedFilledEntries(article)
-          entries.forEach(({ field, plain }, fieldIndex) => {
-            if (fieldIndex === 0) {
-              current.children.push(
-                new Paragraph({
-                  text: plain,
-                  heading: HeadingLevel.HEADING_1,
-                  alignment: AlignmentType.CENTER,
-                  spacing: { after: 200 },
-                })
-              )
-            } else {
-              current.children.push(
-                new Paragraph({
-                  children: [new TextRun({ text: field.name, bold: true })],
-                  spacing: { before: 200 },
-                })
-              )
-              for (const para of plain.split('\n\n')) {
-                if (para.trim()) {
-                  current.children.push(
-                    new Paragraph({
-                      text: para.trim(),
-                      alignment: AlignmentType.JUSTIFIED,
-                      spacing: { after: 100 },
-                    })
-                  )
-                }
-              }
-            }
-          })
-          current.children.push(
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: sourceLineFor(article),
-                  italics: true,
-                  color: '666666',
-                  size: 18,
-                }),
-              ],
-              spacing: { before: 200 },
-            })
-          )
+          for (const p of articleDocxParagraphs(article, {
+            needle,
+            showSource,
+            sourceImagePaths: imagesByArticle.get(article.id),
+          })) {
+            current.children.push(p)
+          }
         })
         flush()
 
@@ -511,15 +843,21 @@ export function setupV2ExportHandlers(): void {
           sections: sections.length > 0 ? sections : [{ properties: {}, children: [] }],
         })
         const buffer = await Packer.toBuffer(doc)
-        writeFileSync(result.filePath, buffer)
+        emitProgress({ phase: 'writing' })
+        writeFileSync(saveResult.filePath, buffer)
+        emitProgress({ phase: 'done' })
         return true
       } catch (err) {
-        console.error('[v2 DOCX Export] Error:', err)
+        exportLog('docx export failed', err)
+        emitProgress({ phase: 'error', label: 'Erreur lors de l\'export' })
         return false
+      } finally {
+        if (imagesCleanup) imagesCleanup()
       }
     }
   )
 
+  // ─── Single-project TXT ────────────────────────────────────────────────
   ipcMain.handle(
     'v2:export:articlesTxt',
     async (
@@ -532,11 +870,17 @@ export function setupV2ExportHandlers(): void {
         defaultPath: 'articles.txt',
         filters: [{ name: 'Text File', extensions: ['txt'] }],
       })
-      if (result.canceled || !result.filePath) return false
+      if (result.canceled || !result.filePath) {
+        emitProgress({ phase: 'cancelled' })
+        return false
+      }
 
       const articles = loadArticles(projectId, articleIds)
       if (articles.length === 0) return false
 
+      emitProgress({ phase: 'starting' })
+      emitProgress({ phase: 'building', current: 0, total: 1 })
+      const showSource = options?.showSource ?? true
       const dossierTitleByArticleId = new Map(
         (options?.dossierTitles ?? []).map((m) => [m.beforeArticleId, m.title])
       )
@@ -566,157 +910,409 @@ export function setupV2ExportHandlers(): void {
                 lines.push(`[${field.name}]`, plain, '')
               }
             })
-            lines.push(sourceLineFor(article), '')
+            if (showSource) lines.push(sourceLineFor(article), '')
             return lines.join('\n')
           })
           .join('\n')
+        emitProgress({ phase: 'writing' })
         writeFileSync(result.filePath, content, 'utf-8')
+        emitProgress({ phase: 'done' })
         return true
       } catch (err) {
-        console.error('[v2 TXT Export] Error:', err)
+        exportLog('txt export failed', err)
+        emitProgress({ phase: 'error', label: 'Erreur lors de l\'export' })
         return false
       }
     }
   )
 
-  // ============================================================
-  // Multi-project exports (search results)
-  // ============================================================
-  //
-  // Article order matches the input items list — caller decides grouping.
-  // `options.highlight` wraps occurrences of the term in <mark> (PDF) or
-  // yellow highlight runs (DOCX). TXT has no markup convention so the
-  // term is left alone.
+  // ─── Single-project PNG ────────────────────────────────────────────────
+  ipcMain.handle(
+    'v2:export:articlesPng',
+    async (
+      _,
+      projectId: string,
+      articleIds: string[],
+      options?: ExportOptions
+    ): Promise<boolean> => {
+      const articles = loadArticles(projectId, articleIds)
+      if (articles.length === 0) return false
 
+      const mode = options?.pngMode ?? 'per-zone'
+      return runPngExport(
+        articles.map((meta) => ({ meta, projectId })),
+        mode,
+        options
+      )
+    }
+  )
+
+  // ─── Multi-project PDF / DOCX / TXT ────────────────────────────────────
   ipcMain.handle(
     'v2:export:multiArticlesPdf',
     async (_, items: MultiExportItem[], options?: ExportOptions): Promise<boolean> => {
-      const result = await dialog.showSaveDialog({
-        defaultPath: 'recherche.pdf',
-        filters: [{ name: 'PDF', extensions: ['pdf'] }],
-      })
-      if (result.canceled || !result.filePath) return false
-      const articles = loadMultiArticles(items)
-      if (articles.length === 0) return false
+      const loaded = loadMultiArticles(items)
+      if (loaded.length === 0) return false
 
+      const mode = options?.mode ?? 'single'
+      const showSource = options?.showSource ?? true
+      const includeImages = options?.includeSourceImages ?? false
       const needle = options?.highlight
-      const parts = articles.map((article, index) =>
-        articleSectionHtml(article, needle, index > 0)
-      )
-      return renderHtmlToPdf(fullDocumentHtml(parts.join('')), result.filePath)
+      const isSeparated = mode === 'separated' && loaded.length > 1
+
+      const defaultName = isSeparated ? 'recherche.zip' : 'recherche.pdf'
+      const filters = isSeparated
+        ? [{ name: 'ZIP', extensions: ['zip'] }]
+        : [{ name: 'PDF', extensions: ['pdf'] }]
+      const saveResult = await dialog.showSaveDialog({ defaultPath: defaultName, filters })
+      if (saveResult.canceled || !saveResult.filePath) {
+        emitProgress({ phase: 'cancelled' })
+        return false
+      }
+
+      emitProgress({ phase: 'starting' })
+      let imagesCleanup: (() => void) | null = null
+      try {
+        let imagesByArticle = new Map<string, string[]>()
+        if (includeImages) {
+          emitProgress({ phase: 'rendering-images', current: 0, total: loaded.length })
+          const { byArticle, cleanup } = await renderAllArticleSourcePngs(
+            loaded,
+            (done, total) => emitProgress({ phase: 'rendering-images', current: done, total })
+          )
+          imagesByArticle = byArticle
+          imagesCleanup = cleanup
+        }
+
+        if (isSeparated) {
+          const zip = new AdmZip()
+          const used = new Set<string>()
+          for (let i = 0; i < loaded.length; i++) {
+            const { meta } = loaded[i]
+            emitProgress({ phase: 'building', current: i, total: loaded.length })
+            const html = fullDocumentHtml(
+              articleSectionHtml(meta, {
+                needle,
+                withPageBreak: false,
+                showSource,
+                sourceImagePaths: imagesByArticle.get(meta.id),
+              })
+            )
+            const buf = await renderHtmlToPdfBuffer(html)
+            if (!buf) continue
+            const path = buildZipPath(meta, 'pdf', options, used, loaded.length)
+            zip.addFile(path, buf)
+          }
+          emitProgress({ phase: 'writing' })
+          zip.writeZip(saveResult.filePath)
+          emitProgress({ phase: 'done' })
+          return true
+        }
+
+        emitProgress({ phase: 'building', current: 0, total: 1 })
+        const parts = loaded.map(({ meta }, index) =>
+          articleSectionHtml(meta, {
+            needle,
+            withPageBreak: index > 0,
+            showSource,
+            sourceImagePaths: imagesByArticle.get(meta.id),
+          })
+        )
+        const buf = await renderHtmlToPdfBuffer(fullDocumentHtml(parts.join('')))
+        if (!buf) {
+          emitProgress({ phase: 'error', label: 'Échec du rendu PDF' })
+          return false
+        }
+        emitProgress({ phase: 'writing' })
+        writeFileSync(saveResult.filePath, buf)
+        emitProgress({ phase: 'done' })
+        return true
+      } catch (err) {
+        exportLog('multi pdf export failed', err)
+        emitProgress({ phase: 'error', label: 'Erreur lors de l\'export' })
+        return false
+      } finally {
+        if (imagesCleanup) imagesCleanup()
+      }
     }
   )
 
   ipcMain.handle(
     'v2:export:multiArticlesDocx',
     async (_, items: MultiExportItem[], options?: ExportOptions): Promise<boolean> => {
-      const result = await dialog.showSaveDialog({
-        defaultPath: 'recherche.docx',
-        filters: [{ name: 'Word Document', extensions: ['docx'] }],
-      })
-      if (result.canceled || !result.filePath) return false
-      const articles = loadMultiArticles(items)
-      if (articles.length === 0) return false
+      const loaded = loadMultiArticles(items)
+      if (loaded.length === 0) return false
 
+      const mode = options?.mode ?? 'single'
+      const showSource = options?.showSource ?? true
+      const includeImages = options?.includeSourceImages ?? false
       const needle = options?.highlight
+      const isSeparated = mode === 'separated' && loaded.length > 1
 
+      const defaultName = isSeparated ? 'recherche.zip' : 'recherche.docx'
+      const filters = isSeparated
+        ? [{ name: 'ZIP', extensions: ['zip'] }]
+        : [{ name: 'Word Document', extensions: ['docx'] }]
+      const saveResult = await dialog.showSaveDialog({ defaultPath: defaultName, filters })
+      if (saveResult.canceled || !saveResult.filePath) {
+        emitProgress({ phase: 'cancelled' })
+        return false
+      }
+
+      emitProgress({ phase: 'starting' })
+      let imagesCleanup: (() => void) | null = null
       try {
-        const children: Paragraph[] = []
-        articles.forEach((article, index) => {
-          if (index > 0) {
-            children.push(new Paragraph({ children: [new PageBreak()] }))
-          }
-          const entries = orderedFilledEntries(article)
-          entries.forEach(({ field, plain }, fieldIndex) => {
-            if (fieldIndex === 0) {
-              children.push(
-                new Paragraph({
-                  children: runsFromText(plain, needle),
-                  heading: HeadingLevel.HEADING_1,
-                  alignment: AlignmentType.CENTER,
-                  spacing: { after: 200 },
-                })
-              )
-            } else {
-              children.push(
-                new Paragraph({
-                  children: [new TextRun({ text: field.name, bold: true })],
-                  spacing: { before: 200 },
-                })
-              )
-              for (const para of plain.split('\n\n')) {
-                if (para.trim()) {
-                  children.push(
-                    new Paragraph({
-                      children: runsFromText(para.trim(), needle),
-                      alignment: AlignmentType.JUSTIFIED,
-                      spacing: { after: 100 },
-                    })
-                  )
-                }
-              }
-            }
-          })
-          children.push(
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: sourceLineFor(article),
-                  italics: true,
-                  color: '666666',
-                  size: 18,
-                }),
-              ],
-              spacing: { before: 200 },
-            })
+        let imagesByArticle = new Map<string, string[]>()
+        if (includeImages) {
+          emitProgress({ phase: 'rendering-images', current: 0, total: loaded.length })
+          const { byArticle, cleanup } = await renderAllArticleSourcePngs(
+            loaded,
+            (done, total) => emitProgress({ phase: 'rendering-images', current: done, total })
           )
-        })
+          imagesByArticle = byArticle
+          imagesCleanup = cleanup
+        }
 
-        const doc = new Document({
-          sections: [{ properties: {}, children }],
+        if (isSeparated) {
+          const zip = new AdmZip()
+          const used = new Set<string>()
+          for (let i = 0; i < loaded.length; i++) {
+            const { meta } = loaded[i]
+            emitProgress({ phase: 'building', current: i, total: loaded.length })
+            const paragraphs = articleDocxParagraphs(meta, {
+              needle,
+              showSource,
+              sourceImagePaths: imagesByArticle.get(meta.id),
+            })
+            const doc = new Document({ sections: [{ properties: {}, children: paragraphs }] })
+            const buf = await Packer.toBuffer(doc)
+            const path = buildZipPath(meta, 'docx', options, used, loaded.length)
+            zip.addFile(path, buf)
+          }
+          emitProgress({ phase: 'writing' })
+          zip.writeZip(saveResult.filePath)
+          emitProgress({ phase: 'done' })
+          return true
+        }
+
+        emitProgress({ phase: 'building', current: 0, total: 1 })
+        const children: Paragraph[] = []
+        loaded.forEach(({ meta }, index) => {
+          if (index > 0) children.push(new Paragraph({ children: [new PageBreak()] }))
+          for (const p of articleDocxParagraphs(meta, {
+            needle,
+            showSource,
+            sourceImagePaths: imagesByArticle.get(meta.id),
+          })) {
+            children.push(p)
+          }
         })
+        const doc = new Document({ sections: [{ properties: {}, children }] })
         const buffer = await Packer.toBuffer(doc)
-        writeFileSync(result.filePath, buffer)
+        emitProgress({ phase: 'writing' })
+        writeFileSync(saveResult.filePath, buffer)
+        emitProgress({ phase: 'done' })
         return true
       } catch (err) {
-        console.error('[v2 Multi DOCX Export] Error:', err)
+        exportLog('multi docx export failed', err)
+        emitProgress({ phase: 'error', label: 'Erreur lors de l\'export' })
         return false
+      } finally {
+        if (imagesCleanup) imagesCleanup()
       }
     }
   )
 
   ipcMain.handle(
     'v2:export:multiArticlesTxt',
-    async (_, items: MultiExportItem[], _options?: ExportOptions): Promise<boolean> => {
-      void _options
+    async (_, items: MultiExportItem[], options?: ExportOptions): Promise<boolean> => {
       const result = await dialog.showSaveDialog({
         defaultPath: 'recherche.txt',
         filters: [{ name: 'Text File', extensions: ['txt'] }],
       })
-      if (result.canceled || !result.filePath) return false
-      const articles = loadMultiArticles(items)
-      if (articles.length === 0) return false
+      if (result.canceled || !result.filePath) {
+        emitProgress({ phase: 'cancelled' })
+        return false
+      }
+      const loaded = loadMultiArticles(items)
+      if (loaded.length === 0) return false
+
+      emitProgress({ phase: 'starting' })
+      emitProgress({ phase: 'building', current: 0, total: 1 })
+      const showSource = options?.showSource ?? true
 
       try {
-        const content = articles
-          .map((article, index) => {
+        const content = loaded
+          .map(({ meta }, index) => {
             const lines: string[] = []
             if (index > 0) lines.push('', '═'.repeat(60), '')
-            const entries = orderedFilledEntries(article)
+            const entries = orderedFilledEntries(meta)
             entries.forEach(({ field, plain }, fieldIndex) => {
               if (fieldIndex === 0) lines.push(plain.toUpperCase(), '')
               else lines.push(`[${field.name}]`, plain, '')
             })
-            lines.push(sourceLineFor(article), '')
+            if (showSource) lines.push(sourceLineFor(meta), '')
             return lines.join('\n')
           })
           .join('\n')
+        emitProgress({ phase: 'writing' })
         writeFileSync(result.filePath, content, 'utf-8')
+        emitProgress({ phase: 'done' })
         return true
       } catch (err) {
-        console.error('[v2 Multi TXT Export] Error:', err)
+        exportLog('multi txt export failed', err)
+        emitProgress({ phase: 'error', label: 'Erreur lors de l\'export' })
         return false
       }
     }
   )
+
+  // ─── Multi-project PNG ─────────────────────────────────────────────────
+  ipcMain.handle(
+    'v2:export:multiArticlesPng',
+    async (_, items: MultiExportItem[], options?: ExportOptions): Promise<boolean> => {
+      const loaded = loadMultiArticles(items)
+      if (loaded.length === 0) return false
+      const mode = options?.pngMode ?? 'per-zone'
+      return runPngExport(loaded, mode, options)
+    }
+  )
+}
+
+// ============================================================
+// PNG export — shared implementation for single and multi project
+// ============================================================
+
+// Render the requested PNGs for `articles` and either save the single output
+// (1 file in total) or pack them as a ZIP with dossier folders.
+//
+// Uses a single Python spawn for the whole batch — way faster than per-article
+// spawns on Windows (~300ms saved per article).
+async function runPngExport(
+  articles: { meta: ArticleMetadata; projectId: string }[],
+  mode: 'per-zone' | 'per-element',
+  options?: ExportOptions
+): Promise<boolean> {
+  // Plan the render manifest. We skip articles whose extract.pdf is missing.
+  type Plan = {
+    article: ArticleMetadata
+    outDir?: string  // per-zone
+    outFile?: string // per-element
+  }
+  const root = tmpScratchDir('png-export')
+  const cleanup = () => {
+    try { rmSync(root, { recursive: true, force: true }) } catch { /* ignore */ }
+  }
+  const manifest: BatchRenderItem[] = []
+  const plans: Plan[] = []
+  for (const { meta, projectId } of articles) {
+    const dossier = idx.locateArticle(projectId, meta.id)
+    if (dossier === undefined) continue
+    const pdfPath = getArticleExtractPdfPath(projectId, dossier, meta.id)
+    if (!existsSync(pdfPath)) continue
+    const itemDir = join(root, meta.id)
+    mkdirSync(itemDir, { recursive: true })
+    if (mode === 'per-zone') {
+      manifest.push({ kind: 'pages', pdf: pdfPath, outDir: itemDir, dpi: 200 })
+      plans.push({ article: meta, outDir: itemDir })
+    } else {
+      const outFile = join(itemDir, 'stacked.png')
+      manifest.push({ kind: 'stacked', pdf: pdfPath, outPath: outFile, dpi: 200 })
+      plans.push({ article: meta, outFile })
+    }
+  }
+
+  if (plans.length === 0) {
+    cleanup()
+    emitProgress({ phase: 'error', label: 'Aucun extrait disponible pour ces éléments' })
+    return false
+  }
+
+  // Ask for save path first so a cancel skips the heavy work.
+  const totalArticles = plans.length
+  const willBeSingleFile =
+    mode === 'per-element' && plans.length === 1
+    // For per-zone the count of pages isn't known yet, so we always go ZIP
+    // when multiple articles. The single-article-1-page case is handled
+    // after rendering when we know the actual count.
+
+  const defaultName = willBeSingleFile
+    ? `${sanitizeFilename(articleTitle(plans[0].article), 60)}.png`
+    : 'images.zip'
+  const filters = willBeSingleFile
+    ? [{ name: 'PNG Image', extensions: ['png'] }]
+    : [{ name: 'ZIP', extensions: ['zip'] }]
+  const saveResult = await dialog.showSaveDialog({ defaultPath: defaultName, filters })
+  if (saveResult.canceled || !saveResult.filePath) {
+    cleanup()
+    emitProgress({ phase: 'cancelled' })
+    return false
+  }
+
+  emitProgress({ phase: 'starting' })
+  try {
+    emitProgress({ phase: 'rendering-images', current: 0, total: manifest.length })
+    const ok = await renderPdfsBatch(manifest, (done, total) =>
+      emitProgress({ phase: 'rendering-images', current: done, total })
+    )
+    if (!ok) {
+      emitProgress({ phase: 'error', label: 'Échec du rendu des images' })
+      return false
+    }
+
+    // Resolve output paths per plan now that the batch is done.
+    type Resolved = { article: ArticleMetadata; files: string[] }
+    const resolved: Resolved[] = []
+    for (const plan of plans) {
+      if (mode === 'per-element' && plan.outFile && existsSync(plan.outFile)) {
+        resolved.push({ article: plan.article, files: [plan.outFile] })
+      } else if (mode === 'per-zone' && plan.outDir && existsSync(plan.outDir)) {
+        const files = readdirSync(plan.outDir)
+          .filter((f) => f.startsWith('page_') && f.endsWith('.png'))
+          .sort()
+          .map((f) => join(plan.outDir!, f))
+        if (files.length > 0) resolved.push({ article: plan.article, files })
+      }
+    }
+    if (resolved.length === 0) {
+      emitProgress({ phase: 'error', label: 'Aucune image produite' })
+      return false
+    }
+
+    const totalFiles = resolved.reduce((acc, r) => acc + r.files.length, 0)
+    emitProgress({ phase: 'writing' })
+
+    // Single-file shortcut: exactly one article and one PNG total.
+    if (resolved.length === 1 && totalFiles === 1) {
+      writeFileSync(saveResult.filePath, readFileSync(resolved[0].files[0]))
+      emitProgress({ phase: 'done' })
+      return true
+    }
+
+    // ZIP path
+    const zip = new AdmZip()
+    const used = new Set<string>()
+    for (const r of resolved) {
+      if (r.files.length === 1) {
+        const path = buildZipPath(r.article, 'png', options, used, totalArticles)
+        zip.addFile(path, readFileSync(r.files[0]))
+      } else {
+        const pad = Math.max(2, String(r.files.length).length)
+        r.files.forEach((p, i) => {
+          const suffix = String(i + 1).padStart(pad, '0')
+          const path = buildZipPath(r.article, 'png', options, used, totalArticles, suffix)
+          zip.addFile(path, readFileSync(p))
+        })
+      }
+    }
+    zip.writeZip(saveResult.filePath)
+    emitProgress({ phase: 'done' })
+    return true
+  } catch (err) {
+    exportLog('png export failed', err)
+    emitProgress({ phase: 'error', label: 'Erreur lors de l\'export' })
+    return false
+  } finally {
+    cleanup()
+  }
 }
