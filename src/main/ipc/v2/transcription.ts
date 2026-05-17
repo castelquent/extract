@@ -226,10 +226,6 @@ async function transcribeWithOpenAI(
   schema: TemplateField[],
   templateId: string | undefined
 ): Promise<ResultWithUsage> {
-  // OpenAI vision currently expects image; for PDF we'd need a different flow.
-  // For symmetry with the legacy implementation we pass it as an image; in
-  // practice users on OpenAI should be uploading images, but we keep the
-  // signature consistent so the renderer can pick provider freely.
   const response = await axios.post(
     'https://api.openai.com/v1/chat/completions',
     {
@@ -239,12 +235,18 @@ async function transcribeWithOpenAI(
         {
           role: 'user',
           content: [
-            { type: 'image_url', image_url: { url: `data:application/pdf;base64,${base64Pdf}` } },
+            {
+              type: 'file',
+              file: {
+                filename: 'document.pdf',
+                file_data: `data:application/pdf;base64,${base64Pdf}`,
+              },
+            },
             { type: 'text', text: 'Analyse cet article et extrais les informations demandées.' },
           ],
         },
       ],
-      max_tokens: 4096,
+      max_completion_tokens: 128000,
     },
     {
       headers: {
