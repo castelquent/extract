@@ -212,7 +212,6 @@ npm run typecheck         # tsc --noEmit
 
 ## Ce qui manque
 
-- **Auto-save dans l'éditeur** : pas implémenté (les drafts dans extraction oui).
 - **Tooltips** : très peu.
 - **Tests** : aucun.
 - **Distribution** : pas encore d'auto-update infrastructure mature pour les utilisateurs finaux.
