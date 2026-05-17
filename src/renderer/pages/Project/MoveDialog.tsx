@@ -1,6 +1,7 @@
 // Dialog to move one or more articles either to another dossier inside the
 // current project, or to a different project entirely (with optional target dossier).
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   Button,
   Dialog,
@@ -46,6 +47,7 @@ export function MoveDialog({
   articleCount,
   onConfirm,
 }: MoveDialogProps) {
+  const { t } = useTranslation(['articles', 'common'])
   const { projects, loadProjects } = useProjectsStoreV2()
   const [tab, setTab] = useState<'dossier' | 'project'>('dossier')
   const [dossierTarget, setDossierTarget] = useState<string>(ORPHAN_VALUE)
@@ -92,26 +94,26 @@ export function MoveDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Déplacer {articleCount} élément{articleCount === 1 ? '' : 's'}</DialogTitle>
+          <DialogTitle>{t('articles:moveDialog.title', { count: articleCount })}</DialogTitle>
           <DialogDescription>
-            Choisissez la destination dans ce projet ou dans un autre projet.
+            {t('articles:moveDialog.description')}
           </DialogDescription>
         </DialogHeader>
 
         <Tabs value={tab} onValueChange={(v) => setTab(v as 'dossier' | 'project')}>
           <TabsList className="grid grid-cols-2 w-full">
-            <TabsTrigger value="dossier">Dans ce projet</TabsTrigger>
-            <TabsTrigger value="project">Autre projet</TabsTrigger>
+            <TabsTrigger value="dossier">{t('articles:moveDialog.tabInProject')}</TabsTrigger>
+            <TabsTrigger value="project">{t('articles:moveDialog.tabOtherProject')}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="dossier" className="space-y-3 pt-4">
-            <Label>Dossier de destination</Label>
+            <Label>{t('articles:moveDialog.destFolder')}</Label>
             <Select value={dossierTarget} onValueChange={setDossierTarget}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={ORPHAN_VALUE}>Sans dossier</SelectItem>
+                <SelectItem value={ORPHAN_VALUE}>{t('common:noFolder')}</SelectItem>
                 {dossiers.map((d) => (
                   <SelectItem key={d.id} value={d.id}>
                     {d.name}
@@ -123,15 +125,15 @@ export function MoveDialog({
 
           <TabsContent value="project" className="space-y-3 pt-4">
             <div className="space-y-2">
-              <Label>Projet de destination</Label>
+              <Label>{t('articles:moveDialog.destProject')}</Label>
               <Select value={targetProjectId} onValueChange={setTargetProjectId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Choisir un projet" />
+                  <SelectValue placeholder={t('articles:moveDialog.destProjectPlaceholder')} />
                 </SelectTrigger>
                 <SelectContent>
                   {otherProjects.length === 0 ? (
                     <SelectItem value="__none__" disabled>
-                      Aucun autre projet
+                      {t('articles:moveDialog.noOtherProject')}
                     </SelectItem>
                   ) : (
                     otherProjects.map((p: ProjectView) => (
@@ -145,13 +147,13 @@ export function MoveDialog({
             </div>
             {targetProjectId && (
               <div className="space-y-2">
-                <Label>Dossier dans le projet cible</Label>
+                <Label>{t('articles:moveDialog.destFolderInTarget')}</Label>
                 <Select value={targetProjectDossier} onValueChange={setTargetProjectDossier}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={ORPHAN_VALUE}>Sans dossier</SelectItem>
+                    <SelectItem value={ORPHAN_VALUE}>{t('common:noFolder')}</SelectItem>
                     {targetProjectDossiers.map((d) => (
                       <SelectItem key={d.id} value={d.id}>
                         {d.name}
@@ -166,10 +168,10 @@ export function MoveDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
-            Annuler
+            {t('common:cancel')}
           </Button>
           <Button onClick={handleConfirm} disabled={!canConfirm || submitting}>
-            {submitting ? 'Déplacement...' : 'Déplacer'}
+            {submitting ? t('articles:moveDialog.submitting') : t('articles:moveDialog.submit')}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -1,0 +1,83 @@
+{
+  "title": "Settings",
+  "nav": {
+    "general": "General",
+    "ai": "AI",
+    "privacy": "Privacy",
+    "logs": "Logs",
+    "updates": "Updates"
+  },
+  "updateOverlay": {
+    "title": "Update in progress",
+    "description": "Please wait while the update is downloading…"
+  },
+  "general": {
+    "language": "Language"
+  },
+  "ai": {
+    "title": "Artificial Intelligence",
+    "defaultModel": "Default model",
+    "selectModel": "Select a model",
+    "missingApiKey": "API key missing",
+    "anthropicKey": "Anthropic API key",
+    "anthropicKeyHint": "Required to use Claude models",
+    "openaiKey": "OpenAI API key",
+    "openaiKeyHint": "Required to use GPT models"
+  },
+  "logs": {
+    "title": "Transcription logs",
+    "transcriptions": "Transcriptions",
+    "successful": "Successful",
+    "totalCost": "Total cost",
+    "empty": "No transcriptions recorded yet",
+    "costDisclaimer": "Costs are estimated from the providers' public pricing at app-update time. Your actual invoice may differ slightly (tiered pricing, caching, discounts, regional surcharges, etc.).",
+    "table": {
+      "date": "Date",
+      "model": "Model",
+      "tokens": "Tokens",
+      "cost": "Cost",
+      "status": "Status"
+    },
+    "statusOk": "OK",
+    "statusError": "Error"
+  },
+  "updates": {
+    "title": "Updates",
+    "currentVersion": "Current version",
+    "check": "Check for updates",
+    "available": "Update available: v{{version}}",
+    "downloadInstall": "Download and install",
+    "downloading": "Downloading…",
+    "ready": "Update ready to install",
+    "restartInstall": "Restart and install",
+    "error": "Error: {{message}}",
+    "upToDate": "You're up to date!"
+  },
+  "toasts": {
+    "loadError": "Failed to load settings",
+    "saved": "Settings saved",
+    "saveError": "Failed to save settings"
+  },
+  "privacy": {
+    "title": "Privacy",
+    "intro": "You can enable or disable error reporting at any time.",
+    "telemetryTitle": "Error report sharing",
+    "telemetryHint": "Automatically sends a report to Sentry when the app crashes, to help us fix bugs.",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "includedTitle": "What gets sent on a crash",
+    "included": [
+      "The error message and the call stack.",
+      "The version of ExtrAct and of your system.",
+      "A handful of actions performed just before the crash."
+    ],
+    "excludedTitle": "What is never included",
+    "excluded": [
+      "The contents of your PDFs, your transcriptions, your fields.",
+      "Your API key.",
+      "Your IP address, your username, your file paths."
+    ],
+    "note": "Note: ExtrAct sends your PDF zones to OpenAI or Anthropic during transcription — that's how the app works. This option only governs the error reports we use to fix bugs.",
+    "recipient": "<bold>Recipient:</bold> Sentry, servers in Germany (EU, GDPR). The change takes effect on the next app restart."
+  }
+}

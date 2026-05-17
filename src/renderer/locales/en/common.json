@@ -1,0 +1,18 @@
+{
+  "save": "Save",
+  "saving": "Saving…",
+  "cancel": "Cancel",
+  "delete": "Delete",
+  "loading": "Loading…",
+  "back": "Back",
+  "rename": "Rename",
+  "move": "Move",
+  "untitled": "Untitled",
+  "noFolder": "No folder",
+  "selectAll": "Select all",
+  "deselect": "Deselect",
+  "language": {
+    "fr": "French",
+    "en": "English"
+  }
+}

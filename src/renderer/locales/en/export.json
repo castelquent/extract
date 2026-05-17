@@ -1,0 +1,29 @@
+{
+  "title_one": "Export item",
+  "title_other": "Export {{count}} items",
+  "format": "Format",
+  "formatOptions": {
+    "pdf": "PDF",
+    "docx": "Word (DOCX)",
+    "txt": "Text (TXT)",
+    "png": "Image (PNG)"
+  },
+  "output": "Output",
+  "outputOptions": {
+    "single": "Single file",
+    "separated": "Separate files (ZIP)"
+  },
+  "granularity": "Granularity",
+  "pngOptions": {
+    "perElement": "One PNG per item (zones stacked)",
+    "perZone": "One PNG per zone"
+  },
+  "toggles": {
+    "dossierTitles": "Include folder names",
+    "highlight": "Highlight \"{{term}}\"",
+    "showSource": "Show source at the end",
+    "sourceImages": "Include the item's images",
+    "orderPrefix": "Prefix with folder order"
+  },
+  "submit": "Export"
+}

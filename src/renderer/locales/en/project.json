@@ -1,0 +1,31 @@
+{
+  "notFound": "Project not found",
+  "header": {
+    "projectSettingsTitle": "Project settings",
+    "openFolderTitle": "Open the project folder",
+    "transcribeTitle": "Transcribe the whole project",
+    "transcribe": "Transcribe",
+    "exportTitle": "Export the whole project",
+    "export": "Export"
+  },
+  "tabs": {
+    "elements": "Items",
+    "sources": "Sources"
+  },
+  "filters": {
+    "incompleteOnly": "Incomplete only",
+    "incompleteOnlyAria": "Show only incomplete items",
+    "fillTooltip": "{{filled}} / {{total}} fields filled"
+  },
+  "settings": {
+    "title": "Project settings",
+    "nameLabel": "Name",
+    "templateLabel": "Default template",
+    "templatePlaceholder": "Choose a template",
+    "templateHint": "Applied to new items. Existing items keep their template.",
+    "submit": "Save"
+  },
+  "toasts": {
+    "loadError": "Failed to load the project"
+  }
+}

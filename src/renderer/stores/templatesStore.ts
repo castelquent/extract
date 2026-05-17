@@ -1,6 +1,10 @@
 import { create } from 'zustand'
 import { toast } from 'sonner'
+import i18n from '@/lib/i18n'
 import type { Template, DeleteTemplateResult } from '@shared/types'
+
+const t = (key: string, opts?: Record<string, unknown>): string =>
+  i18n.t(key, opts ?? {}) as string
 
 interface TemplatesState {
   templates: Template[]
@@ -29,7 +33,7 @@ export const useTemplatesStore = create<TemplatesState>((set, get) => ({
       const templates = await window.api.getTemplates()
       set({ templates, loading: false })
     } catch (err) {
-      toast.error('Erreur lors du chargement des modèles')
+      toast.error(t('templates:toasts.loadError'))
       set({ error: 'Erreur lors du chargement des modèles', loading: false })
     }
   },
@@ -65,11 +69,11 @@ export const useTemplatesStore = create<TemplatesState>((set, get) => ({
             return { templates: [...state.templates, template] }
           }
         })
-        toast.success('Modèle enregistré')
+        toast.success(t('templates:toasts.saved'))
       }
       return success
     } catch (err) {
-      toast.error('Erreur lors de l\'enregistrement du modèle')
+      toast.error(t('templates:toasts.saveError'))
       set({ error: 'Erreur lors de l\'enregistrement du modèle' })
       return false
     }
@@ -83,13 +87,13 @@ export const useTemplatesStore = create<TemplatesState>((set, get) => ({
         set((state) => ({
           templates: state.templates.filter(t => t.id !== templateId)
         }))
-        toast.success('Modèle supprimé')
+        toast.success(t('templates:toasts.deleted'))
       } else if (result.reason === 'is_default') {
-        toast.error('Impossible de supprimer un modèle par défaut')
+        toast.error(t('templates:toasts.deleteDefaultError'))
       }
       return result
     } catch (err) {
-      toast.error('Erreur lors de la suppression du modèle')
+      toast.error(t('templates:toasts.deleteError'))
       set({ error: 'Erreur lors de la suppression du modèle' })
       return { success: false }
     }

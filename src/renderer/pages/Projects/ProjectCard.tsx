@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { ProjectView } from '@shared/types'
 import {
   Card,
@@ -13,6 +14,7 @@ import {
 } from '@/components/ui'
 import { Copy, FileArchive, Trash2, FileStack, FileText, Pencil, FolderOpen, Files, FolderTree } from 'lucide-react'
 import { useTemplatesStore } from '@/stores'
+import { templateDisplayName } from '@/lib/templateLabels'
 
 interface ProjectCardProps {
   project: ProjectView
@@ -33,10 +35,12 @@ export function ProjectCard({
   onOpenFolder,
   onExportZip,
 }: ProjectCardProps) {
+  const { t, i18n } = useTranslation('projects')
   const [thumbnailSrc, setThumbnailSrc] = useState<string | null>(null)
   const { templates } = useTemplatesStore()
 
-  const templateName = templates.find((t) => t.id === project.defaultTemplateId)?.name
+  const matchedTemplate = templates.find((t) => t.id === project.defaultTemplateId)
+  const templateName = matchedTemplate ? templateDisplayName(matchedTemplate) : undefined
 
   useEffect(() => {
     if (project.thumbnailPath) {
@@ -65,13 +69,13 @@ export function ProjectCard({
                 <img src={thumbnailSrc} alt={project.name} className="w-full h-full object-contain" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm">
-                  Aucune source
+                  {t('card.noSource')}
                 </div>
               )}
               {articlesTotal > 0 && (
                 <div
                   className="absolute bottom-2 right-2 flex rounded-full bg-card shadow-md"
-                  title={`${articlesFilled} / ${articlesTotal} éléments remplis`}
+                  title={t('card.filledTooltip', { filled: articlesFilled, total: articlesTotal })}
                 >
                   <CircularProgress
                     value={fillPct}
@@ -103,27 +107,31 @@ export function ProjectCard({
                 <div className="flex items-center gap-3">
                   <span className="flex items-center gap-1">
                     <Files className="h-3 w-3" />
-                    {project.sourcesCount} source{project.sourcesCount === 1 ? '' : 's'}
+                    {t('card.sourcesCount', { count: project.sourcesCount })}
                   </span>
                   <span className="flex items-center gap-1">
                     <FolderTree className="h-3 w-3" />
-                    {project.dossiersCount} dossier{project.dossiersCount === 1 ? '' : 's'}
+                    {t('card.dossiersCount', { count: project.dossiersCount })}
                   </span>
                 </div>
                 <span className="flex items-center gap-1">
                   <FileText className="h-3 w-3" />
-                  {articlesTotal} élément{articlesTotal === 1 ? '' : 's'}
+                  {t('card.elementsCount', { count: articlesTotal })}
                 </span>
               </div>
 
               {isEmptyProject && (
                 <div className="flex items-center gap-2 flex-wrap">
-                  <Badge variant="info">Nouveau</Badge>
+                  <Badge variant="info">{t('card.newBadge')}</Badge>
                 </div>
               )}
 
               <p className="text-xs text-muted-foreground mt-auto">
-                Modifié le {new Date(project.modifiedAt).toLocaleDateString('fr-FR')}
+                {t('card.modified', {
+                  date: new Date(project.modifiedAt).toLocaleDateString(
+                    i18n.language === 'en' ? 'en-US' : 'fr-FR'
+                  ),
+                })}
               </p>
             </div>
           </CardContent>
@@ -132,24 +140,24 @@ export function ProjectCard({
       <ContextMenuContent>
         <ContextMenuItem onClick={onRename}>
           <Pencil className="h-4 w-4 mr-2" />
-          Renommer
+          {t('contextMenu.rename')}
         </ContextMenuItem>
         <ContextMenuItem onClick={onDuplicate}>
           <Copy className="h-4 w-4 mr-2" />
-          Dupliquer
+          {t('contextMenu.duplicate')}
         </ContextMenuItem>
         <ContextMenuItem onClick={onOpenFolder}>
           <FolderOpen className="h-4 w-4 mr-2" />
-          Ouvrir le dossier
+          {t('contextMenu.openFolder')}
         </ContextMenuItem>
         <ContextMenuItem onClick={onExportZip}>
           <FileArchive className="h-4 w-4 mr-2" />
-          Exporter ZIP
+          {t('contextMenu.exportZip')}
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
           <Trash2 className="h-4 w-4 mr-2" />
-          Supprimer
+          {t('contextMenu.delete')}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>

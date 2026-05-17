@@ -1,0 +1,91 @@
+{
+  "backToProject": "Projet",
+  "saveTitle": "Ctrl+S — persiste l'avancement sans générer les PDFs",
+  "generate": "Générer les éléments",
+  "generating": "Génération…",
+  "toolbar": {
+    "rect": "Rectangle",
+    "polygon": "Tracé libre — segments orthogonaux par défaut (Shift = diagonale), Entrée ou clic sur le premier point pour fermer",
+    "selectPage": "Sélectionner toute la page"
+  },
+  "hint": {
+    "rect": "Dessinez un rectangle sur le PDF pour créer votre premier élément",
+    "polygon": "Cliquez pour poser les sommets (Shift pour diagonale) ; Entrée ou clic sur le premier point pour fermer"
+  },
+  "sidebar": {
+    "title": "Éléments",
+    "lockedWarning": "Élément verrouillé. Dessiner une zone créera un nouvel élément.",
+    "endCurrent": "Terminer l'élément en cours",
+    "emptyHint": "Sélectionnez des zones sur le PDF pour créer des éléments."
+  },
+  "newDossierDefault": "Nouveau dossier",
+  "unlock": {
+    "title": "Déverrouiller cet élément ?",
+    "description_filled_one": "Modifier les zones invalide le PDF extrait et la transcription. Le champ déjà rempli sera supprimé. La modification est appliquée à la prochaine sauvegarde.",
+    "description_filled_other": "Modifier les zones invalide le PDF extrait et la transcription. Les {{count}} champs déjà remplis seront supprimés. La modification est appliquée à la prochaine sauvegarde.",
+    "description_empty": "Modifier les zones invalide le PDF extrait. L'élément redeviendra un brouillon jusqu'à la prochaine génération.",
+    "submitFilled": "Déverrouiller et vider les champs",
+    "submitEmpty": "Déverrouiller"
+  },
+  "article": {
+    "lockedAria": "Élément verrouillé",
+    "label": "Élément {{index}}",
+    "zonesCount_one": "{{count}} zone",
+    "zonesCount_other": "{{count}} zones",
+    "unlockTitle": "Déverrouiller (vide les champs)",
+    "templateButton": "Modèle : {{name}}",
+    "templateButtonTitle": "Le modèle s'applique avec préservation des champs",
+    "templatePlaceholder": "Modèle",
+    "templateCustom": "Personnalisé"
+  },
+  "zoneMenu": {
+    "lockedHint": "Élément verrouillé — déverrouillez-le pour modifier",
+    "sendToElement": "Envoyer à l'élément",
+    "elementWithCount_one": "Élément {{index}} ({{count}} zone)",
+    "elementWithCount_other": "Élément {{index}} ({{count}} zones)"
+  },
+  "pdf": {
+    "loading": "Chargement du PDF…",
+    "error": "Erreur : {{message}}",
+    "empty": "Aucun PDF chargé"
+  },
+  "generateDialog": {
+    "title_one": "Générer {{count}} élément",
+    "title_other": "Générer {{count}} éléments",
+    "description": "Comment organiser les éléments générés dans ce projet ?",
+    "newDossier": "Créer un nouveau dossier",
+    "newDossierPlaceholder": "Nom du dossier",
+    "existingDossier": "Ajouter à un dossier existant",
+    "existingDossierPlaceholder": "Choisir un dossier",
+    "noDossier": "Sans dossier",
+    "noDossierHint": "Les éléments seront ajoutés directement au projet.",
+    "footnote": "La génération produit un PDF par élément et peut prendre quelques secondes.",
+    "submit": "Générer",
+    "submitting": "Génération…"
+  },
+  "unsavedChanges": {
+    "title": "Modifications non sauvegardées",
+    "description": "Vous avez des modifications non sauvegardées.<br/>Que souhaitez-vous faire ?",
+    "saveAndQuit": "Sauvegarder et quitter",
+    "saveAndQuitInProgress": "Sauvegarde…",
+    "discard": "Quitter sans sauvegarder"
+  },
+  "applyTemplate": {
+    "title": "Appliquer un modèle",
+    "description": "Les valeurs des champs portant le même nom seront conservées. Les champs absents du nouveau modèle seront supprimés.",
+    "templatePlaceholder": "Choisir un modèle",
+    "lostFieldsWarning_one": "{{count}} champ sera supprimé :",
+    "lostFieldsWarning_other": "{{count}} champs seront supprimés :",
+    "submit": "Appliquer",
+    "submitting": "Application…"
+  },
+  "toasts": {
+    "sessionUnbound": "Session non liée — rechargez la page",
+    "saved": "Sauvegardé",
+    "saveError": "Erreur lors de la sauvegarde",
+    "folderCreateError": "Impossible de créer le dossier",
+    "generated_one": "1 élément généré",
+    "generated_other": "{{count}} éléments générés",
+    "generateError": "Erreur lors de la génération"
+  }
+}

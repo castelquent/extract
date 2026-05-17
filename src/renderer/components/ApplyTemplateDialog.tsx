@@ -2,6 +2,7 @@
 // if any) → confirm. Used both by the Editor (full-form context) and the
 // Extraction page (changing model on a persisted element).
 import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   Button,
   Dialog,
@@ -18,6 +19,7 @@ import {
 } from '@/components/ui'
 import type { Template, TemplateField } from '@shared/types'
 import { computeMerge, stripHtml } from '@/lib/templateMerge'
+import { templateDisplayName } from '@/lib/templateLabels'
 
 interface ApplyTemplateDialogProps {
   open: boolean
@@ -38,6 +40,7 @@ export function ApplyTemplateDialog({
   currentFields,
   onConfirm,
 }: ApplyTemplateDialogProps) {
+  const { t } = useTranslation(['extractor', 'common'])
   const [selectedId, setSelectedId] = useState<string>(currentTemplateId ?? templates[0]?.id ?? '')
   const [submitting, setSubmitting] = useState(false)
 
@@ -68,22 +71,21 @@ export function ApplyTemplateDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Appliquer un modèle</DialogTitle>
+          <DialogTitle>{t('extractor:applyTemplate.title')}</DialogTitle>
           <DialogDescription>
-            Les valeurs des champs portant le même nom seront conservées. Les champs absents du
-            nouveau modèle seront supprimés.
+            {t('extractor:applyTemplate.description')}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3 py-2">
           <Select value={selectedId} onValueChange={setSelectedId}>
             <SelectTrigger>
-              <SelectValue placeholder="Choisir un modèle" />
+              <SelectValue placeholder={t('extractor:applyTemplate.templatePlaceholder')} />
             </SelectTrigger>
             <SelectContent>
-              {templates.map((t) => (
-                <SelectItem key={t.id} value={t.id}>
-                  {t.name}
+              {templates.map((tpl) => (
+                <SelectItem key={tpl.id} value={tpl.id}>
+                  {templateDisplayName(tpl)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -92,7 +94,7 @@ export function ApplyTemplateDialog({
           {preview && preview.lostFields.length > 0 && (
             <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs space-y-1">
               <p className="font-medium text-amber-700 dark:text-amber-500">
-                {preview.lostFields.length} champ{preview.lostFields.length > 1 ? 's' : ''} sera supprimé :
+                {t('extractor:applyTemplate.lostFieldsWarning', { count: preview.lostFields.length })}
               </p>
               <ul className="space-y-0.5 list-disc list-inside text-muted-foreground">
                 {preview.lostFields.map((f) => (
@@ -108,10 +110,10 @@ export function ApplyTemplateDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
-            Annuler
+            {t('common:cancel')}
           </Button>
           <Button onClick={handleConfirm} disabled={!selectedTemplate || submitting}>
-            {submitting ? 'Application...' : 'Appliquer'}
+            {submitting ? t('extractor:applyTemplate.submitting') : t('extractor:applyTemplate.submit')}
           </Button>
         </DialogFooter>
       </DialogContent>

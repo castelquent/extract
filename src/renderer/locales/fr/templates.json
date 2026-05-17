@@ -1,0 +1,50 @@
+{
+  "title": "Modèles",
+  "subtitle": "Gérez les modèles de champs pour vos projets",
+  "newTemplate": "Nouveau modèle",
+  "empty": "Aucun modèle",
+  "createFirst": "Créer votre premier modèle",
+  "defaultBadge": "Défaut",
+  "fieldsCount_one": "{{count}} champ",
+  "fieldsCount_other": "{{count}} champs",
+  "deleteDialog": {
+    "title": "Supprimer le modèle ?",
+    "description": "Cette action est irréversible. Le modèle « {{name}} » sera supprimé définitivement."
+  },
+  "editor": {
+    "titleView": "Voir le modèle",
+    "titleEdit": "Modifier le modèle",
+    "titleCreate": "Nouveau modèle",
+    "defaultNote": "Les modèles par défaut ne peuvent pas être modifiés. Vous pouvez créer un nouveau modèle basé sur celui-ci.",
+    "nameLabel": "Nom du modèle *",
+    "namePlaceholder": "Ex: Article de presse, Correspondance…",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "Ex: Pour les journaux et magazines",
+    "fieldsLabel": "Champs",
+    "addField": "Ajouter un champ",
+    "fieldNameLabel": "Nom du champ",
+    "fieldRequiredBadge": "Obligatoire",
+    "fieldNamePlaceholder": "Ex: Titre, Auteur…",
+    "fieldTypeLabel": "Type",
+    "fieldTypes": {
+      "text": "Texte court",
+      "textarea": "Texte long",
+      "richtext": "Texte riche"
+    },
+    "fieldHintLabel": "Indice pour l'IA (optionnel)",
+    "fieldHintPlaceholder": "Ex: L'auteur de l'article, si visible",
+    "promptTitle": "Prompt IA généré",
+    "promptCopy": "Copier",
+    "promptReset": "Réinitialiser",
+    "close": "Fermer",
+    "submit": "Enregistrer"
+  },
+  "toasts": {
+    "loadError": "Erreur lors du chargement des modèles",
+    "saved": "Modèle enregistré",
+    "saveError": "Erreur lors de l'enregistrement du modèle",
+    "deleted": "Modèle supprimé",
+    "deleteDefaultError": "Impossible de supprimer un modèle par défaut",
+    "deleteError": "Erreur lors de la suppression du modèle"
+  }
+}

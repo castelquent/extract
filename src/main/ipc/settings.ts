@@ -2,10 +2,23 @@ import { ipcMain, app } from 'electron'
 import { join } from 'path'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { autoUpdater } from 'electron-updater'
-import type { Settings, TranscriptionLog } from '@shared/types'
+import type { Settings, TranscriptionLog, AppLanguage } from '@shared/types'
 
 const getSettingsPath = (): string => {
   return join(app.getPath('userData'), 'settings.json')
+}
+
+// Detect the OS UI locale and map to one of our supported app languages.
+// French locales → 'fr', everything else → 'en'. Used as a one-shot default
+// on first launch (and whenever a saved settings.json lacks a language field).
+const detectAppLanguage = (): AppLanguage => {
+  try {
+    const loc = app.getLocale().toLowerCase()
+    if (loc.startsWith('fr')) return 'fr'
+    return 'en'
+  } catch {
+    return 'fr'
+  }
 }
 
 const defaultSettings: Settings = {
@@ -33,14 +46,19 @@ export function setupSettingsHandlers(): void {
     const settingsPath = getSettingsPath()
 
     try {
-      if (existsSync(settingsPath)) {
-        const saved = JSON.parse(readFileSync(settingsPath, 'utf-8'))
-        return { ...defaultSettings, ...saved }
+      const base: Settings = existsSync(settingsPath)
+        ? { ...defaultSettings, ...JSON.parse(readFileSync(settingsPath, 'utf-8')) }
+        : defaultSettings
+      // Backfill the language field for installs predating i18n. We only
+      // detect from the OS locale when nothing is persisted — once the user
+      // explicitly picks a language we respect it.
+      if (!base.app.language) {
+        base.app = { ...base.app, language: detectAppLanguage() }
       }
-      return defaultSettings
+      return base
     } catch (error) {
       console.error('Error loading settings:', error)
-      return defaultSettings
+      return { ...defaultSettings, app: { ...defaultSettings.app, language: detectAppLanguage() } }
     }
   })
 

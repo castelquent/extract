@@ -1,0 +1,66 @@
+{
+  "steps": {
+    "provider": "Provider",
+    "apiKey": "API key",
+    "privacy": "Privacy"
+  },
+  "nav": {
+    "skip": "Later",
+    "back": "Back",
+    "next": "Next"
+  },
+  "provider": {
+    "title": "Welcome to ExtrAct",
+    "subtitle": "Choose the AI provider you prefer for transcription. You can always change it later in Settings.",
+    "anthropic": {
+      "title": "Anthropic (Claude)",
+      "tagline": "Maximum accuracy",
+      "description": "Recommended for old documents, handwriting, and complex layouts. Slightly more expensive but more faithful to the source text."
+    },
+    "openai": {
+      "title": "OpenAI (GPT)",
+      "tagline": "Fast and economical",
+      "description": "Ideal for clean, modern printed documents. Faster and a bit cheaper at similar quality."
+    }
+  },
+  "apiKey": {
+    "title": "Configure your {{provider}} key",
+    "subtitle": "When you launch a transcription, ExtrAct sends every zone you've cropped to <bold>{{provider}}</bold>'s AI, which reads the image and returns the text. The key below identifies your account with them. You pay {{provider}} directly, on consumption, a few cents per document.",
+    "openAnthropicConsole": "Open the Anthropic console",
+    "openOpenaiConsole": "Open the OpenAI platform",
+    "pasteLabel": "Paste your key below",
+    "privacyNote": "Your key is stored <bold>only on your computer</bold>. ExtrAct only sends it to {{provider}} at transcription time, and takes no cut of your usage.",
+    "anthropicSteps": [
+      "Create an Anthropic account (or sign in if you already have one).",
+      "Under Plans & Billing, add credit. $5 to $10 is enough to start — you only pay for what you use.",
+      "Under API Keys, click Create Key, copy the key, and paste it below."
+    ],
+    "openaiSteps": [
+      "Create an OpenAI account (or sign in if you already have one).",
+      "Under Billing, add credit. $5 to $10 is enough to start — you only pay for what you use.",
+      "Under API keys, click Create new secret key, copy the key, and paste it below."
+    ]
+  },
+  "privacy": {
+    "title": "Help us fix bugs?",
+    "subtitle": "ExtrAct can automatically send a report when the app crashes, so we can fix bugs we'd otherwise miss. Your choice is 100% respected and can be changed any time in Settings.",
+    "includedTitle": "If you opt in, here's what gets sent on a crash",
+    "included": [
+      "The error message and call stack (where in the code the crash happened).",
+      "The version of ExtrAct and your system's version (Windows / macOS).",
+      "A handful of actions performed just before the crash (clicks, navigation) to help reproduce the bug."
+    ],
+    "excludedTitle": "Never included in these reports",
+    "excluded": [
+      "The contents of your PDFs, your transcriptions, your fields.",
+      "Your API key.",
+      "Your IP address, your username, your file paths."
+    ],
+    "note": "Note: ExtrAct of course sends your PDF zones to OpenAI or Anthropic when you launch a transcription — that's how the app works. This question only covers the error reports we use to fix bugs, which is a separate thing.",
+    "recipient": "<bold>Recipient:</bold> Sentry, servers in Germany (European Union, GDPR).",
+    "decline": "Decline",
+    "declineHint": "No reports will be sent.",
+    "accept": "Enable sharing",
+    "acceptHint": "Thanks, it really helps."
+  }
+}

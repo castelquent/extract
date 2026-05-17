@@ -5,6 +5,7 @@
 // DnD: intra-section drag-to-reorder within the visible dossier.
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import {
   DndContext,
   DragOverlay,
@@ -103,10 +104,10 @@ const completionBadge = (article: ArticleMetadata): React.ReactNode => {
   )
 }
 
-const formatShortDate = (iso: string): string => {
+const formatShortDate = (iso: string, locale: string): string => {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return ''
-  return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+  return d.toLocaleDateString(locale === 'en' ? 'en-US' : 'fr-FR', { day: 'numeric', month: 'short' })
 }
 
 // Toggleable columns — Titre and the checkbox column are always visible.
@@ -120,12 +121,7 @@ const DEFAULT_COLUMNS: ColumnVisibility = {
   modified: false,
 }
 
-const COLUMN_LABELS: Record<ColumnKey, string> = {
-  source: 'Source',
-  pages: 'Pages',
-  completion: 'Remplissage',
-  modified: 'Modifié',
-}
+const COLUMN_KEYS: ColumnKey[] = ['source', 'pages', 'completion', 'modified']
 
 const COLUMNS_STORAGE_KEY = 'extract:articleColumns'
 
@@ -176,7 +172,8 @@ function ArticleRow({
   onOpen: () => void
   onDelete: () => void
 }) {
-  const title = (article.fields['Titre'] ?? article.fields['title'] ?? '').trim() || 'Sans titre'
+  const { t, i18n } = useTranslation(['articles', 'common'])
+  const title = (article.fields['Titre'] ?? article.fields['title'] ?? '').trim() || t('common:untitled')
   const {
     attributes,
     listeners,
@@ -258,7 +255,7 @@ function ArticleRow({
           })()}
           {columns.pages && (
             <span className="text-xs text-muted-foreground tabular-nums text-right">
-              {article.pages.length}p
+              {t('articles:row.pagesCountShort', { count: article.pages.length })}
             </span>
           )}
           {columns.completion && (
@@ -266,7 +263,7 @@ function ArticleRow({
           )}
           {columns.modified && (
             <span className="text-xs text-muted-foreground tabular-nums text-right">
-              {formatShortDate(article.modifiedAt)}
+              {formatShortDate(article.modifiedAt, i18n.language)}
             </span>
           )}
         </div>
@@ -274,12 +271,12 @@ function ArticleRow({
       <ContextMenuContent>
         <ContextMenuItem onClick={onOpen}>
           <FileText className="h-4 w-4 mr-2" />
-          Ouvrir
+          {t('articles:row.open')}
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
           <Trash2 className="h-4 w-4 mr-2" />
-          Supprimer
+          {t('common:delete')}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
@@ -297,12 +294,13 @@ function DragPreview({
   articles: ArticleMetadata[]
   grabOffsetX: number
 }) {
+  const { t } = useTranslation(['articles', 'common'])
   if (articles.length === 0) return null
   const titles = articles
     .slice(0, PREVIEW_MAX_TITLES)
     .map(
       (a) =>
-        (a.fields['Titre'] ?? a.fields['title'] ?? '').trim() || 'Sans titre'
+        (a.fields['Titre'] ?? a.fields['title'] ?? '').trim() || t('common:untitled')
     )
   const extra = articles.length - titles.length
   // <DragOverlay> sizes its wrapper to the full source row width and pins
@@ -327,7 +325,7 @@ function DragPreview({
         ))}
         {extra > 0 && (
           <div className="px-3 py-1 text-xs text-muted-foreground italic">
-            et {extra} autre{extra > 1 ? 's' : ''}
+            {t('articles:preview.more', { count: extra })}
           </div>
         )}
       </div>
@@ -360,6 +358,7 @@ function DossierSidebarItem({
   onCancelRename: () => void
   onDelete: () => void
 }) {
+  const { t } = useTranslation('common')
   const { setNodeRef, isOver, active } = useDroppable({
     id: `dossier-drop:${dossier.id}`,
     data: { kind: 'dossier-drop', dossierId: dossier.id },
@@ -399,12 +398,12 @@ function DossierSidebarItem({
       <ContextMenuContent>
         <ContextMenuItem onClick={onStartRename}>
           <Pencil className="h-4 w-4 mr-2" />
-          Renommer
+          {t('common:rename')}
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
           <Trash2 className="h-4 w-4 mr-2" />
-          Supprimer
+          {t('common:delete')}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
@@ -426,7 +425,8 @@ function SectionHeader({
   onToggleColumn: (key: ColumnKey, value: boolean) => void
   onEditScope: () => void
 }) {
-  const label = dossier ? dossier.name : 'Sans dossier'
+  const { t } = useTranslation(['articles', 'common'])
+  const label = dossier ? dossier.name : t('common:noFolder')
   return (
     <div className="flex items-center justify-between gap-4 pt-2 pb-3 px-6">
       <h2 className="text-xl font-semibold tracking-tight">{label}</h2>
@@ -437,7 +437,7 @@ function SectionHeader({
           className="h-7 text-xs px-2"
           onClick={onEditScope}
           disabled={articleIds.length === 0}
-          title={articleIds.length === 0 ? 'Aucun élément à transcrire' : 'Ouvrir dans l’éditeur'}
+          title={articleIds.length === 0 ? t('articles:header.noItemsToTranscribeTitle') : t('articles:header.openInEditorTitle')}
         >
           <FileText className="h-3.5 w-3.5" />
         </Button>
@@ -447,22 +447,22 @@ function SectionHeader({
               variant="ghost"
               size="sm"
               className="h-7 text-xs px-2 text-muted-foreground"
-              title="Colonnes affichées"
+              title={t('articles:columns.menuTitle')}
             >
               <Settings2 className="h-3.5 w-3.5" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-44">
-            <DropdownMenuLabel>Colonnes</DropdownMenuLabel>
+            <DropdownMenuLabel>{t('articles:columns.menuLabel')}</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            {(Object.keys(COLUMN_LABELS) as ColumnKey[]).map((key) => (
+            {COLUMN_KEYS.map((key) => (
               <DropdownMenuCheckboxItem
                 key={key}
                 checked={columns[key]}
                 onCheckedChange={(v) => onToggleColumn(key, v === true)}
                 onSelect={(e) => e.preventDefault()}
               >
-                {COLUMN_LABELS[key]}
+                {t(`articles:columns.${key}`)}
               </DropdownMenuCheckboxItem>
             ))}
           </DropdownMenuContent>
@@ -487,6 +487,7 @@ function ColHeader({
   gridStyle: React.CSSProperties
   onToggleAll: (ids: string[], select: boolean) => void
 }) {
+  const { t } = useTranslation('articles')
   const selectedInSection = articleIds.reduce((n, id) => (selectedIds.has(id) ? n + 1 : n), 0)
   const headerCheckState: boolean | 'indeterminate' =
     selectedInSection === 0
@@ -502,13 +503,13 @@ function ColHeader({
       <Checkbox
         checked={headerCheckState}
         onCheckedChange={(v) => onToggleAll(articleIds, v === true)}
-        aria-label="Tout sélectionner dans cette section"
+        aria-label={t('selectAllAria')}
       />
-      <div>Titre</div>
-      {columns.source && <div>Source</div>}
-      {columns.pages && <div className="text-right">Pages</div>}
-      {columns.completion && <div className="text-center">Remplissage</div>}
-      {columns.modified && <div className="text-right">Modifié</div>}
+      <div>{t('columns.title')}</div>
+      {columns.source && <div>{t('columns.source')}</div>}
+      {columns.pages && <div className="text-right">{t('columns.pages')}</div>}
+      {columns.completion && <div className="text-center">{t('columns.completion')}</div>}
+      {columns.modified && <div className="text-right">{t('columns.modified')}</div>}
     </div>
   )
 }
@@ -522,6 +523,7 @@ export function ArticlesView({
   projectId: string
   incompleteOnly?: boolean
 }) {
+  const { t } = useTranslation(['articles', 'common'])
   const navigate = useNavigate()
   const {
     dossiers,
@@ -930,7 +932,7 @@ export function ArticlesView({
   if (totalArticles === 0 && dossiers.length === 0) {
     return (
       <div className="rounded-md py-12 text-center text-sm text-muted-foreground">
-        Aucun élément. Importez une source et extrayez-en des éléments depuis l'onglet Sources.
+        {t('articles:emptyAllProjects')}
       </div>
     )
   }
@@ -948,14 +950,14 @@ export function ArticlesView({
           <div className="flex h-full flex-col">
             <div className="flex items-center justify-between gap-1 p-1.5 border-b shrink-0">
               <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pl-1.5 truncate">
-                Dossiers
+                {t('articles:sidebarHeader')}
               </span>
               <Button
                 variant="ghost"
                 size="sm"
                 className="h-7 w-7 p-0 shrink-0"
                 onClick={() => setNewDossierOpen(true)}
-                title="Nouveau dossier"
+                title={t('articles:newFolderTitle')}
               >
                 <Plus className="h-4 w-4" />
               </Button>
@@ -983,9 +985,9 @@ export function ArticlesView({
                 ref={orphansDrop.setNodeRef}
                 onClick={() => setSelectedDossierKey(ORPHANS_KEY)}
                 className={`flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer ${selectedDossierKey === ORPHANS_KEY ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground hover:bg-muted/40'} ${orphansDropActive ? 'bg-primary/10 outline outline-2 outline-primary/60 -outline-offset-1' : ''}`}
-                title="Sans dossier"
+                title={t('common:noFolder')}
               >
-                <span className="truncate">Sans dossier</span>
+                <span className="truncate">{t('common:noFolder')}</span>
               </li>
             </ul>
           </div>
@@ -1018,7 +1020,7 @@ export function ArticlesView({
             </div>
             {activeItems.length === 0 ? (
               <div className="text-sm text-muted-foreground py-3 border-t border-border/60 px-6">
-                {incompleteOnly ? 'Tous les éléments sont complétés.' : 'Aucun élément'}
+                {incompleteOnly ? t('articles:emptyFolderAllComplete') : t('articles:emptyFolder')}
               </div>
             ) : (
               activeItems.map((a) => (
@@ -1058,7 +1060,7 @@ export function ArticlesView({
         >
           <div className="pointer-events-auto flex items-center gap-1 rounded-full border bg-background/95 backdrop-blur px-2 py-1.5 shadow-lg animate-in fade-in slide-in-from-bottom-4 duration-200">
             <span className="px-3 text-sm tabular-nums">
-              {selectedCount} sélectionné{selectedCount === 1 ? '' : 's'}
+              {t('articles:selectionBar.selected', { count: selectedCount })}
             </span>
             <div className="h-5 w-px bg-border" />
             <Button
@@ -1070,7 +1072,7 @@ export function ArticlesView({
               }
             >
               <FileText className="h-4 w-4 mr-1.5" />
-              Transcrire
+              {t('articles:selectionBar.transcribe')}
             </Button>
             <Button
               variant="ghost"
@@ -1079,7 +1081,7 @@ export function ArticlesView({
               onClick={() => setExportOpen(true)}
             >
               <Download className="h-4 w-4 mr-1.5" />
-              Exporter
+              {t('articles:selectionBar.export')}
             </Button>
             <Button
               variant="ghost"
@@ -1088,7 +1090,7 @@ export function ArticlesView({
               onClick={() => setMoveOpen(true)}
             >
               <MoveRight className="h-4 w-4 mr-1.5" />
-              Déplacer
+              {t('articles:selectionBar.move')}
             </Button>
             <Button
               variant="ghost"
@@ -1097,7 +1099,7 @@ export function ArticlesView({
               onClick={() => setBulkDeleteOpen(true)}
             >
               <Trash2 className="h-4 w-4 mr-1.5" />
-              Supprimer
+              {t('articles:selectionBar.delete')}
             </Button>
             <div className="h-5 w-px bg-border" />
             <Button
@@ -1105,7 +1107,7 @@ export function ArticlesView({
               size="sm"
               className="h-8 w-8 rounded-full p-0 text-muted-foreground"
               onClick={() => setSelectedIds(new Set())}
-              title="Désélectionner"
+              title={t('common:deselect')}
             >
               <X className="h-4 w-4" />
             </Button>
@@ -1116,21 +1118,21 @@ export function ArticlesView({
       <Dialog open={newDossierOpen} onOpenChange={setNewDossierOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Nouveau dossier</DialogTitle>
+            <DialogTitle>{t('articles:newFolder.title')}</DialogTitle>
           </DialogHeader>
           <Input
             value={newDossierName}
             onChange={(e) => setNewDossierName(e.target.value)}
-            placeholder="Nom du dossier"
+            placeholder={t('articles:newFolder.placeholder')}
             autoFocus
             onKeyDown={(e) => e.key === 'Enter' && handleCreateDossier()}
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewDossierOpen(false)}>
-              Annuler
+              {t('common:cancel')}
             </Button>
             <Button onClick={handleCreateDossier} disabled={!newDossierName.trim()}>
-              Créer
+              {t('articles:newFolder.submit')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1139,9 +1141,9 @@ export function ArticlesView({
       <AlertDialog open={!!deleteDossierId} onOpenChange={(open) => !open && setDeleteDossierId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer le dossier ?</AlertDialogTitle>
+            <AlertDialogTitle>{t('articles:deleteFolder.title')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Que faire des éléments contenus dans ce dossier ?
+              {t('articles:deleteFolder.description')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-2 py-2">
@@ -1153,8 +1155,8 @@ export function ArticlesView({
                 className="mt-1"
               />
               <span>
-                <span className="font-medium">Garder les éléments</span>
-                <span className="text-muted-foreground"> (ils deviendront orphelins dans le projet)</span>
+                <span className="font-medium">{t('articles:deleteFolder.keepItems')}</span>
+                <span className="text-muted-foreground">{t('articles:deleteFolder.keepItemsHint')}</span>
               </span>
             </label>
             <label className="flex items-start gap-2 text-sm cursor-pointer">
@@ -1165,12 +1167,12 @@ export function ArticlesView({
                 className="mt-1"
               />
               <span>
-                <span className="font-medium text-destructive">Supprimer aussi les éléments</span>
+                <span className="font-medium text-destructive">{t('articles:deleteFolder.deleteContent')}</span>
               </span>
             </label>
           </div>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogCancel>{t('common:cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault()
@@ -1178,7 +1180,7 @@ export function ArticlesView({
               }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Supprimer
+              {t('common:delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1204,28 +1206,27 @@ export function ArticlesView({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Déplacer {pendingMove?.articleIds.length ?? 0} élément
-              {(pendingMove?.articleIds.length ?? 0) === 1 ? '' : 's'} ?
+              {t('articles:pendingMove.title', { count: pendingMove?.articleIds.length ?? 0 })}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {(() => {
                 const target =
                   pendingMove?.targetDossierId == null
-                    ? 'Sans dossier'
+                    ? t('common:noFolder')
                     : dossiers.find((d) => d.id === pendingMove.targetDossierId)?.name ?? '?'
-                return `Vers : ${target}`
+                return t('articles:pendingMove.to', { target })
               })()}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogCancel>{t('common:cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault()
                 void confirmPendingMove()
               }}
             >
-              Déplacer
+              {t('common:move')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1234,13 +1235,13 @@ export function ArticlesView({
       <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer {selectedCount} élément{selectedCount === 1 ? '' : 's'} ?</AlertDialogTitle>
+            <AlertDialogTitle>{t('articles:bulkDelete.title', { count: selectedCount })}</AlertDialogTitle>
             <AlertDialogDescription>
-              Cette action est irréversible.
+              {t('articles:bulkDelete.description')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogCancel>{t('common:cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault()
@@ -1248,7 +1249,7 @@ export function ArticlesView({
               }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Supprimer
+              {t('common:delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

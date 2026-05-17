@@ -6,6 +6,11 @@ export interface TemplateField {
   type: FieldType
   aiHint?: string
   order: number
+  // Optional stable identifier for built-in default templates. When set, the
+  // UI looks up `templateFields:{key}` in i18n to localize the field label
+  // (e.g. key='title' → "Titre" in FR, "Title" in EN). User-created fields
+  // and legacy data have no key → fall back to `name` as displayed.
+  key?: string
 }
 
 export interface Template {
@@ -298,12 +303,20 @@ export interface TranscriptionLog {
   error?: string
 }
 
+export type AppLanguage = 'fr' | 'en'
+
 export interface Settings {
   ai: AISettings
   app: {
     checkUpdatesOnStart: boolean
     theme: 'light' | 'dark'
+    language?: AppLanguage  // optional, fallback to detected OS locale on first run
     onboardingSeen?: boolean
+    // Sentry crash reporting consent. `undefined` means the user has not been
+    // asked yet (onboarding will force the question). `true`/`false` once
+    // they've answered. The main process reads this synchronously before
+    // calling Sentry.init.
+    telemetryEnabled?: boolean
   }
 }
 

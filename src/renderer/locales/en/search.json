@@ -1,0 +1,34 @@
+{
+  "title": "Search",
+  "subtitle": "Search across every item of every project",
+  "inputPlaceholder": "Type your query, then press Enter…",
+  "submit": "Search",
+  "filters": {
+    "projects": "Projects",
+    "dossiers": "Folders",
+    "templates": "Templates",
+    "fields": "Fields",
+    "clear": "Clear filters",
+    "noTemplate": "No template"
+  },
+  "status": {
+    "indexing": "Indexing projects…",
+    "results_one": "result in {{projectCount}} project",
+    "results_other": "results in {{projectCount}} projects",
+    "indexed_one": "{{count}} item indexed",
+    "indexed_other": "{{count}} items indexed"
+  },
+  "exportResults": "Export results",
+  "empty": "Type a query to get started",
+  "noResults": "No results for \"{{query}}\"",
+  "perProject_one": "{{count}} result",
+  "perProject_other": "{{count}} results",
+  "result": {
+    "dossierLabel": "Folder",
+    "untitledArticle": "Untitled item",
+    "collapse": "Collapse",
+    "viewMentions": "View all {{count}} mentions",
+    "mentionsCount": "{{count}} mentions"
+  },
+  "backLabel": "Search"
+}

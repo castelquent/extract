@@ -1,0 +1,91 @@
+{
+  "backToProject": "Project",
+  "saveTitle": "Ctrl+S — saves progress without generating PDFs",
+  "generate": "Generate items",
+  "generating": "Generating…",
+  "toolbar": {
+    "rect": "Rectangle",
+    "polygon": "Free path — orthogonal segments by default (hold Shift for a diagonal), Enter or click the first vertex to close",
+    "selectPage": "Select the entire page"
+  },
+  "hint": {
+    "rect": "Draw a rectangle on the PDF to create your first item",
+    "polygon": "Click to place vertices (Shift for diagonal); press Enter or click the first vertex to close"
+  },
+  "sidebar": {
+    "title": "Items",
+    "lockedWarning": "Item locked. Drawing a zone will create a new item.",
+    "endCurrent": "Finish current item",
+    "emptyHint": "Select zones on the PDF to create items."
+  },
+  "newDossierDefault": "New folder",
+  "unlock": {
+    "title": "Unlock this item?",
+    "description_filled_one": "Modifying the zones invalidates the extracted PDF and the transcription. The 1 filled field will be cleared. The change is applied on the next save.",
+    "description_filled_other": "Modifying the zones invalidates the extracted PDF and the transcription. The {{count}} filled fields will be cleared. The change is applied on the next save.",
+    "description_empty": "Modifying the zones invalidates the extracted PDF. The item will revert to a draft until the next generation.",
+    "submitFilled": "Unlock and clear the fields",
+    "submitEmpty": "Unlock"
+  },
+  "article": {
+    "lockedAria": "Item locked",
+    "label": "Item {{index}}",
+    "zonesCount_one": "{{count}} zone",
+    "zonesCount_other": "{{count}} zones",
+    "unlockTitle": "Unlock (clears the fields)",
+    "templateButton": "Template: {{name}}",
+    "templateButtonTitle": "The template is applied while preserving the fields",
+    "templatePlaceholder": "Template",
+    "templateCustom": "Custom"
+  },
+  "zoneMenu": {
+    "lockedHint": "Item locked — unlock it to modify",
+    "sendToElement": "Send to item",
+    "elementWithCount_one": "Item {{index}} ({{count}} zone)",
+    "elementWithCount_other": "Item {{index}} ({{count}} zones)"
+  },
+  "pdf": {
+    "loading": "Loading PDF…",
+    "error": "Error: {{message}}",
+    "empty": "No PDF loaded"
+  },
+  "generateDialog": {
+    "title_one": "Generate {{count}} item",
+    "title_other": "Generate {{count}} items",
+    "description": "How should the generated items be organised in this project?",
+    "newDossier": "Create a new folder",
+    "newDossierPlaceholder": "Folder name",
+    "existingDossier": "Add to an existing folder",
+    "existingDossierPlaceholder": "Choose a folder",
+    "noDossier": "No folder",
+    "noDossierHint": "The items will be added directly to the project.",
+    "footnote": "Generation produces one PDF per item and may take a few seconds.",
+    "submit": "Generate",
+    "submitting": "Generating…"
+  },
+  "unsavedChanges": {
+    "title": "Unsaved changes",
+    "description": "You have unsaved changes.<br/>What would you like to do?",
+    "saveAndQuit": "Save and quit",
+    "saveAndQuitInProgress": "Saving…",
+    "discard": "Quit without saving"
+  },
+  "applyTemplate": {
+    "title": "Apply a template",
+    "description": "Fields with matching names will keep their values. Fields not in the new template will be removed.",
+    "templatePlaceholder": "Choose a template",
+    "lostFieldsWarning_one": "{{count}} field will be removed:",
+    "lostFieldsWarning_other": "{{count}} fields will be removed:",
+    "submit": "Apply",
+    "submitting": "Applying…"
+  },
+  "toasts": {
+    "sessionUnbound": "Session not bound — please reload the page",
+    "saved": "Saved",
+    "saveError": "Failed to save",
+    "folderCreateError": "Could not create the folder",
+    "generated_one": "1 item generated",
+    "generated_other": "{{count}} items generated",
+    "generateError": "Generation failed"
+  }
+}

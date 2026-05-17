@@ -1,0 +1,66 @@
+{
+  "title": "Tous les projets",
+  "subtitle": "Vue d'ensemble de tous vos projets",
+  "noApiKeyWarning": "Aucune clé API configurée. La transcription IA est désactivée.",
+  "configure": "Configurer",
+  "importZip": "Importer ZIP",
+  "newProject": "Nouveau projet",
+  "empty": "Aucun projet",
+  "createFirst": "Créer votre premier projet",
+  "renamed": "Projet renommé",
+  "deleteDialog": {
+    "title": "Supprimer le projet ?",
+    "description": "Cette action est irréversible. Le projet « {{name}} » et tous ses fichiers seront supprimés définitivement."
+  },
+  "renameDialog": {
+    "title": "Renommer le projet",
+    "namePlaceholder": "Nom du projet",
+    "submit": "Renommer"
+  },
+  "card": {
+    "noSource": "Aucune source",
+    "filledTooltip": "{{filled}} / {{total}} éléments remplis",
+    "newBadge": "Nouveau",
+    "modified": "Modifié le {{date}}",
+    "sourcesCount_one": "{{count}} source",
+    "sourcesCount_other": "{{count}} sources",
+    "dossiersCount_one": "{{count}} dossier",
+    "dossiersCount_other": "{{count}} dossiers",
+    "elementsCount_one": "{{count}} élément",
+    "elementsCount_other": "{{count}} éléments"
+  },
+  "contextMenu": {
+    "rename": "Renommer",
+    "duplicate": "Dupliquer",
+    "openFolder": "Ouvrir le dossier",
+    "exportZip": "Exporter ZIP",
+    "delete": "Supprimer"
+  },
+  "create": {
+    "title": "Nouveau projet",
+    "description": "Un projet regroupe vos sources (PDF) et les éléments extraits.",
+    "nameLabel": "Nom du projet",
+    "namePlaceholder": "Mon corpus",
+    "templateLabel": "Modèle par défaut",
+    "templatePlaceholder": "Choisir un modèle",
+    "templateHint": "Modèle pré-sélectionné lors de la création d'un nouvel élément. Modifiable par élément. Vous pourrez ajouter des PDFs après la création.",
+    "submit": "Créer",
+    "submitting": "Création…",
+    "defaultName": "Nouveau projet"
+  },
+  "toasts": {
+    "loadError": "Erreur lors du chargement des projets",
+    "created": "Projet créé",
+    "createError": "Erreur lors de la création du projet",
+    "renameError": "Erreur lors du renommage",
+    "deleted": "Projet supprimé",
+    "deleteError": "Erreur lors de la suppression",
+    "duplicated": "Projet dupliqué",
+    "duplicateError": "Erreur lors de la duplication",
+    "openFolderError": "Impossible d'ouvrir le dossier",
+    "exported": "Projet exporté",
+    "exportError": "Erreur lors de l'export ZIP",
+    "imported": "Projet importé",
+    "importError": "Erreur lors de l'import ZIP"
+  }
+}

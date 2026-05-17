@@ -3,6 +3,7 @@
 // management, multi-select bulk moves, etc.
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useProjectStore, useTemplatesStore } from '@/stores'
 import { isFieldFilled } from '@shared/fieldValue'
 import {
@@ -27,11 +28,13 @@ import {
   TabsTrigger,
 } from '@/components/ui'
 import { Download, FileText, FolderOpen, Settings } from 'lucide-react'
+import { templateDisplayName } from '@/lib/templateLabels'
 import { ArticlesView } from './ArticlesView'
 import { SourcesView } from './SourcesView'
 import { ExportModal, ExportFormat, ExportModalChoices, buildExportOptions } from '../Editor/ExportModal'
 
 export function ProjectDetailPage() {
+  const { t } = useTranslation(['project', 'common'])
   const { projectId } = useParams<{ projectId: string }>()
   const navigate = useNavigate()
   const { project, articles, loadProject, loading, reset } = useProjectStore()
@@ -83,14 +86,14 @@ export function ProjectDetailPage() {
     if (loading) {
       return (
         <div className="flex items-center justify-center h-64">
-          <div className="text-muted-foreground">Chargement...</div>
+          <div className="text-muted-foreground">{t('common:loading')}</div>
         </div>
       )
     }
     return (
       <div className="p-8 flex flex-col items-center gap-4">
-        <p className="text-muted-foreground">Projet introuvable</p>
-        <Button onClick={() => navigate('/')}>Retour</Button>
+        <p className="text-muted-foreground">{t('project:notFound')}</p>
+        <Button onClick={() => navigate('/')}>{t('common:back')}</Button>
       </div>
     )
   }
@@ -137,7 +140,7 @@ export function ProjectDetailPage() {
     }
     const orphans = articles.filter((a) => a.dossierId === null).sort(compare)
     if (orphans.length > 0) {
-      dossierTitles.push({ beforeArticleId: orphans[0].id, title: 'Sans dossier' })
+      dossierTitles.push({ beforeArticleId: orphans[0].id, title: t('common:noFolder') })
       for (const a of orphans) ids.push(a.id)
     }
     if (ids.length === 0) return
@@ -181,7 +184,7 @@ export function ProjectDetailPage() {
               size="sm"
               className="h-7 w-6 p-0 ml-2"
               onClick={openSettings}
-              title="Paramètres du projet"
+              title={t('project:header.projectSettingsTitle')}
             >
               <Settings className="h-3.5 w-3.5" />
             </Button>
@@ -190,7 +193,7 @@ export function ProjectDetailPage() {
               size="sm"
               className="h-7 w-6 p-0"
               onClick={() => window.api.v2_projectsOpenFolder(project.id)}
-              title="Ouvrir le dossier du projet"
+              title={t('project:header.openFolderTitle')}
             >
               <FolderOpen className="h-3.5 w-3.5" />
             </Button>
@@ -201,10 +204,10 @@ export function ProjectDetailPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => navigate(`/editor/${project.id}`)}
-                title="Transcrire tout le projet"
+                title={t('project:header.transcribeTitle')}
               >
                 <FileText className="h-4 w-4 mr-1" />
-                Transcrire
+                {t('project:header.transcribe')}
               </Button>
             )}
             {project.articlesTotal > 0 && (
@@ -212,10 +215,10 @@ export function ProjectDetailPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => setExportOpen(true)}
-                title="Exporter tout le projet"
+                title={t('project:header.exportTitle')}
               >
                 <Download className="h-4 w-4 mr-1" />
-                Exporter
+                {t('project:header.export')}
               </Button>
             )}
           </div>
@@ -233,7 +236,7 @@ export function ProjectDetailPage() {
               value="articles"
               className="gap-2 px-2.5 py-1 text-sm data-[state=active]:bg-muted data-[state=active]:shadow-none data-[state=inactive]:text-muted-foreground hover:text-foreground"
             >
-              Éléments
+              {t('project:tabs.elements')}
               <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted-foreground/15 text-muted-foreground tabular-nums">
                 {project.articlesTotal}
               </span>
@@ -242,7 +245,7 @@ export function ProjectDetailPage() {
               value="sources"
               className="gap-2 px-2.5 py-1 text-sm data-[state=active]:bg-muted data-[state=active]:shadow-none data-[state=inactive]:text-muted-foreground hover:text-foreground"
             >
-              Sources
+              {t('project:tabs.sources')}
               <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted-foreground/15 text-muted-foreground tabular-nums">
                 {project.sourcesCount}
               </span>
@@ -254,15 +257,15 @@ export function ProjectDetailPage() {
                 <Switch
                   checked={incompleteOnly}
                   onCheckedChange={setIncompleteOnly}
-                  aria-label="Afficher uniquement les éléments incomplets"
+                  aria-label={t('project:filters.incompleteOnlyAria')}
                 />
-                <span>Incomplets seulement</span>
+                <span>{t('project:filters.incompleteOnly')}</span>
               </label>
             )}
             {fieldsTotal > 0 && (
               <div
                 className="flex items-center gap-2"
-                title={`${fieldsFilled} / ${fieldsTotal} champs remplis`}
+                title={t('project:filters.fillTooltip', { filled: fieldsFilled, total: fieldsTotal })}
               >
                 <CircularProgress
                   value={fillPct}
@@ -289,11 +292,11 @@ export function ProjectDetailPage() {
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Paramètres du projet</DialogTitle>
+            <DialogTitle>{t('project:settings.title')}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label htmlFor="project-name">Nom</Label>
+              <Label htmlFor="project-name">{t('project:settings.nameLabel')}</Label>
               <Input
                 id="project-name"
                 value={draftName}
@@ -303,30 +306,30 @@ export function ProjectDetailPage() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="project-template">Modèle par défaut</Label>
+              <Label htmlFor="project-template">{t('project:settings.templateLabel')}</Label>
               <Select value={draftTemplateId} onValueChange={setDraftTemplateId}>
                 <SelectTrigger id="project-template">
-                  <SelectValue placeholder="Choisir un modèle" />
+                  <SelectValue placeholder={t('project:settings.templatePlaceholder')} />
                 </SelectTrigger>
                 <SelectContent>
-                  {templates.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {t.name}
+                  {templates.map((tpl) => (
+                    <SelectItem key={tpl.id} value={tpl.id}>
+                      {templateDisplayName(tpl)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Appliqué aux nouveaux éléments. Les éléments existants gardent leur modèle.
+                {t('project:settings.templateHint')}
               </p>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setSettingsOpen(false)}>
-              Annuler
+              {t('common:cancel')}
             </Button>
             <Button onClick={saveSettings} disabled={!draftName.trim()}>
-              Enregistrer
+              {t('project:settings.submit')}
             </Button>
           </DialogFooter>
         </DialogContent>

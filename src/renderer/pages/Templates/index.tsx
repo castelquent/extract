@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   DndContext,
   closestCenter,
@@ -18,6 +19,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import type { Template, TemplateField, FieldType } from '@shared/types'
 import { useTemplatesStore } from '@/stores'
+import { templateDisplayName, templateDisplayDescription, fieldDisplayName, fieldDisplayHint } from '@/lib/templateLabels'
 import {
   Button,
   Card,
@@ -53,11 +55,7 @@ import {
 } from '@/components/ui'
 import { Plus, FileStack, Pencil, Trash2, GripVertical, X, ChevronDown, RotateCcw, Copy } from 'lucide-react'
 
-const FIELD_TYPE_LABELS: Record<FieldType, string> = {
-  text: 'Texte court',
-  textarea: 'Texte long',
-  richtext: 'Texte riche',
-}
+const FIELD_TYPE_KEYS: FieldType[] = ['text', 'textarea', 'richtext']
 
 // Generate prompt from template (same logic as backend)
 function buildPromptFromTemplate(template: Partial<Template>): string {
@@ -95,8 +93,11 @@ function createEmptyField(order: number): TemplateField {
   }
 }
 
-// Titre is always mandatory and first
+// Titre is always mandatory and first. `key='title'` so the localized label
+// resolves via fieldDisplayName() — the on-disk name stays 'Titre' for
+// backward compatibility with article snapshots.
 const TITRE_FIELD: TemplateField = {
+  key: 'title',
   name: 'Titre',
   type: 'text',
   order: 0,
@@ -129,6 +130,7 @@ interface FieldEditorProps {
 }
 
 function FieldEditor({ field, fieldId, onChange, onRemove, canRemove, isTitre, disabled }: FieldEditorProps) {
+  const { t } = useTranslation('templates')
   const {
     attributes,
     listeners,
@@ -164,19 +166,19 @@ function FieldEditor({ field, fieldId, onChange, onRemove, canRemove, isTitre, d
       <div className="flex-1 grid grid-cols-2 gap-3">
         <div className="space-y-1">
           <Label className="text-xs">
-            Nom du champ
-            {isTitre && <Badge variant="secondary" className="ml-2 text-[10px]">Obligatoire</Badge>}
+            {t('editor.fieldNameLabel')}
+            {isTitre && <Badge variant="secondary" className="ml-2 text-[10px]">{t('editor.fieldRequiredBadge')}</Badge>}
           </Label>
           <Input
-            value={field.name}
+            value={disabled ? fieldDisplayName(field) : field.name}
             onChange={(e) => onChange({ ...field, name: e.target.value })}
-            placeholder="Ex: Titre, Auteur..."
+            placeholder={t('editor.fieldNamePlaceholder')}
             disabled={disabled || isTitre}
           />
         </div>
 
         <div className="space-y-1">
-          <Label className="text-xs">Type</Label>
+          <Label className="text-xs">{t('editor.fieldTypeLabel')}</Label>
           <Select
             value={field.type}
             onValueChange={(value: FieldType) => onChange({ ...field, type: value })}
@@ -186,19 +188,19 @@ function FieldEditor({ field, fieldId, onChange, onRemove, canRemove, isTitre, d
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {Object.entries(FIELD_TYPE_LABELS).map(([value, label]) => (
-                <SelectItem key={value} value={value}>{label}</SelectItem>
+              {FIELD_TYPE_KEYS.map((value) => (
+                <SelectItem key={value} value={value}>{t(`editor.fieldTypes.${value}`)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
 
         <div className="space-y-1 col-span-2">
-          <Label className="text-xs">Indice pour l'IA (optionnel)</Label>
+          <Label className="text-xs">{t('editor.fieldHintLabel')}</Label>
           <Input
-            value={field.aiHint || ''}
+            value={disabled ? fieldDisplayHint(field) ?? '' : field.aiHint || ''}
             onChange={(e) => onChange({ ...field, aiHint: e.target.value })}
-            placeholder="Ex: L'auteur de l'article, si visible"
+            placeholder={t('editor.fieldHintPlaceholder')}
             disabled={disabled}
           />
         </div>
@@ -228,6 +230,7 @@ interface TemplateEditorModalProps {
 }
 
 function TemplateEditorModal({ template, open, onOpenChange, onSave }: TemplateEditorModalProps) {
+  const { t } = useTranslation(['templates', 'common'])
   const [editedTemplate, setEditedTemplate] = useState<Template>(createEmptyTemplate())
   const [customPrompt, setCustomPrompt] = useState<string | null>(null)
   const [promptOpen, setPromptOpen] = useState(false)
@@ -246,15 +249,28 @@ function TemplateEditorModal({ template, open, onOpenChange, onSave }: TemplateE
 
   useEffect(() => {
     if (template) {
-      // Ensure Titre field exists when editing
-      const hasTitre = template.fields.some(f => f.name === 'Titre' && f.order === 0)
-      if (!hasTitre) {
+      // Ensure exactly one Titre field at order 0. Match by `key === 'title'`
+      // OR `name === 'Titre'` so we cover both new key-aware templates and
+      // legacy data. Position is normalized to order 0 here regardless of
+      // where it was on disk — avoids the duplicate-Titre bug for existing
+      // installs whose press-article template was saved with order=1.
+      const titreIdx = template.fields.findIndex(
+        f => f.key === 'title' || f.name === 'Titre'
+      )
+      if (titreIdx < 0) {
         setEditedTemplate({
           ...template,
           fields: [{ ...TITRE_FIELD }, ...template.fields.map(f => ({ ...f, order: f.order + 1 }))],
         })
       } else {
-        setEditedTemplate({ ...template })
+        const existing = template.fields[titreIdx]
+        const rest = template.fields
+          .filter((_, i) => i !== titreIdx)
+          .map((f, i) => ({ ...f, order: i + 1 }))
+        setEditedTemplate({
+          ...template,
+          fields: [{ ...existing, order: 0 }, ...rest],
+        })
       }
     } else {
       setEditedTemplate(createEmptyTemplate())
@@ -351,13 +367,13 @@ function TemplateEditorModal({ template, open, onOpenChange, onSave }: TemplateE
       >
         <DialogHeader>
           <DialogTitle>
-            {isDefault ? 'Voir le modèle' : template ? 'Modifier le modèle' : 'Nouveau modèle'}
+            {isDefault ? t('editor.titleView') : template ? t('editor.titleEdit') : t('editor.titleCreate')}
           </DialogTitle>
         </DialogHeader>
 
         {isDefault && (
           <p className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg">
-            Les modèles par défaut ne peuvent pas être modifiés. Vous pouvez créer un nouveau modèle basé sur celui-ci.
+            {t('editor.defaultNote')}
           </p>
         )}
 
@@ -365,21 +381,25 @@ function TemplateEditorModal({ template, open, onOpenChange, onSave }: TemplateE
           {/* Informations de base */}
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Nom du modèle *</Label>
+              <Label>{t('editor.nameLabel')}</Label>
               <Input
-                value={editedTemplate.name}
+                value={isDefault ? templateDisplayName(editedTemplate) : editedTemplate.name}
                 onChange={(e) => setEditedTemplate({ ...editedTemplate, name: e.target.value })}
-                placeholder="Ex: Article de presse, Correspondance..."
+                placeholder={t('editor.namePlaceholder')}
                 disabled={isDefault}
               />
             </div>
 
             <div className="space-y-2">
-              <Label>Description</Label>
+              <Label>{t('editor.descriptionLabel')}</Label>
               <Input
-                value={editedTemplate.description || ''}
+                value={
+                  isDefault
+                    ? templateDisplayDescription(editedTemplate) ?? ''
+                    : editedTemplate.description || ''
+                }
                 onChange={(e) => setEditedTemplate({ ...editedTemplate, description: e.target.value })}
-                placeholder="Ex: Pour les journaux et magazines"
+                placeholder={t('editor.descriptionPlaceholder')}
                 disabled={isDefault}
               />
             </div>
@@ -388,11 +408,11 @@ function TemplateEditorModal({ template, open, onOpenChange, onSave }: TemplateE
           {/* Champs */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <Label>Champs</Label>
+              <Label>{t('editor.fieldsLabel')}</Label>
               {!isDefault && (
                 <Button variant="outline" size="sm" onClick={handleAddField}>
                   <Plus className="h-3 w-3 mr-1" />
-                  Ajouter un champ
+                  {t('editor.addField')}
                 </Button>
               )}
             </div>
@@ -431,7 +451,7 @@ function TemplateEditorModal({ template, open, onOpenChange, onSave }: TemplateE
                 type="button"
                 className="flex w-full items-center justify-between p-3 text-sm font-medium hover:bg-accent hover:text-accent-foreground rounded-md"
               >
-                <span>Prompt IA généré</span>
+                <span>{t('editor.promptTitle')}</span>
                 <ChevronDown className={`h-4 w-4 transition-transform ${promptOpen ? 'rotate-180' : ''}`} />
               </button>
             </CollapsibleTrigger>
@@ -446,12 +466,12 @@ function TemplateEditorModal({ template, open, onOpenChange, onSave }: TemplateE
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={handleCopyPrompt}>
                   <Copy className="h-3 w-3 mr-1" />
-                  Copier
+                  {t('editor.promptCopy')}
                 </Button>
                 {customPrompt !== null && !isDefault && (
                   <Button variant="outline" size="sm" onClick={handleResetPrompt}>
                     <RotateCcw className="h-3 w-3 mr-1" />
-                    Réinitialiser
+                    {t('editor.promptReset')}
                   </Button>
                 )}
               </div>
@@ -461,11 +481,11 @@ function TemplateEditorModal({ template, open, onOpenChange, onSave }: TemplateE
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            {isDefault ? 'Fermer' : 'Annuler'}
+            {isDefault ? t('editor.close') : t('common:cancel')}
           </Button>
           {!isDefault && (
             <Button onClick={handleSave} disabled={!isValid}>
-              Enregistrer
+              {t('editor.submit')}
             </Button>
           )}
         </DialogFooter>
@@ -475,6 +495,7 @@ function TemplateEditorModal({ template, open, onOpenChange, onSave }: TemplateE
 }
 
 export function TemplatesPage() {
+  const { t } = useTranslation(['templates', 'common'])
   const { templates, loading, loadTemplates, saveTemplate, deleteTemplate } = useTemplatesStore()
   const [editingTemplate, setEditingTemplate] = useState<Template | null>(null)
   const [showEditor, setShowEditor] = useState(false)
@@ -511,28 +532,28 @@ export function TemplatesPage() {
         <div className="flex items-center gap-3">
           <FileStack className="h-8 w-8 text-primary" />
           <div>
-            <h1 className="text-2xl font-bold">Modèles</h1>
-            <p className="text-muted-foreground text-sm">Gérez les modèles de champs pour vos projets</p>
+            <h1 className="text-2xl font-bold">{t('templates:title')}</h1>
+            <p className="text-muted-foreground text-sm">{t('templates:subtitle')}</p>
           </div>
         </div>
         <Button onClick={handleCreate}>
           <Plus className="h-4 w-4 mr-2" />
-          Nouveau modèle
+          {t('templates:newTemplate')}
         </Button>
       </header>
 
       {/* Templates Grid */}
       {loading ? (
         <div className="flex items-center justify-center h-64">
-          <div className="text-muted-foreground">Chargement...</div>
+          <div className="text-muted-foreground">{t('common:loading')}</div>
         </div>
       ) : templates.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-64 text-center">
           <FileStack className="h-16 w-16 text-muted-foreground/50 mb-4" />
-          <p className="text-muted-foreground mb-4">Aucun modèle</p>
+          <p className="text-muted-foreground mb-4">{t('templates:empty')}</p>
           <Button onClick={handleCreate}>
             <Plus className="h-4 w-4 mr-2" />
-            Créer votre premier modèle
+            {t('templates:createFirst')}
           </Button>
         </div>
       ) : (
@@ -543,13 +564,13 @@ export function TemplatesPage() {
                 <div className="flex items-start justify-between">
                   <div>
                     <CardTitle className="flex items-center gap-2">
-                      {template.name}
+                      {templateDisplayName(template)}
                       {template.isDefault && (
-                        <Badge variant="secondary" className="text-xs">Défaut</Badge>
+                        <Badge variant="secondary" className="text-xs">{t('templates:defaultBadge')}</Badge>
                       )}
                     </CardTitle>
-                    {template.description && (
-                      <CardDescription>{template.description}</CardDescription>
+                    {templateDisplayDescription(template) && (
+                      <CardDescription>{templateDisplayDescription(template)}</CardDescription>
                     )}
                   </div>
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -572,14 +593,14 @@ export function TemplatesPage() {
               <CardContent>
                 <div className="space-y-2">
                   <p className="text-sm text-muted-foreground">
-                    {template.fields.length} champ{template.fields.length > 1 ? 's' : ''}
+                    {t('templates:fieldsCount', { count: template.fields.length })}
                   </p>
                   <div className="flex flex-wrap gap-1">
                     {template.fields
                       .sort((a, b) => a.order - b.order)
                       .map((field) => (
                         <Badge key={field.name} variant="outline" className="text-xs">
-                          {field.name}
+                          {fieldDisplayName(field)}
                         </Badge>
                       ))}
                   </div>
@@ -602,18 +623,18 @@ export function TemplatesPage() {
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer le modèle ?</AlertDialogTitle>
+            <AlertDialogTitle>{t('templates:deleteDialog.title')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Cette action est irréversible. Le modèle "{deleteTarget?.name}" sera supprimé définitivement.
+              {t('templates:deleteDialog.description', { name: deleteTarget ? templateDisplayName(deleteTarget) : '' })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogCancel>{t('common:cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Supprimer
+              {t('common:delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

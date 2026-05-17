@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { Lock, Send, Trash2 } from 'lucide-react'
 import type { WorkingArticle as Article } from '@/stores/extractionStore'
 import {
@@ -29,6 +30,7 @@ export function ZoneContextMenu({
   onMoveToArticle,
   locked,
 }: ZoneContextMenuProps) {
+  const { t } = useTranslation(['extractor', 'common'])
   // Get other articles for the "Send to" submenu (most recent first = reverse order)
   const otherArticles = articles
     .filter((a) => a.id !== currentArticleId)
@@ -45,7 +47,7 @@ export function ZoneContextMenu({
         {locked ? (
           <ContextMenuItem disabled>
             <Lock className="h-4 w-4 mr-2 text-amber-500" />
-            Élément verrouillé — déverrouillez-le pour modifier
+            {t('extractor:zoneMenu.lockedHint')}
           </ContextMenuItem>
         ) : (
           <>
@@ -54,7 +56,7 @@ export function ZoneContextMenu({
                 <ContextMenuSub>
                   <ContextMenuSubTrigger>
                     <Send className="h-4 w-4 mr-2" />
-                    Envoyer à l'élément
+                    {t('extractor:zoneMenu.sendToElement')}
                   </ContextMenuSubTrigger>
                   <ContextMenuSubContent>
                     {otherArticles.map((article) => {
@@ -64,10 +66,10 @@ export function ZoneContextMenu({
                           key={article.id}
                           onClick={() => onMoveToArticle(article.id)}
                         >
-                          Élément {articleIndex + 1}
-                          <span className="ml-2 text-muted-foreground text-xs">
-                            ({article.zones.length} zone{article.zones.length > 1 ? 's' : ''})
-                          </span>
+                          {t('extractor:zoneMenu.elementWithCount', {
+                            index: articleIndex + 1,
+                            count: article.zones.length,
+                          })}
                         </ContextMenuItem>
                       )
                     })}
@@ -79,7 +81,7 @@ export function ZoneContextMenu({
 
             <ContextMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
               <Trash2 className="h-4 w-4 mr-2" />
-              Supprimer
+              {t('common:delete')}
             </ContextMenuItem>
           </>
         )}

@@ -1,0 +1,100 @@
+{
+  "backDefault": "Projet",
+  "backToProjects": "Retour aux projets",
+  "projectNotFound": "Projet introuvable",
+  "scope": {
+    "element": "Élément : {{title}}",
+    "selection": "Sélection",
+    "dossier": "Dossier : {{name}}"
+  },
+  "header": {
+    "exportAll": "Exporter tout"
+  },
+  "pdfPane": {
+    "noSelection": "Aucun élément sélectionné"
+  },
+  "form": {
+    "transcribe": "Transcrire avec IA",
+    "transcribing": "Transcription…",
+    "copyOcr": "Copier OCR",
+    "copyOcrTitle": "Copier le texte OCR du PDF dans le presse-papier",
+    "export": "Exporter",
+    "templateLabel": "Modèle :",
+    "templateChange": "Changer",
+    "templateCustom": "Personnalisé"
+  },
+  "navButtons": {
+    "previous": "Précédent",
+    "next": "Suivant"
+  },
+  "tabs": {
+    "editor": "Éditeur",
+    "summary": "Sommaire"
+  },
+  "summary": {
+    "title": "Éléments du projet"
+  },
+  "table": {
+    "columnElement": "Élément",
+    "columnFields": "Champs",
+    "selectAllAria": "Tout sélectionner",
+    "selectRowAria": "Sélectionner la ligne",
+    "openMenu": "Ouvrir le menu",
+    "transcribe": "Transcrire",
+    "delete": "Supprimer",
+    "empty": "Aucun élément.",
+    "draftTitle": "Modifications non sauvegardées",
+    "selected_one": "{{count}} sélectionné",
+    "selected_other": "{{count}} sélectionnés",
+    "bulkTranscribe": "Transcrire",
+    "bulkExport": "Exporter",
+    "bulkDelete": "Supprimer"
+  },
+  "deleteOne": {
+    "title": "Supprimer l'élément ?",
+    "description": "Cette action est irréversible."
+  },
+  "bulkDelete": {
+    "title_one": "Supprimer {{count}} élément ?",
+    "title_other": "Supprimer {{count}} éléments ?",
+    "description": "Cette action est irréversible."
+  },
+  "transcriptionModal": {
+    "title": "Transcription en cours",
+    "descriptionSingle": "L'IA analyse l'image et extrait le contenu de l'élément.<br/>Veuillez patienter…",
+    "descriptionBulk_one": "Transcription d'un élément en cours…",
+    "descriptionBulk_other": "Transcription de {{count}} éléments en cours…",
+    "progress": "{{current}} / {{total}} terminés"
+  },
+  "modelModal": {
+    "titleSingle": "Transcrire l'élément",
+    "titleBulk_one": "Transcrire {{count}} élément",
+    "titleBulk_other": "Transcrire {{count}} éléments",
+    "description": "Choisissez le modèle d'IA à utiliser pour cette transcription.",
+    "defaultModel": "Modèle par défaut : {{label}}",
+    "modelLabel": "Modèle",
+    "selectPlaceholder": "Sélectionner un modèle",
+    "missingApiKey": "clé API manquante",
+    "noKeyConfigured": "Aucune clé API configurée. Allez dans <strong>Paramètres &gt; IA</strong> pour en ajouter une.",
+    "submit": "Transcrire"
+  },
+  "toasts": {
+    "copyOcrNoExtract": "Aucun PDF généré pour cet élément",
+    "copyOcrNoText": "Aucun texte sélectionnable dans ce PDF",
+    "copyOcrSuccess": "Texte du PDF copié",
+    "copyOcrError": "Erreur lors de la copie du texte",
+    "transcribeSuccess_one": "1 élément transcrit",
+    "transcribeSuccess_other": "{{count}} éléments transcrits",
+    "transcribeFailed": "Échec de la transcription : {{error}}",
+    "transcribeMixed": "{{success}} réussi, {{errors}} échec : {{error}}",
+    "transcribeUnknownError": "Erreur inconnue",
+    "loadError": "Erreur lors du chargement des éléments",
+    "saveError": "Erreur lors de la sauvegarde",
+    "saved_one": "1 élément sauvegardé",
+    "saved_other": "{{count}} éléments sauvegardés",
+    "deleted": "Élément supprimé",
+    "deleteError": "Erreur lors de la suppression",
+    "templateApplied": "Modèle appliqué",
+    "templateApplyError": "Erreur lors de l'application du modèle"
+  }
+}

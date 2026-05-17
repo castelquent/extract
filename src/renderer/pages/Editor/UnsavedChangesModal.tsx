@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation, Trans } from 'react-i18next'
 import {
   Dialog,
   DialogContent,
@@ -23,6 +24,7 @@ export function UnsavedChangesModal({
   onDiscard,
   onCancel
 }: UnsavedChangesModalProps) {
+  const { t } = useTranslation(['extractor', 'common'])
   const [saving, setSaving] = useState(false)
 
   const handleSave = async () => {
@@ -43,25 +45,26 @@ export function UnsavedChangesModal({
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-yellow-500/10">
             <AlertTriangle className="h-6 w-6 text-yellow-500" />
           </div>
-          <DialogTitle className="text-center">Modifications non sauvegardées</DialogTitle>
+          <DialogTitle className="text-center">{t('extractor:unsavedChanges.title')}</DialogTitle>
           <DialogDescription className="text-center">
-            Vous avez des modifications non sauvegardées.
-            <br />
-            Que souhaitez-vous faire ?
+            <Trans
+              i18nKey="extractor:unsavedChanges.description"
+              components={{ br: <br /> }}
+            />
           </DialogDescription>
         </DialogHeader>
 
         <DialogFooter className="flex-col gap-2 sm:flex-col">
           <Button onClick={handleSave} disabled={saving} className="w-full">
             <Save className="h-4 w-4 mr-2" />
-            {saving ? 'Sauvegarde...' : 'Sauvegarder et quitter'}
+            {saving ? t('extractor:unsavedChanges.saveAndQuitInProgress') : t('extractor:unsavedChanges.saveAndQuit')}
           </Button>
           <Button variant="outline" onClick={onDiscard} disabled={saving} className="w-full">
             <X className="h-4 w-4 mr-2" />
-            Quitter sans sauvegarder
+            {t('extractor:unsavedChanges.discard')}
           </Button>
           <Button variant="ghost" onClick={onCancel} disabled={saving} className="w-full">
-            Annuler
+            {t('common:cancel')}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -1,6 +1,10 @@
 import { create } from 'zustand'
 import { toast } from 'sonner'
+import i18n from '@/lib/i18n'
 import type { Settings, AISettings } from '@shared/types'
+
+const t = (key: string, opts?: Record<string, unknown>): string =>
+  i18n.t(key, opts ?? {}) as string
 
 interface SettingsState {
   settings: Settings | null
@@ -47,8 +51,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const settings = await window.api.getSettings()
       set({ settings: settings || defaultSettings, loading: false })
     } catch (err) {
-      toast.error('Erreur lors du chargement des paramètres')
-      set({ settings: defaultSettings, error: 'Erreur lors du chargement des paramètres', loading: false })
+      toast.error(t('settings:toasts.loadError'))
+      set({ settings: defaultSettings, error: t('settings:toasts.loadError'), loading: false })
     }
   },
 
@@ -58,15 +62,15 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const success = await window.api.saveSettings(settings)
       if (success) {
         set({ settings, saving: false })
-        toast.success('Paramètres sauvegardés')
+        toast.success(t('settings:toasts.saved'))
       } else {
-        toast.error('Erreur lors de la sauvegarde des paramètres')
-        set({ error: 'Erreur lors de la sauvegarde des paramètres', saving: false })
+        toast.error(t('settings:toasts.saveError'))
+        set({ error: t('settings:toasts.saveError'), saving: false })
       }
       return success
     } catch (err) {
-      toast.error('Erreur lors de la sauvegarde des paramètres')
-      set({ error: 'Erreur lors de la sauvegarde des paramètres', saving: false })
+      toast.error(t('settings:toasts.saveError'))
+      set({ error: t('settings:toasts.saveError'), saving: false })
       return false
     }
   },

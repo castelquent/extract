@@ -1,4 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import {
   FileStack,
   FolderOpen,
@@ -28,6 +29,7 @@ import type { ProjectView } from '@shared/types'
 const RECENT_LIMIT = 5
 
 export function NavigationDrawer() {
+  const { t } = useTranslation('nav')
   const location = useLocation()
   const navigate = useNavigate()
   const { openSettings, openHelp, updateStatus } = useUIStore()
@@ -45,11 +47,10 @@ export function NavigationDrawer() {
     to: string
     icon: React.ElementType
     label: string
-    count: number
   }> = [
-    { to: '/', icon: Home, label: 'Tous les projets', count: projects.length },
-    { to: '/search', icon: Search, label: 'Recherche', count: 0 },
-    { to: '/templates', icon: FileStack, label: 'Modèles', count: 0 },
+    { to: '/', icon: Home, label: t('allProjects') },
+    { to: '/search', icon: Search, label: t('search') },
+    { to: '/templates', icon: FileStack, label: t('templates') },
   ]
 
   const isActiveProject = (project: ProjectView): boolean =>
@@ -67,7 +68,6 @@ export function NavigationDrawer() {
                   <item.icon className="h-4 w-4" />
                   <span>{item.label}</span>
                 </SidebarMenuButton>
-                {item.count > 0 && <SidebarMenuBadge>{item.count}</SidebarMenuBadge>}
               </SidebarMenuItem>
             )
           })}
@@ -75,7 +75,7 @@ export function NavigationDrawer() {
 
         {recentProjects.length > 0 && !isCollapsed && (
           <SidebarGroup>
-            <SidebarGroupLabel>Récents</SidebarGroupLabel>
+            <SidebarGroupLabel>{t('recent')}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {recentProjects.map((project) => (
@@ -87,14 +87,6 @@ export function NavigationDrawer() {
                       <FolderOpen className="h-4 w-4 shrink-0" />
                       <span className="truncate">{project.name}</span>
                     </SidebarMenuButton>
-                    {(() => {
-                      const pending =
-                        project.articlesToExtract +
-                        Math.max(0, project.articlesTotal - project.articlesFilled)
-                      return pending > 0 ? (
-                        <SidebarMenuBadge>{pending}</SidebarMenuBadge>
-                      ) : null
-                    })()}
                   </SidebarMenuItem>
                 ))}
               </SidebarMenu>
@@ -109,7 +101,7 @@ export function NavigationDrawer() {
           <SidebarMenuItem>
             <SidebarMenuButton onClick={openHelp}>
               <HelpCircle className="h-4 w-4" />
-              <span>Aide</span>
+              <span>{t('help')}</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
@@ -120,7 +112,7 @@ export function NavigationDrawer() {
                   <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary animate-pulse" />
                 )}
               </div>
-              <span>Paramètres</span>
+              <span>{t('settings')}</span>
             </SidebarMenuButton>
             {hasUpdate && (
               <SidebarMenuBadge className="bg-primary text-primary-foreground">!</SidebarMenuBadge>
@@ -129,7 +121,7 @@ export function NavigationDrawer() {
           <SidebarMenuItem>
             <SidebarMenuButton onClick={toggleSidebar}>
               {isCollapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
-              <span>{isCollapsed ? 'Agrandir' : 'Réduire'}</span>
+              <span>{isCollapsed ? t('expand') : t('collapse')}</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

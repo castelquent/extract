@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation, Trans } from 'react-i18next'
 import {
   Dialog,
   DialogContent,
@@ -40,6 +41,7 @@ export function ModelSelectionModal({
   onCancel,
   onConfirm,
 }: ModelSelectionModalProps) {
+  const { t } = useTranslation(['editor', 'common'])
   const [selectedModel, setSelectedModel] = useState(defaultModel)
 
   // Resynchroniser quand la modal s'ouvre (la valeur par défaut peut avoir
@@ -65,25 +67,27 @@ export function ModelSelectionModal({
             <Sparkles className="h-6 w-6 text-primary" />
           </div>
           <DialogTitle className="text-center">
-            {isBatch ? `Transcrire ${articleCount} éléments` : 'Transcrire l\'élément'}
+            {isBatch
+              ? t('editor:modelModal.titleBulk', { count: articleCount })
+              : t('editor:modelModal.titleSingle')}
           </DialogTitle>
           <DialogDescription className="text-center">
-            Choisissez le modèle d'IA à utiliser pour cette transcription.
+            {t('editor:modelModal.description')}
             <br />
-            <span className="text-xs">Modèle par défaut : {findModel(defaultModel)?.label ?? defaultModel}</span>
+            <span className="text-xs">{t('editor:modelModal.defaultModel', { label: findModel(defaultModel)?.label ?? defaultModel })}</span>
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-2 py-2">
-          <Label>Modèle</Label>
+          <Label>{t('editor:modelModal.modelLabel')}</Label>
           <Select value={selectedModel} onValueChange={setSelectedModel}>
             <SelectTrigger>
-              <SelectValue placeholder="Sélectionner un modèle" />
+              <SelectValue placeholder={t('editor:modelModal.selectPlaceholder')} />
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
                 <SelectLabel>
-                  Anthropic{!availableProviders.has('anthropic') && ' — clé API manquante'}
+                  Anthropic{!availableProviders.has('anthropic') && ` — ${t('editor:modelModal.missingApiKey')}`}
                 </SelectLabel>
                 {anthropicModels.map((model) => (
                   <SelectItem
@@ -97,7 +101,7 @@ export function ModelSelectionModal({
               </SelectGroup>
               <SelectGroup>
                 <SelectLabel>
-                  OpenAI{!availableProviders.has('openai') && ' — clé API manquante'}
+                  OpenAI{!availableProviders.has('openai') && ` — ${t('editor:modelModal.missingApiKey')}`}
                 </SelectLabel>
                 {openaiModels.map((model) => (
                   <SelectItem
@@ -116,7 +120,10 @@ export function ModelSelectionModal({
             <div className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-xs">
               <AlertCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
               <p className="text-destructive">
-                Aucune clé API configurée. Allez dans <strong>Paramètres &gt; IA</strong> pour en ajouter une.
+                <Trans
+                  i18nKey="editor:modelModal.noKeyConfigured"
+                  components={{ strong: <strong /> }}
+                />
               </p>
             </div>
           )}
@@ -124,11 +131,11 @@ export function ModelSelectionModal({
 
         <DialogFooter className="gap-2 sm:gap-2">
           <Button variant="outline" onClick={onCancel}>
-            Annuler
+            {t('common:cancel')}
           </Button>
           <Button onClick={() => onConfirm(selectedModel)} disabled={!selectedOption || !selectedHasKey}>
             <Sparkles className="h-4 w-4 mr-2" />
-            Transcrire
+            {t('editor:modelModal.submit')}
           </Button>
         </DialogFooter>
       </DialogContent>

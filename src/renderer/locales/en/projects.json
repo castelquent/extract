@@ -1,0 +1,66 @@
+{
+  "title": "All projects",
+  "subtitle": "Overview of all your projects",
+  "noApiKeyWarning": "No API key configured. AI transcription is disabled.",
+  "configure": "Configure",
+  "importZip": "Import ZIP",
+  "newProject": "New project",
+  "empty": "No projects yet",
+  "createFirst": "Create your first project",
+  "renamed": "Project renamed",
+  "deleteDialog": {
+    "title": "Delete this project?",
+    "description": "This action is irreversible. The project \"{{name}}\" and all its files will be permanently deleted."
+  },
+  "renameDialog": {
+    "title": "Rename project",
+    "namePlaceholder": "Project name",
+    "submit": "Rename"
+  },
+  "card": {
+    "noSource": "No source",
+    "filledTooltip": "{{filled}} / {{total}} items filled",
+    "newBadge": "New",
+    "modified": "Modified on {{date}}",
+    "sourcesCount_one": "{{count}} source",
+    "sourcesCount_other": "{{count}} sources",
+    "dossiersCount_one": "{{count}} folder",
+    "dossiersCount_other": "{{count}} folders",
+    "elementsCount_one": "{{count}} item",
+    "elementsCount_other": "{{count}} items"
+  },
+  "contextMenu": {
+    "rename": "Rename",
+    "duplicate": "Duplicate",
+    "openFolder": "Open folder",
+    "exportZip": "Export ZIP",
+    "delete": "Delete"
+  },
+  "create": {
+    "title": "New project",
+    "description": "A project groups your sources (PDFs) and the items extracted from them.",
+    "nameLabel": "Project name",
+    "namePlaceholder": "My corpus",
+    "templateLabel": "Default template",
+    "templatePlaceholder": "Choose a template",
+    "templateHint": "Pre-selected template when creating a new item. Can be changed per item. You can add PDFs after creation.",
+    "submit": "Create",
+    "submitting": "Creating…",
+    "defaultName": "New project"
+  },
+  "toasts": {
+    "loadError": "Failed to load projects",
+    "created": "Project created",
+    "createError": "Failed to create the project",
+    "renameError": "Failed to rename",
+    "deleted": "Project deleted",
+    "deleteError": "Failed to delete",
+    "duplicated": "Project duplicated",
+    "duplicateError": "Failed to duplicate",
+    "openFolderError": "Could not open the folder",
+    "exported": "Project exported",
+    "exportError": "Failed to export the ZIP",
+    "imported": "Project imported",
+    "importError": "Failed to import the ZIP"
+  }
+}

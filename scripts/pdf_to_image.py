@@ -86,7 +86,12 @@ def extract_zone_to_page(src_doc, new_doc, zone):
             work_page.add_redact_annot(
                 fitz.Rect(wx0, wy0, wx1, wy1), fill=(1, 1, 1)
             )
-    work_page.apply_redactions()
+    # images=PDF_REDACT_IMAGE_NONE: don't re-encode the page's embedded scan.
+    # Default behavior decompresses the scan, paints redactions onto pixels,
+    # and stores it back as Flate (no JPEG) — 20x file size on scanned PDFs.
+    # The white even-odd mask below already hides text visually; redactions
+    # here only need to strip the OCR text layer.
+    work_page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE)
 
     # Vector copy of the (now-redacted) bbox content
     new_page.show_pdf_page(new_page.rect, work, 0, clip=bbox)

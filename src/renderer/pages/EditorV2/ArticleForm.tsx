@@ -1,8 +1,10 @@
 // v2 ArticleForm. Renders fields from the article's snapshotted schema.
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import ReactQuill from 'react-quill'
 import 'react-quill/dist/quill.snow.css'
 import type { TemplateField } from '@shared/types'
+import { fieldDisplayName } from '@/lib/templateLabels'
 import {
   Button,
   Input,
@@ -41,6 +43,7 @@ interface DynamicFieldProps {
 }
 
 function RichTextField({ field, value, onChange }: DynamicFieldProps) {
+  const label = fieldDisplayName(field)
   const [localValue, setLocalValue] = useState(value)
   const prevValueRef = useRef(value)
   const isUpdatingRef = useRef(false)
@@ -78,12 +81,12 @@ function RichTextField({ field, value, onChange }: DynamicFieldProps) {
 
   return (
     <div className="space-y-2">
-      <Label>{field.name}</Label>
+      <Label>{label}</Label>
       <ReactQuill
         theme="snow"
         value={localValue}
         onChange={handleChange}
-        placeholder={field.name}
+        placeholder={label}
         modules={quillModules}
       />
     </div>
@@ -91,28 +94,29 @@ function RichTextField({ field, value, onChange }: DynamicFieldProps) {
 }
 
 function DynamicField({ field, value, onChange }: DynamicFieldProps) {
+  const label = fieldDisplayName(field)
   switch (field.type) {
     case 'text':
       return (
         <div className="space-y-2">
-          <Label htmlFor={field.name}>{field.name}</Label>
+          <Label htmlFor={field.name}>{label}</Label>
           <Input
             id={field.name}
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            placeholder={field.name}
+            placeholder={label}
           />
         </div>
       )
     case 'textarea':
       return (
         <div className="space-y-2">
-          <Label htmlFor={field.name}>{field.name}</Label>
+          <Label htmlFor={field.name}>{label}</Label>
           <Textarea
             id={field.name}
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            placeholder={field.name}
+            placeholder={label}
             rows={4}
           />
         </div>
@@ -136,6 +140,7 @@ export function ArticleForm({
   onExport,
   onApplyTemplate,
 }: ArticleFormProps) {
+  const { t } = useTranslation('editor')
   const sortedFields = [...schema].sort((a, b) => a.order - b.order)
 
   return (
@@ -149,22 +154,22 @@ export function ArticleForm({
             variant="secondary"
           >
             <Sparkles className={`h-4 w-4 mr-2 ${transcribing ? 'animate-pulse' : ''}`} />
-            {transcribing ? 'Transcription...' : 'Transcrire avec IA'}
+            {transcribing ? t('form.transcribing') : t('form.transcribe')}
           </Button>
           {onCopyOcr && (
             <Button
               onClick={onCopyOcr}
               disabled={copyingOcr}
               variant="outline"
-              title="Copier le texte OCR du PDF dans le presse-papier"
+              title={t('form.copyOcrTitle')}
             >
               <Copy className={`h-4 w-4 mr-2 ${copyingOcr ? 'animate-pulse' : ''}`} />
-              Copier OCR
+              {t('form.copyOcr')}
             </Button>
           )}
           <Button onClick={onExport} variant="outline">
             <Download className="h-4 w-4 mr-2" />
-            Exporter
+            {t('form.export')}
           </Button>
         </div>
 
@@ -172,7 +177,7 @@ export function ArticleForm({
           <div className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
             <FileStack className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">
-              Modèle : <span className="font-medium text-foreground">{currentTemplateName ?? 'Personnalisé'}</span>
+              {t('form.templateLabel')} <span className="font-medium text-foreground">{currentTemplateName ?? t('form.templateCustom')}</span>
             </span>
             <Button
               variant="ghost"
@@ -180,7 +185,7 @@ export function ArticleForm({
               className="h-6 text-xs px-2 ml-auto"
               onClick={onApplyTemplate}
             >
-              Changer
+              {t('form.templateChange')}
             </Button>
           </div>
         )}

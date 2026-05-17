@@ -1,3 +1,4 @@
+import { useTranslation, Trans } from 'react-i18next'
 import {
   Dialog,
   DialogContent,
@@ -14,6 +15,7 @@ interface TranscriptionModalProps {
 }
 
 export function TranscriptionModal({ open, progress }: TranscriptionModalProps) {
+  const { t } = useTranslation('editor')
   const isBulk = progress && progress.total > 1
 
   return (
@@ -29,16 +31,15 @@ export function TranscriptionModal({ open, progress }: TranscriptionModalProps) 
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
             <Sparkles className="h-8 w-8 text-primary animate-pulse" />
           </div>
-          <DialogTitle className="text-xl">Transcription en cours</DialogTitle>
+          <DialogTitle className="text-xl">{t('transcriptionModal.title')}</DialogTitle>
           <DialogDescription className="text-center">
             {isBulk ? (
-              <>Transcription de {progress.total} élements en cours...</>
+              t('transcriptionModal.descriptionBulk', { count: progress.total })
             ) : (
-              <>
-                L'IA analyse l'image et extrait le contenu de l'élément.
-                <br />
-                Veuillez patienter...
-              </>
+              <Trans
+                i18nKey="editor:transcriptionModal.descriptionSingle"
+                components={{ br: <br /> }}
+              />
             )}
           </DialogDescription>
         </DialogHeader>
@@ -46,7 +47,7 @@ export function TranscriptionModal({ open, progress }: TranscriptionModalProps) 
         {isBulk ? (
           <div className="space-y-4 py-4">
             <div className="flex items-center justify-between text-sm">
-              <span>{progress.current} / {progress.total} terminés</span>
+              <span>{t('transcriptionModal.progress', { current: progress.current, total: progress.total })}</span>
               <span className="text-muted-foreground">
                 {Math.round((progress.current / progress.total) * 100)}%
               </span>

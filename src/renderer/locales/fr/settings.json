@@ -1,0 +1,83 @@
+{
+  "title": "Paramètres",
+  "nav": {
+    "general": "Général",
+    "ai": "IA",
+    "privacy": "Confidentialité",
+    "logs": "Logs",
+    "updates": "Mise à jour"
+  },
+  "updateOverlay": {
+    "title": "Mise à jour en cours",
+    "description": "Veuillez patienter pendant le téléchargement…"
+  },
+  "general": {
+    "language": "Langue"
+  },
+  "ai": {
+    "title": "Intelligence Artificielle",
+    "defaultModel": "Modèle par défaut",
+    "selectModel": "Sélectionner un modèle",
+    "missingApiKey": "clé API manquante",
+    "anthropicKey": "Clé API Anthropic",
+    "anthropicKeyHint": "Requis pour utiliser les modèles Claude",
+    "openaiKey": "Clé API OpenAI",
+    "openaiKeyHint": "Requis pour utiliser les modèles GPT"
+  },
+  "logs": {
+    "title": "Logs de transcription",
+    "transcriptions": "Transcriptions",
+    "successful": "Réussies",
+    "totalCost": "Coût total",
+    "empty": "Aucune transcription enregistrée",
+    "costDisclaimer": "Coûts calculés à titre indicatif d'après les tarifs publics au moment de la mise à jour de l'app. Ils peuvent différer légèrement de votre facture réelle (paliers, cache, remises, surtaxes régionales, etc.).",
+    "table": {
+      "date": "Date",
+      "model": "Modèle",
+      "tokens": "Tokens",
+      "cost": "Coût",
+      "status": "Statut"
+    },
+    "statusOk": "OK",
+    "statusError": "Erreur"
+  },
+  "updates": {
+    "title": "Mise à jour",
+    "currentVersion": "Version actuelle",
+    "check": "Vérifier les mises à jour",
+    "available": "Mise à jour disponible : v{{version}}",
+    "downloadInstall": "Télécharger et installer",
+    "downloading": "Téléchargement en cours…",
+    "ready": "Mise à jour prête à être installée",
+    "restartInstall": "Redémarrer et installer",
+    "error": "Erreur : {{message}}",
+    "upToDate": "Vous êtes à jour !"
+  },
+  "toasts": {
+    "loadError": "Erreur lors du chargement des paramètres",
+    "saved": "Paramètres sauvegardés",
+    "saveError": "Erreur lors de la sauvegarde des paramètres"
+  },
+  "privacy": {
+    "title": "Confidentialité",
+    "intro": "Vous pouvez activer ou désactiver l'envoi des rapports d'erreur à tout moment.",
+    "telemetryTitle": "Partage des rapports d'erreur",
+    "telemetryHint": "Envoie automatiquement un rapport à Sentry quand l'application plante, pour nous aider à corriger les bugs.",
+    "enabled": "Activé",
+    "disabled": "Désactivé",
+    "includedTitle": "Ce qui est envoyé en cas de plantage",
+    "included": [
+      "Le message d'erreur et la pile d'appels.",
+      "La version d'ExtrAct et de votre système.",
+      "Quelques actions effectuées juste avant le crash."
+    ],
+    "excludedTitle": "Ce qui n'est jamais inclus",
+    "excluded": [
+      "Le contenu de vos PDFs, vos transcriptions, vos champs.",
+      "Votre clé API.",
+      "Votre adresse IP, votre nom d'utilisateur, vos chemins de fichiers."
+    ],
+    "note": "À noter : ExtrAct envoie vos zones de PDF à OpenAI ou Anthropic lors des transcriptions, c'est le principe de l'app. Cette option concerne uniquement les rapports d'erreur destinés à corriger les bugs.",
+    "recipient": "<bold>Destinataire :</bold> Sentry, serveurs en Allemagne (UE, RGPD). La modification prend effet au prochain démarrage de l'application."
+  }
+}

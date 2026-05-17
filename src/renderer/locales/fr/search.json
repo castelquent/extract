@@ -1,0 +1,34 @@
+{
+  "title": "Recherche",
+  "subtitle": "Rechercher dans tous les éléments de tous les projets",
+  "inputPlaceholder": "Tapez votre recherche, puis Entrée…",
+  "submit": "Rechercher",
+  "filters": {
+    "projects": "Projets",
+    "dossiers": "Dossiers",
+    "templates": "Modèles",
+    "fields": "Champs",
+    "clear": "Effacer les filtres",
+    "noTemplate": "Sans modèle"
+  },
+  "status": {
+    "indexing": "Indexation des projets…",
+    "results_one": "résultat dans {{projectCount}} projet",
+    "results_other": "résultats dans {{projectCount}} projets",
+    "indexed_one": "{{count}} élément indexé",
+    "indexed_other": "{{count}} éléments indexés"
+  },
+  "exportResults": "Exporter les résultats",
+  "empty": "Tapez votre recherche pour commencer",
+  "noResults": "Aucun résultat pour « {{query}} »",
+  "perProject_one": "{{count}} résultat",
+  "perProject_other": "{{count}} résultats",
+  "result": {
+    "dossierLabel": "Dossier",
+    "untitledArticle": "Élément sans titre",
+    "collapse": "Réduire",
+    "viewMentions": "Voir les {{count}} mentions",
+    "mentionsCount": "{{count}} mentions"
+  },
+  "backLabel": "Recherche"
+}

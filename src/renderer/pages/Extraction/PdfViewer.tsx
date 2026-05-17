@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import * as pdfjsLib from 'pdfjs-dist'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import PdfWorker from 'pdfjs-dist/build/pdf.worker.min.js?url'
@@ -25,6 +26,7 @@ export function PdfViewer({
   onCanvasReady,
   containerRef
 }: PdfViewerProps) {
+  const { t } = useTranslation('extractor')
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [pdfDoc, setPdfDoc] = useState<PDFDocumentProxy | null>(null)
   const [loading, setLoading] = useState(false)
@@ -160,7 +162,7 @@ export function PdfViewer({
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Chargement du PDF...</p>
+        <p className="text-muted-foreground">{t('pdf.loading')}</p>
       </div>
     )
   }
@@ -168,7 +170,7 @@ export function PdfViewer({
   if (error) {
     return (
       <div className="flex items-center justify-center h-full">
-        <p className="text-destructive">Erreur: {error}</p>
+        <p className="text-destructive">{t('pdf.error', { message: error })}</p>
       </div>
     )
   }
@@ -176,7 +178,7 @@ export function PdfViewer({
   if (!projectId) {
     return (
       <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Aucun PDF chargé</p>
+        <p className="text-muted-foreground">{t('pdf.empty')}</p>
       </div>
     )
   }

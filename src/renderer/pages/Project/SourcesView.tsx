@@ -6,6 +6,7 @@
 // SourceDossierMetadata in shared/types.
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import {
   DndContext,
   DragOverlay,
@@ -100,6 +101,7 @@ function SourceCard({
   onDelete: () => void
   onSettings: () => void
 }) {
+  const { t } = useTranslation(['sources', 'common'])
   const [thumbnailSrc, setThumbnailSrc] = useState<string | null>(null)
   useEffect(() => {
     if (source.thumbnailPath) {
@@ -143,10 +145,10 @@ function SourceCard({
             <h3 className="font-medium text-sm truncate">{displayName(source)}</h3>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <span>
-                {source.pageCount} page{source.pageCount === 1 ? '' : 's'}
+                {t('sources:card.pagesCount', { count: source.pageCount })}
               </span>
               <Badge variant="secondary" className="text-xs">
-                {source.articlesCount} élément{source.articlesCount === 1 ? '' : 's'}
+                {t('sources:card.itemsCount', { count: source.articlesCount })}
               </Badge>
             </div>
           </CardContent>
@@ -158,7 +160,7 @@ function SourceCard({
               e.stopPropagation()
               onSettings()
             }}
-            title="Paramètres de la source"
+            title={t('sources:card.settingsTitle')}
           >
             <Settings className="h-3.5 w-3.5" />
           </Button>
@@ -167,11 +169,11 @@ function SourceCard({
       <ContextMenuContent>
         <ContextMenuItem onClick={onOpen}>
           <FileText className="h-4 w-4 mr-2" />
-          Ouvrir pour extraction
+          {t('sources:card.contextOpen')}
         </ContextMenuItem>
         <ContextMenuItem onClick={onSettings}>
           <Settings className="h-4 w-4 mr-2" />
-          Paramètres
+          {t('sources:card.contextSettings')}
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem
@@ -179,7 +181,7 @@ function SourceCard({
           className="text-destructive focus:text-destructive"
         >
           <Trash2 className="h-4 w-4 mr-2" />
-          Supprimer
+          {t('common:delete')}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
@@ -205,6 +207,7 @@ function SourceTableRow({
   onDelete: () => void
   onSettings: () => void
 }) {
+  const { t } = useTranslation(['sources', 'common'])
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: source.id,
     data: { kind: 'source-card', sourceId: source.id },
@@ -234,7 +237,7 @@ function SourceTableRow({
           </span>
           <div className="flex justify-center">
             <Badge variant="secondary" className="text-xs">
-              {source.articlesCount} él.
+              {t('sources:card.itemsCountShort', { count: source.articlesCount })}
             </Badge>
           </div>
         </div>
@@ -242,11 +245,11 @@ function SourceTableRow({
       <ContextMenuContent>
         <ContextMenuItem onClick={onOpen}>
           <FileText className="h-4 w-4 mr-2" />
-          Ouvrir pour extraction
+          {t('sources:card.contextOpen')}
         </ContextMenuItem>
         <ContextMenuItem onClick={onSettings}>
           <Settings className="h-4 w-4 mr-2" />
-          Paramètres
+          {t('sources:card.contextSettings')}
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem
@@ -254,7 +257,7 @@ function SourceTableRow({
           className="text-destructive focus:text-destructive"
         >
           <Trash2 className="h-4 w-4 mr-2" />
-          Supprimer
+          {t('common:delete')}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
@@ -270,6 +273,7 @@ function SourceTableHeader({
   selectedIds: Set<string>
   onToggleAll: (ids: string[], select: boolean) => void
 }) {
+  const { t } = useTranslation('sources')
   const selectedInView = sourceIds.reduce(
     (n, id) => (selectedIds.has(id) ? n + 1 : n),
     0
@@ -282,16 +286,16 @@ function SourceTableHeader({
         : 'indeterminate'
   return (
     <div
-      className={`${TABLE_GRID} px-3 py-2 text-[11px] uppercase tracking-wide text-muted-foreground border-t border-b border-border/60 bg-background`}
+      className={`${TABLE_GRID} px-3 py-2 text-[11px] uppercase tracking-wide text-muted-foreground border-b border-border/60 bg-background`}
     >
       <Checkbox
         checked={headerCheckState}
         onCheckedChange={(v) => onToggleAll(sourceIds, v === true)}
-        aria-label="Tout sélectionner"
+        aria-label={t('table.selectAllAria')}
       />
-      <div>Nom</div>
-      <div className="text-right">Pages</div>
-      <div className="text-center">Éléments</div>
+      <div>{t('table.name')}</div>
+      <div className="text-right">{t('table.pages')}</div>
+      <div className="text-center">{t('table.items')}</div>
     </div>
   )
 }
@@ -309,6 +313,7 @@ function DragPreview({
   grabOffsetX: number
   grabOffsetY: number
 }) {
+  const { t } = useTranslation('sources')
   // The DragOverlay wrapper is sized to the source CARD (not a row), so we
   // can't use a % width — it'd come out tiny. Fix width (w-64) and offset
   // both X and Y by the captured grab position so the preview lands just
@@ -334,7 +339,7 @@ function DragPreview({
         ))}
         {extra > 0 && (
           <div className="px-3 py-1 text-xs text-muted-foreground italic">
-            et {extra} autre{extra > 1 ? 's' : ''}
+            {t('preview.more', { count: extra })}
           </div>
         )}
       </div>
@@ -367,6 +372,7 @@ function SourceDossierSidebarItem({
   onCancelRename: () => void
   onDelete: () => void
 }) {
+  const { t } = useTranslation('common')
   const { setNodeRef, isOver, active } = useDroppable({
     id: `source-dossier-drop:${dossier.id}`,
     data: { kind: 'source-dossier-drop', sourceDossierId: dossier.id },
@@ -412,7 +418,7 @@ function SourceDossierSidebarItem({
       <ContextMenuContent>
         <ContextMenuItem onClick={onStartRename}>
           <Pencil className="h-4 w-4 mr-2" />
-          Renommer
+          {t('rename')}
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem
@@ -420,7 +426,7 @@ function SourceDossierSidebarItem({
           className="text-destructive focus:text-destructive"
         >
           <Trash2 className="h-4 w-4 mr-2" />
-          Supprimer
+          {t('delete')}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
@@ -438,6 +444,7 @@ function SourceSettingsModal({
   open: boolean
   onClose: () => void
 }) {
+  const { t } = useTranslation(['sources', 'common'])
   const projectId = useProjectStore((s) => s.project?.id ?? null)
   const renameSource = useProjectStore((s) => s.renameSource)
   const replaceSourcePdf = useProjectStore((s) => s.replaceSourcePdf)
@@ -472,12 +479,12 @@ function SourceSettingsModal({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Paramètres de la source</DialogTitle>
+          <DialogTitle>{t('sources:sourceSettings.title')}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="source-name">Nom</Label>
+            <Label htmlFor="source-name">{t('sources:sourceSettings.nameLabel')}</Label>
             <Input
               id="source-name"
               value={nameDraft}
@@ -487,24 +494,23 @@ function SourceSettingsModal({
               autoFocus
             />
             <p className="text-xs text-muted-foreground">
-              Vide = utilise le nom du fichier importé ({fallbackName}).
+              {t('sources:sourceSettings.nameHint', { fallback: fallbackName })}
             </p>
           </div>
 
           <div className="border-t pt-4 space-y-2">
-            <Label>PDF source</Label>
+            <Label>{t('sources:sourceSettings.pdfSectionLabel')}</Label>
             <p className="text-xs text-muted-foreground">
-              Remplacer le PDF garde le lien avec les éléments existants, mais leurs
-              zones peuvent ne plus correspondre au nouveau document.
+              {t('sources:sourceSettings.pdfSectionHint')}
             </p>
             <div className="grid grid-cols-2 gap-2">
               <Button variant="outline" onClick={handleDownloadPdf}>
                 <Download className="h-4 w-4 mr-2" />
-                Télécharger
+                {t('sources:sourceSettings.download')}
               </Button>
               <Button variant="outline" onClick={handleReplacePdf}>
                 <FileUp className="h-4 w-4 mr-2" />
-                Remplacer
+                {t('sources:sourceSettings.replace')}
               </Button>
             </div>
           </div>
@@ -512,10 +518,10 @@ function SourceSettingsModal({
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
-            Annuler
+            {t('common:cancel')}
           </Button>
           <Button onClick={handleSave} disabled={!nameDirty}>
-            Enregistrer
+            {t('sources:sourceSettings.submit')}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -526,6 +532,7 @@ function SourceSettingsModal({
 // ---------- SourcesView ----------
 
 export function SourcesView({ projectId }: { projectId: string }) {
+  const { t, i18n } = useTranslation(['sources', 'common'])
   const navigate = useNavigate()
   const {
     sources,
@@ -625,9 +632,9 @@ export function SourcesView({ projectId }: { projectId: string }) {
     return filtered
       .slice()
       .sort((a, b) =>
-        displayName(a).localeCompare(displayName(b), 'fr', { sensitivity: 'base' })
+        displayName(a).localeCompare(displayName(b), i18n.language, { sensitivity: 'base' })
       )
-  }, [sources, selectedKey])
+  }, [sources, selectedKey, i18n.language])
 
   const activeDossier = useMemo(() => {
     if (selectedKey === ORPHANS_KEY) return null
@@ -830,14 +837,14 @@ export function SourcesView({ projectId }: { projectId: string }) {
           <div className="flex h-full flex-col">
             <div className="flex items-center justify-between gap-1 p-1.5 border-b shrink-0">
               <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pl-1.5 truncate">
-                Dossiers
+                {t('sources:sidebarHeader')}
               </span>
               <Button
                 variant="ghost"
                 size="sm"
                 className="h-7 w-7 p-0 shrink-0"
                 onClick={() => setNewDossierOpen(true)}
-                title="Nouveau dossier"
+                title={t('sources:newFolderTitle')}
               >
                 <Plus className="h-4 w-4" />
               </Button>
@@ -862,9 +869,9 @@ export function SourcesView({ projectId }: { projectId: string }) {
                 ref={orphansDrop.setNodeRef}
                 onClick={() => setSelectedKey(ORPHANS_KEY)}
                 className={`flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer ${selectedKey === ORPHANS_KEY ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground hover:bg-muted/40'} ${orphansDropActive ? 'bg-primary/10 outline outline-2 outline-primary/60 -outline-offset-1' : ''}`}
-                title="Sans dossier"
+                title={t('common:noFolder')}
               >
-                <span className="truncate">Sans dossier</span>
+                <span className="truncate">{t('common:noFolder')}</span>
               </li>
             </ul>
           </div>
@@ -872,9 +879,9 @@ export function SourcesView({ projectId }: { projectId: string }) {
 
         <div className="flex-1 min-w-0 h-full overflow-y-auto">
           <div className="sticky top-0 z-10 bg-background">
-            <div className="flex items-center justify-between gap-4 pt-2 pb-3 px-6">
+            <div className="flex items-center justify-between gap-4 pt-2 pb-3 px-6 border-b">
               <h2 className="text-xl font-semibold tracking-tight">
-                {activeDossier ? activeDossier.name : 'Sans dossier'}
+                {activeDossier ? activeDossier.name : t('common:noFolder')}
               </h2>
               <div className="flex items-center gap-1">
                 <div className="flex items-center rounded-md border bg-background mr-1">
@@ -883,7 +890,7 @@ export function SourcesView({ projectId }: { projectId: string }) {
                     size="sm"
                     className="h-7 px-2 rounded-r-none"
                     onClick={() => setViewMode('grid')}
-                    title="Vue grille"
+                    title={t('sources:viewGrid')}
                   >
                     <LayoutGrid className="h-3.5 w-3.5" />
                   </Button>
@@ -892,7 +899,7 @@ export function SourcesView({ projectId }: { projectId: string }) {
                     size="sm"
                     className="h-7 px-2 rounded-l-none"
                     onClick={() => setViewMode('table')}
-                    title="Vue tableau"
+                    title={t('sources:viewTable')}
                   >
                     <List className="h-3.5 w-3.5" />
                   </Button>
@@ -902,7 +909,7 @@ export function SourcesView({ projectId }: { projectId: string }) {
                   size="sm"
                   className="h-7 text-xs px-2"
                   onClick={addSources}
-                  title="Importer un PDF"
+                  title={t('sources:importPdfTitle')}
                 >
                   <Plus className="h-3.5 w-3.5" />
                 </Button>
@@ -921,18 +928,18 @@ export function SourcesView({ projectId }: { projectId: string }) {
               <FileText className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
               <p className="text-sm text-muted-foreground mb-4">
                 {sources.length === 0
-                  ? 'Aucune source importée'
-                  : 'Aucune source dans ce dossier'}
+                  ? t('sources:emptyNoImport')
+                  : t('sources:emptyFolder')}
               </p>
               {sources.length === 0 && (
                 <Button onClick={addSources}>
                   <Plus className="h-4 w-4 mr-1" />
-                  Importer un PDF
+                  {t('sources:importPdf')}
                 </Button>
               )}
             </div>
           ) : viewMode === 'grid' ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 px-6 pb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 px-6 pb-6 pt-3">
               {activeSources.map((s) => (
                 <SourceCard
                   key={s.id}
@@ -985,7 +992,7 @@ export function SourcesView({ projectId }: { projectId: string }) {
         >
           <div className="pointer-events-auto flex items-center gap-1 rounded-full border bg-background/95 backdrop-blur px-2 py-1.5 shadow-lg animate-in fade-in slide-in-from-bottom-4 duration-200">
             <span className="px-3 text-sm tabular-nums">
-              {selectedCount} sélectionné{selectedCount === 1 ? '' : 's'}
+              {t('sources:selectionBar.selected', { count: selectedCount })}
             </span>
             <div className="h-5 w-px bg-border" />
             <Button
@@ -998,7 +1005,7 @@ export function SourcesView({ projectId }: { projectId: string }) {
               }}
             >
               <MoveRight className="h-4 w-4 mr-1.5" />
-              Déplacer
+              {t('sources:selectionBar.move')}
             </Button>
             <Button
               variant="ghost"
@@ -1007,7 +1014,7 @@ export function SourcesView({ projectId }: { projectId: string }) {
               onClick={() => setBulkDeleteOpen(true)}
             >
               <Trash2 className="h-4 w-4 mr-1.5" />
-              Supprimer
+              {t('sources:selectionBar.delete')}
             </Button>
             <div className="h-5 w-px bg-border" />
             <Button
@@ -1015,7 +1022,7 @@ export function SourcesView({ projectId }: { projectId: string }) {
               size="sm"
               className="h-8 w-8 rounded-full p-0 text-muted-foreground"
               onClick={() => setSelectedIds(new Set())}
-              title="Désélectionner"
+              title={t('common:deselect')}
             >
               <X className="h-4 w-4" />
             </Button>
@@ -1027,20 +1034,20 @@ export function SourcesView({ projectId }: { projectId: string }) {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
-              Déplacer {selectedCount} source{selectedCount === 1 ? '' : 's'}
+              {t('sources:bulkMove.title', { count: selectedCount })}
             </DialogTitle>
             <DialogDescription>
-              Choisissez le dossier de destination dans ce projet.
+              {t('sources:bulkMove.description')}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 pt-2">
-            <Label>Dossier de destination</Label>
+            <Label>{t('sources:bulkMove.destLabel')}</Label>
             <Select value={bulkMoveTarget} onValueChange={setBulkMoveTarget}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={ORPHANS_KEY}>Sans dossier</SelectItem>
+                <SelectItem value={ORPHANS_KEY}>{t('common:noFolder')}</SelectItem>
                 {sourceDossiers.map((d) => (
                   <SelectItem key={d.id} value={d.id}>
                     {d.name}
@@ -1051,9 +1058,9 @@ export function SourcesView({ projectId }: { projectId: string }) {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setBulkMoveOpen(false)}>
-              Annuler
+              {t('common:cancel')}
             </Button>
-            <Button onClick={handleBulkMoveConfirm}>Déplacer</Button>
+            <Button onClick={handleBulkMoveConfirm}>{t('sources:bulkMove.submit')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1062,16 +1069,14 @@ export function SourcesView({ projectId }: { projectId: string }) {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Supprimer {selectedCount} source{selectedCount === 1 ? '' : 's'} ?
+              {t('sources:bulkDelete.title', { count: selectedCount })}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Les sources utilisées par des éléments ne seront pas supprimées (un
-              message s'affichera pour chacune). Cette action est irréversible
-              pour les autres.
+              {t('sources:bulkDelete.description')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogCancel>{t('common:cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault()
@@ -1079,7 +1084,7 @@ export function SourcesView({ projectId }: { projectId: string }) {
               }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Supprimer
+              {t('common:delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1097,15 +1102,15 @@ export function SourcesView({ projectId }: { projectId: string }) {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer cette source ?</AlertDialogTitle>
+            <AlertDialogTitle>{t('sources:deleteOne.title')}</AlertDialogTitle>
             <AlertDialogDescription>
               {deleteTarget && deleteTarget.articlesCount > 0
-                ? `Cette source est utilisée par ${deleteTarget.articlesCount} élément(s). Supprimez-les d'abord ou ils auront une source manquante.`
-                : "Cette action est irréversible. Le PDF source sera supprimé."}
+                ? t('sources:deleteOne.descriptionInUse', { count: deleteTarget.articlesCount })
+                : t('sources:deleteOne.descriptionFree')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogCancel>{t('common:cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault()
@@ -1113,7 +1118,7 @@ export function SourcesView({ projectId }: { projectId: string }) {
               }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Supprimer
+              {t('common:delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1122,21 +1127,21 @@ export function SourcesView({ projectId }: { projectId: string }) {
       <Dialog open={newDossierOpen} onOpenChange={setNewDossierOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Nouveau dossier de sources</DialogTitle>
+            <DialogTitle>{t('sources:newFolderDialog.title')}</DialogTitle>
           </DialogHeader>
           <Input
             value={newDossierName}
             onChange={(e) => setNewDossierName(e.target.value)}
-            placeholder="Nom du dossier"
+            placeholder={t('sources:newFolderDialog.placeholder')}
             autoFocus
             onKeyDown={(e) => e.key === 'Enter' && handleCreateDossier()}
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewDossierOpen(false)}>
-              Annuler
+              {t('common:cancel')}
             </Button>
             <Button onClick={handleCreateDossier} disabled={!newDossierName.trim()}>
-              Créer
+              {t('sources:newFolderDialog.submit')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1148,13 +1153,13 @@ export function SourcesView({ projectId }: { projectId: string }) {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer ce dossier ?</AlertDialogTitle>
+            <AlertDialogTitle>{t('sources:deleteFolder.title')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Les sources qu'il contient seront rendues orphelines (mais conservées).
+              {t('sources:deleteFolder.description')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogCancel>{t('common:cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={async (e) => {
                 e.preventDefault()
@@ -1164,7 +1169,7 @@ export function SourcesView({ projectId }: { projectId: string }) {
               }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Supprimer
+              {t('common:delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1177,29 +1182,28 @@ export function SourcesView({ projectId }: { projectId: string }) {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Déplacer {pendingMove?.sourceIds.length ?? 0} source
-              {(pendingMove?.sourceIds.length ?? 0) === 1 ? '' : 's'} ?
+              {t('sources:pendingMove.title', { count: pendingMove?.sourceIds.length ?? 0 })}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {(() => {
                 const target =
                   pendingMove?.targetSourceDossierId == null
-                    ? 'Sans dossier'
+                    ? t('common:noFolder')
                     : sourceDossiers.find((d) => d.id === pendingMove.targetSourceDossierId)
                         ?.name ?? '?'
-                return `Vers : ${target}`
+                return t('sources:pendingMove.to', { target })
               })()}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogCancel>{t('common:cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault()
                 void confirmPendingMove()
               }}
             >
-              Déplacer
+              {t('common:move')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

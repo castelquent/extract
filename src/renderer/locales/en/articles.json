@@ -1,0 +1,88 @@
+{
+  "sidebarHeader": "Folders",
+  "newFolderTitle": "New folder",
+  "newFolder": {
+    "title": "New folder",
+    "placeholder": "Folder name",
+    "submit": "Create"
+  },
+  "columns": {
+    "title": "Title",
+    "source": "Source",
+    "pages": "Pages",
+    "completion": "Fill rate",
+    "modified": "Modified",
+    "menuLabel": "Columns",
+    "menuTitle": "Visible columns"
+  },
+  "header": {
+    "openInEditorTitle": "Open in editor",
+    "noItemsToTranscribeTitle": "No items to transcribe"
+  },
+  "selectAllAria": "Select all in this section",
+  "emptyAllProjects": "No items yet. Import a source and extract items from the Sources tab.",
+  "emptyFolder": "No items",
+  "emptyFolderAllComplete": "All items are filled.",
+  "row": {
+    "open": "Open",
+    "pageShort": "p{{page}}",
+    "pagesCountShort": "{{count}}p"
+  },
+  "preview": {
+    "more_one": "and {{count}} more",
+    "more_other": "and {{count}} more"
+  },
+  "selectionBar": {
+    "selected_one": "{{count}} selected",
+    "selected_other": "{{count}} selected",
+    "transcribe": "Transcribe",
+    "export": "Export",
+    "move": "Move",
+    "delete": "Delete"
+  },
+  "deleteFolder": {
+    "title": "Delete this folder?",
+    "description": "What should happen to the items inside?",
+    "keepItems": "Keep the items",
+    "keepItemsHint": " (they'll become orphans in the project)",
+    "deleteContent": "Delete the items too"
+  },
+  "pendingMove": {
+    "title_one": "Move {{count}} item?",
+    "title_other": "Move {{count}} items?",
+    "to": "To: {{target}}"
+  },
+  "bulkDelete": {
+    "title_one": "Delete {{count}} item?",
+    "title_other": "Delete {{count}} items?",
+    "description": "This action is irreversible."
+  },
+  "moveDialog": {
+    "title_one": "Move {{count}} item",
+    "title_other": "Move {{count}} items",
+    "description": "Choose the destination within this project or another project.",
+    "tabInProject": "In this project",
+    "tabOtherProject": "Other project",
+    "destFolder": "Destination folder",
+    "destProject": "Destination project",
+    "destProjectPlaceholder": "Choose a project",
+    "noOtherProject": "No other project",
+    "destFolderInTarget": "Folder in target project",
+    "submit": "Move",
+    "submitting": "Moving…"
+  },
+  "toasts": {
+    "folderCreated": "Folder created",
+    "folderCreateError": "Failed to create the folder",
+    "folderRenamed": "Folder renamed",
+    "folderRenameError": "Failed to rename",
+    "folderDeletedOrphan": "Folder deleted, items now orphaned",
+    "folderDeletedAll": "Folder and items deleted",
+    "folderDeleteError": "Failed to delete the folder",
+    "deleteError": "Failed to delete the item",
+    "moveError": "Failed to move",
+    "moved_one": "1 item moved",
+    "moved_other": "{{count}} items moved",
+    "reorderError": "Failed to reorder"
+  }
+}

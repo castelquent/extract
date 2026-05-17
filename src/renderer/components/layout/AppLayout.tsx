@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Outlet, useNavigate } from 'react-router-dom'
 import { Toaster } from 'sonner'
+import i18n, { isSupportedLanguage } from '@/lib/i18n'
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { NavigationDrawer } from './NavigationDrawer'
 import { SettingsModal } from './SettingsModal'
@@ -19,6 +20,15 @@ export function AppLayout() {
   const loadTemplates = useTemplatesStore((state) => state.loadTemplates)
   const loadSettings = useSettingsStore((state) => state.loadSettings)
   const settings = useSettingsStore((state) => state.settings)
+  const language = useSettingsStore((state) => state.settings?.app.language)
+
+  // Apply the persisted/detected language to i18n whenever it changes. Runs
+  // once after the initial loadSettings resolves, and again on user picks.
+  useEffect(() => {
+    if (language && isSupportedLanguage(language) && language !== i18n.language) {
+      void i18n.changeLanguage(language)
+    }
+  }, [language])
 
   useEffect(() => {
     loadProjects()

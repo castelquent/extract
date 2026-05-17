@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { ChevronDown, Download, FileText, Loader2, Search as SearchIcon, X } from 'lucide-react'
 import type {
   ArticleMetadata,
@@ -161,6 +162,7 @@ const FilterDropdown = ({
 }
 
 export function SearchPage() {
+  const { t } = useTranslation('search')
   const navigate = useNavigate()
   const projects = useProjectsStoreV2((s) => s.projects)
   const loadProjects = useProjectsStoreV2((s) => s.loadProjects)
@@ -221,6 +223,27 @@ export function SearchPage() {
     fieldFilter.size > 0 ||
     templateFilter.size > 0
 
+  // When the project filter changes, the previously-selected dossiers may no
+  // longer belong to any selected project. Drop the stale ones (or clear the
+  // whole set when no project is selected, since the dossier filter is then
+  // hidden anyway).
+  useEffect(() => {
+    if (projectFilter.size === 0) {
+      setDossierFilter((prev) => (prev.size === 0 ? prev : new Set()))
+      return
+    }
+    if (!index) return
+    const validDossierIds = new Set<string>()
+    for (const { project, dossier } of index.dossiers) {
+      if (projectFilter.has(project.id)) validDossierIds.add(dossier.id)
+    }
+    setDossierFilter((prev) => {
+      const next = new Set<string>()
+      for (const id of prev) if (validDossierIds.has(id)) next.add(id)
+      return next.size === prev.size ? prev : next
+    })
+  }, [projectFilter, index])
+
   const templates = useTemplatesStore((s) => s.templates)
   const loadTemplates = useTemplatesStore((s) => s.loadTemplates)
   useEffect(() => {
@@ -240,6 +263,10 @@ export function SearchPage() {
   }, [index, templates])
 
   // Available filter option sets, derived from the current index.
+  // Dossiers are restricted to the currently selected projects — without a
+  // project filter the list is overwhelming (every dossier across every
+  // project), and choosing a dossier from a non-selected project would never
+  // match anyway.
   const filterOptions = useMemo(() => {
     const projectOpts = new Map<string, string>()
     const dossierOpts = new Map<string, string>()
@@ -249,16 +276,18 @@ export function SearchPage() {
       for (const { project } of index.articles) projectOpts.set(project.id, project.name)
       for (const { project, dossier } of index.dossiers) {
         projectOpts.set(project.id, project.name)
-        dossierOpts.set(dossier.id, dossier.name)
+        if (projectFilter.size === 0 || projectFilter.has(project.id)) {
+          dossierOpts.set(dossier.id, dossier.name)
+        }
       }
       for (const { article } of index.articles) {
         for (const f of article.schema ?? []) fieldOpts.add(f.name)
       }
       for (const tplId of articleTemplateIds.values()) {
         if (tplId === 'none') {
-          templateOpts.set('none', 'Sans modèle')
+          templateOpts.set('none', t('filters.noTemplate'))
         } else {
-          const tpl = templates.find((t) => t.id === tplId)
+          const tpl = templates.find((x) => x.id === tplId)
           if (tpl) templateOpts.set(tpl.id, tpl.name)
         }
       }
@@ -275,7 +304,7 @@ export function SearchPage() {
         a.label.localeCompare(b.label)
       ),
     }
-  }, [index, articleTemplateIds, templates])
+  }, [index, articleTemplateIds, templates, projectFilter])
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -446,6 +475,7 @@ export function SearchPage() {
       }
     }
     return collected
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, index, projectFilter, dossierFilter, fieldFilter, templateFilter, articleTemplateIds])
 
   const groupedHits = useMemo(() => {
@@ -464,7 +494,7 @@ export function SearchPage() {
       hit.kind === 'article'
         ? `/editor/${hit.project.id}?article=${hit.article.id}`
         : `/editor/${hit.project.id}?dossier=${hit.dossier.id}`
-    navigate(dest, { state: { from: searchUrl, fromLabel: 'Recherche' } })
+    navigate(dest, { state: { from: searchUrl, fromLabel: t('backLabel') } })
   }
 
   const [exportOpen, setExportOpen] = useState(false)
@@ -514,9 +544,9 @@ export function SearchPage() {
       <header className="flex items-center gap-3 mb-6">
         <SearchIcon className="h-8 w-8 text-primary" />
         <div>
-          <h1 className="text-2xl font-bold">Recherche</h1>
+          <h1 className="text-2xl font-bold">{t('title')}</h1>
           <p className="text-muted-foreground text-sm">
-            Rechercher dans tous les éléments de tous les projets
+            {t('subtitle')}
           </p>
         </div>
       </header>
@@ -535,7 +565,7 @@ export function SearchPage() {
                 submitQuery('')
               }
             }}
-            placeholder="Tapez votre recherche, puis Entrée…"
+            placeholder={t('inputPlaceholder')}
             className="pl-10 h-11 text-base"
           />
         </div>
@@ -544,31 +574,33 @@ export function SearchPage() {
           disabled={inputValue.trim().length < 2 || inputValue.trim() === query}
           className="h-11 px-5"
         >
-          Rechercher
+          {t('submit')}
         </Button>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <FilterDropdown
-          label="Projets"
+          label={t('filters.projects')}
           options={filterOptions.projects}
           selected={projectFilter}
           onChange={setProjectFilter}
         />
+        {projectFilter.size > 0 && (
+          <FilterDropdown
+            label={t('filters.dossiers')}
+            options={filterOptions.dossiers}
+            selected={dossierFilter}
+            onChange={setDossierFilter}
+          />
+        )}
         <FilterDropdown
-          label="Dossiers"
-          options={filterOptions.dossiers}
-          selected={dossierFilter}
-          onChange={setDossierFilter}
-        />
-        <FilterDropdown
-          label="Modèles"
+          label={t('filters.templates')}
           options={filterOptions.templates}
           selected={templateFilter}
           onChange={setTemplateFilter}
         />
         <FilterDropdown
-          label="Champs"
+          label={t('filters.fields')}
           options={filterOptions.fields.map((f) => ({ id: f, label: f }))}
           selected={fieldFilter}
           onChange={setFieldFilter}
@@ -576,7 +608,7 @@ export function SearchPage() {
         {hasAnyFilter && (
           <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={clearFilters}>
             <X className="h-3.5 w-3.5 mr-1" />
-            Effacer les filtres
+            {t('filters.clear')}
           </Button>
         )}
       </div>
@@ -585,27 +617,23 @@ export function SearchPage() {
         {indexing ? (
           <>
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            <span>Indexation des projets…</span>
+            <span>{t('status.indexing')}</span>
           </>
         ) : showResults ? (
           <>
             <Badge variant="secondary">{hits.length}</Badge>
             <span>
-              résultat{hits.length > 1 ? 's' : ''} dans {groupedHits.length} projet
-              {groupedHits.length > 1 ? 's' : ''}
+              {t('status.results', { count: hits.length, projectCount: groupedHits.length })}
             </span>
           </>
         ) : index ? (
-          <span>
-            {totalArticles} élément{totalArticles > 1 ? 's' : ''} indexé
-            {totalArticles > 1 ? 's' : ''}
-          </span>
+          <span>{t('status.indexed', { count: totalArticles })}</span>
         ) : null}
         <span className="flex-1" />
         {showResults && exportItems.length > 0 && (
           <Button variant="outline" size="sm" onClick={() => setExportOpen(true)}>
             <Download className="h-4 w-4 mr-1" />
-            Exporter les résultats
+            {t('exportResults')}
           </Button>
         )}
       </div>
@@ -614,12 +642,12 @@ export function SearchPage() {
         {!showResults ? (
           <div className="flex flex-col items-center justify-center h-64 text-center text-muted-foreground">
             <FileText className="h-12 w-12 mb-3 opacity-50" />
-            <p>Tapez votre recherche pour commencer</p>
+            <p>{t('empty')}</p>
           </div>
         ) : hits.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-center text-muted-foreground">
             <SearchIcon className="h-12 w-12 mb-3 opacity-50" />
-            <p>Aucun résultat pour « {query} »</p>
+            <p>{t('noResults', { query })}</p>
           </div>
         ) : (
           <div className="space-y-6">
@@ -628,7 +656,7 @@ export function SearchPage() {
                 <div className="flex items-center gap-2 mb-2 py-1">
                   <h2 className="font-semibold">{project.name}</h2>
                   <Badge variant="outline">
-                    {projectHits.length} résultat{projectHits.length > 1 ? 's' : ''}
+                    {t('perProject', { count: projectHits.length })}
                   </Badge>
                 </div>
                 <div className="space-y-2">

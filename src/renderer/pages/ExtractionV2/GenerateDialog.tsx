@@ -2,6 +2,7 @@
 // extraction session. Lets them place the generated articles in a new dossier,
 // an existing dossier, or as orphans in the project.
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   Button,
   Dialog,
@@ -44,6 +45,7 @@ export function GenerateDialog({
   dossiers,
   onConfirm,
 }: GenerateDialogProps) {
+  const { t } = useTranslation(['extractor', 'common'])
   const [choice, setChoice] = useState<Choice>('new-dossier')
   const [newDossierName, setNewDossierName] = useState('')
   const [existingDossierId, setExistingDossierId] = useState<string>('')
@@ -77,9 +79,9 @@ export function GenerateDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Générer {articleCount} élément{articleCount === 1 ? '' : 's'}</DialogTitle>
+          <DialogTitle>{t('extractor:generateDialog.title', { count: articleCount })}</DialogTitle>
           <DialogDescription>
-            Comment organiser les éléments générés dans ce projet ?
+            {t('extractor:generateDialog.description')}
           </DialogDescription>
         </DialogHeader>
 
@@ -92,12 +94,12 @@ export function GenerateDialog({
               className="mt-1"
             />
             <div className="flex-1 space-y-2">
-              <span className="text-sm font-medium">Créer un nouveau dossier</span>
+              <span className="text-sm font-medium">{t('extractor:generateDialog.newDossier')}</span>
               <Input
                 value={newDossierName}
                 onChange={(e) => setNewDossierName(e.target.value)}
                 disabled={choice !== 'new-dossier'}
-                placeholder="Nom du dossier"
+                placeholder={t('extractor:generateDialog.newDossierPlaceholder')}
               />
             </div>
           </label>
@@ -111,14 +113,14 @@ export function GenerateDialog({
               className="mt-1"
             />
             <div className="flex-1 space-y-2">
-              <span className="text-sm font-medium">Ajouter à un dossier existant</span>
+              <span className="text-sm font-medium">{t('extractor:generateDialog.existingDossier')}</span>
               <Select
                 value={existingDossierId}
                 onValueChange={setExistingDossierId}
                 disabled={choice !== 'existing-dossier' || dossiers.length === 0}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Choisir un dossier" />
+                  <SelectValue placeholder={t('extractor:generateDialog.existingDossierPlaceholder')} />
                 </SelectTrigger>
                 <SelectContent>
                   {dossiers.map((d) => (
@@ -139,24 +141,24 @@ export function GenerateDialog({
               className="mt-1"
             />
             <div className="flex-1">
-              <span className="text-sm font-medium">Sans dossier</span>
+              <span className="text-sm font-medium">{t('extractor:generateDialog.noDossier')}</span>
               <p className="text-xs text-muted-foreground">
-                Les éléments seront ajoutés directement au projet.
+                {t('extractor:generateDialog.noDossierHint')}
               </p>
             </div>
           </label>
 
           <Label className="block text-xs text-muted-foreground pt-2">
-            La génération produit un PDF par élément et peut prendre quelques secondes.
+            {t('extractor:generateDialog.footnote')}
           </Label>
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
-            Annuler
+            {t('common:cancel')}
           </Button>
           <Button onClick={handleConfirm} disabled={!canConfirm || submitting}>
-            {submitting ? 'Génération...' : 'Générer'}
+            {submitting ? t('extractor:generateDialog.submitting') : t('extractor:generateDialog.submit')}
           </Button>
         </DialogFooter>
       </DialogContent>

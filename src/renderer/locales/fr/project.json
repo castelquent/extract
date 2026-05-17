@@ -1,0 +1,31 @@
+{
+  "notFound": "Projet introuvable",
+  "header": {
+    "projectSettingsTitle": "Paramètres du projet",
+    "openFolderTitle": "Ouvrir le dossier du projet",
+    "transcribeTitle": "Transcrire tout le projet",
+    "transcribe": "Transcrire",
+    "exportTitle": "Exporter tout le projet",
+    "export": "Exporter"
+  },
+  "tabs": {
+    "elements": "Éléments",
+    "sources": "Sources"
+  },
+  "filters": {
+    "incompleteOnly": "Incomplets seulement",
+    "incompleteOnlyAria": "Afficher uniquement les éléments incomplets",
+    "fillTooltip": "{{filled}} / {{total}} champs remplis"
+  },
+  "settings": {
+    "title": "Paramètres du projet",
+    "nameLabel": "Nom",
+    "templateLabel": "Modèle par défaut",
+    "templatePlaceholder": "Choisir un modèle",
+    "templateHint": "Appliqué aux nouveaux éléments. Les éléments existants gardent leur modèle.",
+    "submit": "Enregistrer"
+  },
+  "toasts": {
+    "loadError": "Erreur lors du chargement du projet"
+  }
+}

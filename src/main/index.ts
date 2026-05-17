@@ -1,22 +1,36 @@
 import * as Sentry from '@sentry/electron/main'
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 import { autoUpdater } from 'electron-updater'
 import { setupIpcHandlers } from './ipc'
 import { setupFsWatchers, teardownFsWatchers } from './watchers'
 import { buildIndex } from './ipc/v2/_index'
 
-// Initialise Sentry as early as possible so we capture errors from the
-// very first tick (including any throws inside imports). Disabled in dev
-// to avoid noise during local work; opt-in/out from settings is a TODO.
-if (app.isPackaged) {
+// Read the telemetry consent flag synchronously from disk before initialising
+// Sentry. The settings file is the single source of truth; the renderer's
+// onboarding step writes it and we re-read it on every cold start. We never
+// init Sentry until the user has explicitly opted in (RGPD: no telemetry
+// without informed, specific consent).
+function isTelemetryEnabled(): boolean {
+  try {
+    const path = join(app.getPath('userData'), 'settings.json')
+    if (!existsSync(path)) return false
+    const parsed = JSON.parse(readFileSync(path, 'utf-8'))
+    return parsed?.app?.telemetryEnabled === true
+  } catch {
+    return false
+  }
+}
+
+if (app.isPackaged && isTelemetryEnabled()) {
   Sentry.init({
     dsn: 'https://69d2a7cc6f89691253af58fda7410ae1@o4511299765796864.ingest.de.sentry.io/4511390055071824',
     // Tag every event with the running app version. Critical for triaging
     // bugs: "this stack only happens on 2.0.7" is the first question you
     // ask in front of a Sentry issue.
     release: `extract@${app.getVersion()}`,
-    // No PII (user paths, IPs) — researcher targets are GDPR/Loi 25 sensitive.
+    // No PII (user paths, IPs). Researcher targets are GDPR/Loi 25 sensitive.
     sendDefaultPii: false,
   })
 }

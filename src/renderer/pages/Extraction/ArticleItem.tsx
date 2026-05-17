@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { FileStack, Lock, Trash2, Unlock } from 'lucide-react'
 import {
   DndContext,
@@ -13,6 +14,7 @@ import {
 } from '@dnd-kit/sortable'
 import type { WorkingArticle as Article } from '@/stores/extractionStore'
 import type { Template } from '@shared/types'
+import { templateDisplayName } from '@/lib/templateLabels'
 import {
   Badge,
   Button,
@@ -62,8 +64,11 @@ export function ArticleItem({
   onUnlockRequest,
   children,
 }: ArticleItemProps) {
-  const currentTemplateName =
-    templates?.find((t) => t.id === article.templateId)?.name ?? 'Personnalisé'
+  const { t } = useTranslation('extractor')
+  const matchedTpl = templates?.find((tpl) => tpl.id === article.templateId)
+  const currentTemplateName = matchedTpl
+    ? templateDisplayName(matchedTpl)
+    : t('article.templateCustom')
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -119,15 +124,15 @@ export function ArticleItem({
             {locked && (
               <Lock
                 className="h-3.5 w-3.5 text-amber-500"
-                aria-label="Élément verrouillé"
+                aria-label={t('article.lockedAria')}
               />
             )}
-            Élement {index + 1}
+            {t('article.label', { index: index + 1 })}
           </span>
 
           {/* Zone count */}
           <Badge variant="secondary" className="text-xs">
-            {article.zones.length} zone{article.zones.length > 1 ? 's' : ''}
+            {t('article.zonesCount', { count: article.zones.length })}
           </Badge>
 
           {/* Action button: unlock for locked elements, delete for the rest */}
@@ -136,7 +141,7 @@ export function ArticleItem({
               variant="ghost"
               size="icon"
               className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-              title="Déverrouiller (vide les champs)"
+              title={t('article.unlockTitle')}
               onClick={(e) => {
                 e.stopPropagation()
                 onUnlockRequest?.()
@@ -170,26 +175,26 @@ export function ArticleItem({
                 size="sm"
                 className="h-7 text-xs"
                 onClick={onChangeModelRequest}
-                title="Le modèle s'applique avec préservation des champs"
+                title={t('article.templateButtonTitle')}
               >
                 <FileStack className="h-3.5 w-3.5 mr-1.5" />
-                Modèle : {currentTemplateName}
+                {t('article.templateButton', { name: currentTemplateName })}
               </Button>
             ) : onTemplateChange ? (
               <Select
                 value={article.templateId ?? ''}
                 onValueChange={(id) => {
-                  const template = templates.find((t) => t.id === id)
+                  const template = templates.find((tpl) => tpl.id === id)
                   if (template) onTemplateChange(template)
                 }}
               >
                 <SelectTrigger className="h-7 text-xs">
-                  <SelectValue placeholder="Modèle" />
+                  <SelectValue placeholder={t('article.templatePlaceholder')} />
                 </SelectTrigger>
                 <SelectContent>
-                  {templates.map((t) => (
-                    <SelectItem key={t.id} value={t.id} className="text-xs">
-                      {t.name}
+                  {templates.map((tpl) => (
+                    <SelectItem key={tpl.id} value={tpl.id} className="text-xs">
+                      {templateDisplayName(tpl)}
                     </SelectItem>
                   ))}
                 </SelectContent>

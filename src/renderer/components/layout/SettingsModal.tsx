@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useTranslation, Trans } from 'react-i18next'
 import { useSettingsStore, useUIStore } from '@/stores'
+import { SUPPORTED_LANGUAGES, type SupportedLanguage } from '@/lib/i18n'
 import {
   Button,
   Input,
@@ -17,13 +19,14 @@ import {
   DialogContent,
   ScrollArea,
 } from '@/components/ui'
-import { Save, RefreshCw, Bot, Download, Receipt } from 'lucide-react'
+import { Save, RefreshCw, Bot, Download, Receipt, Globe, Shield } from 'lucide-react'
 import type { TranscriptionLog } from '@shared/types'
 import { AI_MODELS, calculateCost, formatCost, getAvailableProviders } from '@/lib/aiModels'
 
-type SettingsTab = 'ai' | 'logs' | 'updates'
+type SettingsTab = 'general' | 'ai' | 'privacy' | 'logs' | 'updates'
 
 export function SettingsModal() {
+  const { t } = useTranslation(['settings', 'common'])
   const {
     settingsOpen,
     closeSettings,
@@ -33,9 +36,9 @@ export function SettingsModal() {
     updateError,
     setUpdateStatus: setGlobalUpdateStatus,
   } = useUIStore()
-  const { settings, loading, saving, loadSettings, saveSettings, updateAI } = useSettingsStore()
+  const { settings, loading, saving, loadSettings, saveSettings, updateAI, updateApp } = useSettingsStore()
 
-  const [activeTab, setActiveTab] = useState<SettingsTab>('ai')
+  const [activeTab, setActiveTab] = useState<SettingsTab>('general')
   const [version, setVersion] = useState('')
   const [checking, setChecking] = useState(false)
   const [logs, setLogs] = useState<TranscriptionLog[]>([])
@@ -107,22 +110,21 @@ export function SettingsModal() {
   }
 
   const navItems = [
-    { id: 'ai' as const, label: 'IA', icon: Bot },
-    { id: 'logs' as const, label: 'Logs', icon: Receipt },
-    { id: 'updates' as const, label: 'Mise à jour', icon: Download },
+    { id: 'general' as const, label: t('settings:nav.general'), icon: Globe },
+    { id: 'ai' as const, label: t('settings:nav.ai'), icon: Bot },
+    { id: 'privacy' as const, label: t('settings:nav.privacy'), icon: Shield },
+    { id: 'logs' as const, label: t('settings:nav.logs'), icon: Receipt },
+    { id: 'updates' as const, label: t('settings:nav.updates'), icon: Download },
   ]
 
   return (
     <>
-      {/* Overlay de blocage pendant la mise à jour */}
       {isUpdating && (
         <div className="fixed inset-0 z-[100] bg-background/80 backdrop-blur-sm flex items-center justify-center">
           <div className="bg-card p-8 rounded-lg shadow-lg text-center space-y-4 max-w-md">
             <RefreshCw className="h-12 w-12 mx-auto animate-spin text-primary" />
-            <h2 className="text-xl font-semibold">Mise à jour en cours</h2>
-            <p className="text-muted-foreground">
-              Veuillez patienter pendant le téléchargement...
-            </p>
+            <h2 className="text-xl font-semibold">{t('settings:updateOverlay.title')}</h2>
+            <p className="text-muted-foreground">{t('settings:updateOverlay.description')}</p>
             <div className="w-full bg-muted rounded-full h-3">
               <div
                 className="bg-primary h-3 rounded-full transition-all duration-300"
@@ -137,14 +139,11 @@ export function SettingsModal() {
       <Dialog open={settingsOpen} onOpenChange={(open) => !open && !isUpdating && closeSettings()}>
         <DialogContent className="max-w-3xl max-h-[80vh] p-0 overflow-hidden">
         {loading || !settings ? (
-          <div className="py-8 text-center text-muted-foreground">
-            Chargement...
-          </div>
+          <div className="py-8 text-center text-muted-foreground">{t('common:loading')}</div>
         ) : (
           <div className="flex h-[500px]">
-            {/* Sidebar */}
             <div className="w-48 border-r bg-muted/30 p-4 flex flex-col">
-              <h2 className="font-semibold text-lg mb-4 px-2">Paramètres</h2>
+              <h2 className="font-semibold text-lg mb-4 px-2">{t('settings:title')}</h2>
               <nav className="space-y-1">
                 {navItems.map((item) => (
                   <button
@@ -163,24 +162,48 @@ export function SettingsModal() {
               </nav>
             </div>
 
-            {/* Content */}
             <div className="flex-1 flex flex-col">
               <div className="flex-1 overflow-y-auto p-6">
+                {activeTab === 'general' && (
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-lg font-medium mb-4">{t('settings:nav.general')}</h3>
+                      <div className="space-y-2 max-w-sm">
+                        <Label>{t('settings:general.language')}</Label>
+                        <Select
+                          value={settings.app.language ?? 'fr'}
+                          onValueChange={(v) => updateApp('language', v as SupportedLanguage)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {SUPPORTED_LANGUAGES.map((lng) => (
+                              <SelectItem key={lng} value={lng}>
+                                {t(`common:language.${lng}`)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {activeTab === 'ai' && (
                   <div className="space-y-6">
                     <div>
-                      <h3 className="text-lg font-medium mb-4">Intelligence Artificielle</h3>
+                      <h3 className="text-lg font-medium mb-4">{t('settings:ai.title')}</h3>
 
-                      {/* Model Selection */}
                       <div className="space-y-4">
                         <div className="space-y-2">
-                          <Label>Modèle par défaut</Label>
+                          <Label>{t('settings:ai.defaultModel')}</Label>
                           <Select
                             value={settings.ai.model}
                             onValueChange={handleModelChange}
                           >
                             <SelectTrigger>
-                              <SelectValue placeholder="Sélectionner un modèle" />
+                              <SelectValue placeholder={t('settings:ai.selectModel')} />
                             </SelectTrigger>
                             <SelectContent>
                               {(['anthropic', 'openai'] as const).map(provider => {
@@ -190,7 +213,7 @@ export function SettingsModal() {
                                 return (
                                   <SelectGroup key={provider}>
                                     <SelectLabel>
-                                      {label}{!available && ' — clé API manquante'}
+                                      {label}{!available && ` — ${t('settings:ai.missingApiKey')}`}
                                     </SelectLabel>
                                     {models.map(model => (
                                       <SelectItem key={model.value} value={model.value} disabled={!available}>
@@ -206,9 +229,8 @@ export function SettingsModal() {
 
                         <Separator />
 
-                        {/* Anthropic API Key */}
                         <div className="space-y-2">
-                          <Label>Clé API Anthropic</Label>
+                          <Label>{t('settings:ai.anthropicKey')}</Label>
                           <Input
                             type="password"
                             value={settings.ai.anthropicApiKey || ''}
@@ -216,13 +238,12 @@ export function SettingsModal() {
                             placeholder="sk-ant-..."
                           />
                           <p className="text-xs text-muted-foreground">
-                            Requis pour utiliser les modèles Claude
+                            {t('settings:ai.anthropicKeyHint')}
                           </p>
                         </div>
 
-                        {/* OpenAI API Key */}
                         <div className="space-y-2">
-                          <Label>Clé API OpenAI</Label>
+                          <Label>{t('settings:ai.openaiKey')}</Label>
                           <Input
                             type="password"
                             value={settings.ai.openaiApiKey || ''}
@@ -230,9 +251,71 @@ export function SettingsModal() {
                             placeholder="sk-..."
                           />
                           <p className="text-xs text-muted-foreground">
-                            Requis pour utiliser les modèles GPT
+                            {t('settings:ai.openaiKeyHint')}
                           </p>
                         </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'privacy' && (
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-lg font-medium mb-1">{t('settings:privacy.title')}</h3>
+                      <p className="text-sm text-muted-foreground mb-6">
+                        {t('settings:privacy.intro')}
+                      </p>
+
+                      <div className="rounded-lg border bg-card p-4 space-y-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <p className="font-medium text-sm">{t('settings:privacy.telemetryTitle')}</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {t('settings:privacy.telemetryHint')}
+                            </p>
+                          </div>
+                          <Button
+                            variant={settings.app.telemetryEnabled ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => updateApp('telemetryEnabled', !settings.app.telemetryEnabled)}
+                          >
+                            {settings.app.telemetryEnabled
+                              ? t('settings:privacy.enabled')
+                              : t('settings:privacy.disabled')}
+                          </Button>
+                        </div>
+
+                        <Separator />
+
+                        <div>
+                          <p className="text-xs font-medium mb-1.5">{t('settings:privacy.includedTitle')}</p>
+                          <ul className="space-y-1 text-xs text-muted-foreground pl-4 list-disc">
+                            {(t('settings:privacy.included', { returnObjects: true }) as string[]).map((line, i) => (
+                              <li key={i}>{line}</li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        <div>
+                          <p className="text-xs font-medium mb-1.5">{t('settings:privacy.excludedTitle')}</p>
+                          <ul className="space-y-1 text-xs text-muted-foreground pl-4 list-disc">
+                            {(t('settings:privacy.excluded', { returnObjects: true }) as string[]).map((line, i) => (
+                              <li key={i}>{line}</li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        <p className="text-xs text-muted-foreground italic">
+                          {t('settings:privacy.note')}
+                        </p>
+
+                        <p className="text-xs text-muted-foreground">
+                          <Trans
+                            i18nKey="settings:privacy.recipient"
+                            components={{ bold: <strong /> }}
+                          />
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -241,43 +324,39 @@ export function SettingsModal() {
                 {activeTab === 'logs' && (
                   <div className="space-y-6">
                     <div>
-                      <h3 className="text-lg font-medium mb-4">Logs de transcription</h3>
+                      <h3 className="text-lg font-medium mb-4">{t('settings:logs.title')}</h3>
 
-                      {/* Summary */}
                       <div className="grid grid-cols-3 gap-4 mb-6">
                         <div className="p-4 bg-muted/50 rounded-lg text-center">
                           <p className="text-2xl font-bold">{logs.length}</p>
-                          <p className="text-xs text-muted-foreground">Transcriptions</p>
+                          <p className="text-xs text-muted-foreground">{t('settings:logs.transcriptions')}</p>
                         </div>
                         <div className="p-4 bg-muted/50 rounded-lg text-center">
                           <p className="text-2xl font-bold">{successCount}</p>
-                          <p className="text-xs text-muted-foreground">Réussies</p>
+                          <p className="text-xs text-muted-foreground">{t('settings:logs.successful')}</p>
                         </div>
                         <div className="p-4 bg-green-500/10 rounded-lg text-center">
                           <p className="text-2xl font-bold text-green-600">{formatCost(totalCost)}</p>
-                          <p className="text-xs text-muted-foreground">Coût total</p>
+                          <p className="text-xs text-muted-foreground">{t('settings:logs.totalCost')}</p>
                         </div>
                       </div>
 
-                      {/* Logs list */}
                       {logs.length === 0 ? (
-                        <p className="text-center text-muted-foreground py-8">
-                          Aucune transcription enregistrée
-                        </p>
+                        <p className="text-center text-muted-foreground py-8">{t('settings:logs.empty')}</p>
                       ) : (
                         <>
                           <p className="text-xs text-muted-foreground mb-2 italic">
-                            Coûts calculés à titre indicatif d'après les tarifs publics au moment de la mise à jour de l'app. Ils peuvent différer légèrement de votre facture réelle (paliers, cache, remises, surtaxes régionales, etc.).
+                            {t('settings:logs.costDisclaimer')}
                           </p>
                           <ScrollArea className="h-[280px] border rounded-lg">
                           <table className="w-full text-sm">
                             <thead className="bg-muted/50 sticky top-0">
                               <tr>
-                                <th className="text-left p-2 font-medium">Date</th>
-                                <th className="text-left p-2 font-medium">Modèle</th>
-                                <th className="text-right p-2 font-medium">Tokens</th>
-                                <th className="text-right p-2 font-medium">Coût</th>
-                                <th className="text-center p-2 font-medium">Statut</th>
+                                <th className="text-left p-2 font-medium">{t('settings:logs.table.date')}</th>
+                                <th className="text-left p-2 font-medium">{t('settings:logs.table.model')}</th>
+                                <th className="text-right p-2 font-medium">{t('settings:logs.table.tokens')}</th>
+                                <th className="text-right p-2 font-medium">{t('settings:logs.table.cost')}</th>
+                                <th className="text-center p-2 font-medium">{t('settings:logs.table.status')}</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -287,12 +366,10 @@ export function SettingsModal() {
                                 return (
                                   <tr key={idx} className="border-t hover:bg-muted/30">
                                     <td className="p-2 text-muted-foreground">
-                                      {new Date(log.date).toLocaleDateString('fr-FR', {
-                                        day: '2-digit',
-                                        month: '2-digit',
-                                        hour: '2-digit',
-                                        minute: '2-digit'
-                                      })}
+                                      {new Date(log.date).toLocaleDateString(
+                                        settings.app.language === 'en' ? 'en-US' : 'fr-FR',
+                                        { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }
+                                      )}
                                     </td>
                                     <td className="p-2 truncate max-w-[150px]" title={modelLabel}>
                                       {modelLabel.split(': ')[1] || modelLabel}
@@ -305,9 +382,13 @@ export function SettingsModal() {
                                     </td>
                                     <td className="p-2 text-center">
                                       {log.success ? (
-                                        <Badge variant="default" className="bg-green-500/20 text-green-600 text-xs">OK</Badge>
+                                        <Badge variant="default" className="bg-green-500/20 text-green-600 text-xs">
+                                          {t('settings:logs.statusOk')}
+                                        </Badge>
                                       ) : (
-                                        <Badge variant="destructive" className="text-xs">Erreur</Badge>
+                                        <Badge variant="destructive" className="text-xs">
+                                          {t('settings:logs.statusError')}
+                                        </Badge>
                                       )}
                                     </td>
                                   </tr>
@@ -325,36 +406,35 @@ export function SettingsModal() {
                 {activeTab === 'updates' && (
                   <div className="space-y-6">
                     <div>
-                      <h3 className="text-lg font-medium mb-4">Mise à jour</h3>
+                      <h3 className="text-lg font-medium mb-4">{t('settings:updates.title')}</h3>
 
                       <div className="space-y-4">
                         <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
                           <div>
-                            <p className="font-medium">Version actuelle</p>
+                            <p className="font-medium">{t('settings:updates.currentVersion')}</p>
                             <Badge variant="secondary" className="mt-1">v{version}</Badge>
                           </div>
                           <Button variant="outline" onClick={checkForUpdates} disabled={checking || isUpdating}>
                             <RefreshCw className={`h-4 w-4 mr-2 ${checking ? 'animate-spin' : ''}`} />
-                            Vérifier les mises à jour
+                            {t('settings:updates.check')}
                           </Button>
                         </div>
 
-                        {/* Status messages */}
                         {globalUpdateStatus === 'available' && updateVersion && (
                           <div className="p-4 bg-primary/10 rounded-lg space-y-3">
                             <p className="text-sm font-medium text-primary">
-                              Mise à jour disponible : v{updateVersion}
+                              {t('settings:updates.available', { version: updateVersion })}
                             </p>
                             <Button onClick={handleStartUpdate} className="w-full">
                               <Download className="h-4 w-4 mr-2" />
-                              Télécharger et installer
+                              {t('settings:updates.downloadInstall')}
                             </Button>
                           </div>
                         )}
 
                         {globalUpdateStatus === 'downloading' && (
                           <div className="p-4 bg-muted rounded-lg space-y-3">
-                            <p className="text-sm font-medium">Téléchargement en cours...</p>
+                            <p className="text-sm font-medium">{t('settings:updates.downloading')}</p>
                             <div className="w-full bg-muted-foreground/20 rounded-full h-2">
                               <div
                                 className="bg-primary h-2 rounded-full transition-all duration-300"
@@ -370,10 +450,10 @@ export function SettingsModal() {
                         {globalUpdateStatus === 'ready' && (
                           <div className="p-4 bg-green-500/10 rounded-lg space-y-3">
                             <p className="text-sm font-medium text-green-600">
-                              Mise à jour prête à être installée
+                              {t('settings:updates.ready')}
                             </p>
                             <Button onClick={handleInstallUpdate} className="w-full" variant="default">
-                              Redémarrer et installer
+                              {t('settings:updates.restartInstall')}
                             </Button>
                           </div>
                         )}
@@ -381,15 +461,13 @@ export function SettingsModal() {
                         {globalUpdateStatus === 'error' && updateError && (
                           <div className="p-4 bg-destructive/10 rounded-lg">
                             <p className="text-sm text-destructive">
-                              Erreur : {updateError}
+                              {t('settings:updates.error', { message: updateError })}
                             </p>
                           </div>
                         )}
 
                         {globalUpdateStatus === 'idle' && !checking && (
-                          <p className="text-sm text-muted-foreground">
-                            Vous êtes à jour !
-                          </p>
+                          <p className="text-sm text-muted-foreground">{t('settings:updates.upToDate')}</p>
                         )}
                       </div>
                     </div>
@@ -397,14 +475,13 @@ export function SettingsModal() {
                 )}
               </div>
 
-              {/* Footer */}
               <div className="border-t p-4 flex justify-end gap-2">
                 <Button variant="outline" onClick={closeSettings}>
-                  Annuler
+                  {t('common:cancel')}
                 </Button>
                 <Button onClick={handleSave} disabled={saving}>
                   <Save className="h-4 w-4 mr-2" />
-                  {saving ? 'Sauvegarde...' : 'Sauvegarder'}
+                  {saving ? t('common:saving') : t('common:save')}
                 </Button>
               </div>
             </div>

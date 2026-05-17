@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   Dialog,
   DialogContent,
@@ -16,6 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui'
 import { useTemplatesStore } from '@/stores'
+import { templateDisplayName } from '@/lib/templateLabels'
 
 interface CreateProjectModalProps {
   open: boolean
@@ -24,6 +26,7 @@ interface CreateProjectModalProps {
 }
 
 export function CreateProjectModal({ open, onOpenChange, onCreate }: CreateProjectModalProps) {
+  const { t } = useTranslation(['projects', 'common'])
   const [name, setName] = useState('')
   const [templateId, setTemplateId] = useState('press-article')
   const [loading, setLoading] = useState(false)
@@ -38,7 +41,7 @@ export function CreateProjectModal({ open, onOpenChange, onCreate }: CreateProje
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    await onCreate(name || 'Nouveau projet', templateId)
+    await onCreate(name || t('projects:create.defaultName'), templateId)
     setLoading(false)
     setName('')
     setTemplateId('press-article')
@@ -48,40 +51,40 @@ export function CreateProjectModal({ open, onOpenChange, onCreate }: CreateProje
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Nouveau projet</DialogTitle>
+          <DialogTitle>{t('projects:create.title')}</DialogTitle>
           <DialogDescription>
-            Un projet regroupe vos sources (PDF) et les articles extraits.
+            {t('projects:create.description')}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="project-name">Nom du projet</Label>
+            <Label htmlFor="project-name">{t('projects:create.nameLabel')}</Label>
             <Input
               id="project-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Mon corpus"
+              placeholder={t('projects:create.namePlaceholder')}
               autoFocus
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="project-template">Modèle par défaut</Label>
+            <Label htmlFor="project-template">{t('projects:create.templateLabel')}</Label>
             <Select value={templateId} onValueChange={setTemplateId}>
               <SelectTrigger>
-                <SelectValue placeholder="Choisir un modèle" />
+                <SelectValue placeholder={t('projects:create.templatePlaceholder')} />
               </SelectTrigger>
               <SelectContent>
                 {templates.map((template) => (
                   <SelectItem key={template.id} value={template.id}>
-                    {template.name}
+                    {templateDisplayName(template)}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              Modèle pré-sélectionné lors de la création d'un nouvel élément. Modifiable par élément. Vous pourrez ajouter des PDFs après la création.
+              {t('projects:create.templateHint')}
             </p>
           </div>
 
@@ -92,10 +95,10 @@ export function CreateProjectModal({ open, onOpenChange, onCreate }: CreateProje
               onClick={() => onOpenChange(false)}
               disabled={loading}
             >
-              Annuler
+              {t('common:cancel')}
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading ? 'Création...' : 'Créer'}
+              {loading ? t('projects:create.submitting') : t('projects:create.submit')}
             </Button>
           </DialogFooter>
         </form>

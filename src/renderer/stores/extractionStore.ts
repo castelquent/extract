@@ -11,8 +11,12 @@
 // to 'draft' so Generate regenerates the PDF.
 import { create } from 'zustand'
 import { toast } from 'sonner'
+import i18n from '@/lib/i18n'
 import type { ArticleStatus, Template, TemplateField, Zone } from '@shared/types'
 import { sameSchema } from '@/lib/templateMerge'
+
+const t = (key: string, opts?: Record<string, unknown>): string =>
+  i18n.t(key, opts ?? {}) as string
 
 export interface WorkingArticle {
   id: number
@@ -406,7 +410,7 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
   saveArticles: async () => {
     const { sessionProjectId, sessionSourceId, articles, savedArticles } = get()
     if (!sessionProjectId || !sessionSourceId) {
-      toast.error('Session non liée — rechargez la page')
+      toast.error(t('extractor:toasts.sessionUnbound'))
       return false
     }
     if (articles.length === 0 && savedArticles.length === 0) return true
@@ -468,11 +472,11 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
       }
 
       set({ articles: updated, savedArticles: deepClone(updated) })
-      toast.success('Sauvegardé')
+      toast.success(t('extractor:toasts.saved'))
       return true
     } catch (err) {
       console.error(err)
-      toast.error('Erreur lors de la sauvegarde')
+      toast.error(t('extractor:toasts.saveError'))
       set({ error: 'Erreur lors de la sauvegarde' })
       return false
     }
@@ -496,7 +500,7 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
       if (target.kind === 'new-dossier') {
         const dossier = await window.api.v2_dossiersCreate(sessionProjectId, target.name)
         if (!dossier) {
-          toast.error('Impossible de créer le dossier')
+          toast.error(t('extractor:toasts.folderCreateError'))
           return false
         }
         dossierIdForOrphans = dossier.id
@@ -532,12 +536,12 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
       const generatedCount = next.filter((a) => a.persistedStatus === 'ready').length -
         articles.filter((a) => a.persistedStatus === 'ready').length
       if (generatedCount > 0) {
-        toast.success(`${generatedCount} élément${generatedCount > 1 ? 's' : ''} généré${generatedCount > 1 ? 's' : ''}`)
+        toast.success(t('extractor:toasts.generated', { count: generatedCount }))
       }
       return true
     } catch (err) {
       console.error(err)
-      toast.error('Erreur lors de la génération')
+      toast.error(t('extractor:toasts.generateError'))
       set({ exporting: false, error: 'Erreur lors de la génération' })
       return false
     }

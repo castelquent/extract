@@ -1,4 +1,7 @@
 import { Routes, Route } from 'react-router-dom'
+// i18n init runs as a side effect on first import — must be in the module
+// graph before any component calls useTranslation.
+import './lib/i18n'
 import { AppLayout } from './components/layout'
 import { ProjectsPage } from './pages/Projects'
 import { ProjectDetailPage } from './pages/Project'

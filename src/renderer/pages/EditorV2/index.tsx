@@ -2,6 +2,7 @@
 // filesystem-as-truth hierarchy.
 import { useEffect, useMemo, useState } from 'react'
 import { useBlocker, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import type {
   AIProvider,
@@ -57,6 +58,7 @@ import '@react-pdf-viewer/default-layout/lib/styles/index.css'
 import { ArticleForm } from './ArticleForm'
 import { ArticlesTableV2 } from './ArticlesTable'
 import { ApplyTemplateDialog } from '@/components/ApplyTemplateDialog'
+import { templateDisplayName } from '@/lib/templateLabels'
 
 // Returns true when the two schema arrays match field-by-field by name/type/order.
 const sameSchema = (a: TemplateField[], b: TemplateField[]): boolean => {
@@ -73,6 +75,7 @@ import { UnsavedChangesModal } from '../Editor/UnsavedChangesModal'
 import { ExportModal, ExportFormat, ExportModalChoices, buildExportOptions } from '../Editor/ExportModal'
 
 export function EditorV2Page() {
+  const { t } = useTranslation(['editor', 'common'])
   const { projectId } = useParams<{ projectId: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
@@ -85,7 +88,7 @@ export function EditorV2Page() {
   const location = useLocation()
   const [navState] = useState(() => ({
     to: (location.state as { from?: string } | null)?.from ?? null,
-    label: (location.state as { fromLabel?: string } | null)?.fromLabel ?? 'Projet',
+    label: (location.state as { fromLabel?: string } | null)?.fromLabel ?? t('editor:backDefault'),
   }))
   const backTo = navState.to
   const backLabel = navState.label
@@ -197,13 +200,13 @@ export function EditorV2Page() {
       if (onlyArticleParam) {
         const a = useEditorStore.getState().articles[0]
         const title = a ? (a.fields['Titre'] ?? a.fields['title'] ?? '').trim() : ''
-        setScopeLabel(`Élément : ${title || 'Sans titre'}`)
+        setScopeLabel(t('editor:scope.element', { title: title || t('common:untitled') }))
       } else if (idList && idList.length > 0) {
-        setScopeLabel('Sélection')
+        setScopeLabel(t('editor:scope.selection'))
       } else if (dossierIdParam && dossier) {
-        setScopeLabel(`Dossier : ${dossier.name}`)
+        setScopeLabel(t('editor:scope.dossier', { name: dossier.name }))
       } else if (orphansParam) {
-        setScopeLabel('Sans dossier')
+        setScopeLabel(t('common:noFolder'))
       } else {
         setScopeLabel(null)
       }
@@ -307,7 +310,7 @@ export function EditorV2Page() {
       if (result.success) successCount++
       else {
         errorCount++
-        lastError = result.error || 'Erreur inconnue'
+        lastError = result.error || t('editor:toasts.transcribeUnknownError')
       }
       if (ids.length > 1) setBulkTranscribeProgress({ current: i + 1, total: ids.length })
       if (i < ids.length - 1) await new Promise((r) => setTimeout(r, 500))
@@ -318,11 +321,17 @@ export function EditorV2Page() {
 
     if (ids.length > 1) {
       if (errorCount === 0) {
-        toast.success(`${successCount} élément${successCount > 1 ? 's' : ''} transcrit${successCount > 1 ? 's' : ''}`)
+        toast.success(t('editor:toasts.transcribeSuccess', { count: successCount }))
       } else if (successCount === 0) {
-        toast.error(`Échec de la transcription: ${lastError}`)
+        toast.error(t('editor:toasts.transcribeFailed', { error: lastError }))
       } else {
-        toast.warning(`${successCount} réussi, ${errorCount} échec: ${lastError}`)
+        toast.warning(
+          t('editor:toasts.transcribeMixed', {
+            success: successCount,
+            errors: errorCount,
+            error: lastError,
+          })
+        )
       }
     } else if (errorCount > 0) {
       toast.error(lastError)
@@ -339,7 +348,7 @@ export function EditorV2Page() {
       // extraction time, no Tesseract pass.
       const dataUrl = await window.api.v2_articlesGetExtractData(projectId, currentArticleId)
       if (!dataUrl) {
-        toast.error('Aucun PDF généré pour cet élément')
+        toast.error(t('editor:toasts.copyOcrNoExtract'))
         return
       }
       const pdfjsLib = await import('pdfjs-dist')
@@ -363,14 +372,14 @@ export function EditorV2Page() {
       }
       const full = pageTexts.join('\n\n')
       if (!full) {
-        toast.error('Aucun texte sélectionnable dans ce PDF')
+        toast.error(t('editor:toasts.copyOcrNoText'))
         return
       }
       await navigator.clipboard.writeText(full)
-      toast.success('Texte du PDF copié')
+      toast.success(t('editor:toasts.copyOcrSuccess'))
     } catch (err) {
       console.error(err)
-      toast.error('Erreur lors de la copie du texte')
+      toast.error(t('editor:toasts.copyOcrError'))
     } finally {
       setCopyingOcr(false)
     }
@@ -441,9 +450,9 @@ export function EditorV2Page() {
   // display in the form header. Exact match on field shape.
   const currentTemplateName = useMemo(() => {
     if (!currentArticle) return undefined
-    const matched = templates.find((t) => sameSchema(t.fields, currentArticle.schema))
-    return matched?.name ?? 'Personnalisé'
-  }, [currentArticle, templates])
+    const matched = templates.find((tpl) => sameSchema(tpl.fields, currentArticle.schema))
+    return matched ? templateDisplayName(matched) : t('editor:form.templateCustom')
+  }, [currentArticle, templates, t])
 
   const handleApplyTemplate = async (
     template: { fields: TemplateField[]; aiContext?: string },
@@ -460,7 +469,7 @@ export function EditorV2Page() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p className="text-muted-foreground">Chargement...</p>
+        <p className="text-muted-foreground">{t('common:loading')}</p>
       </div>
     )
   }
@@ -468,8 +477,8 @@ export function EditorV2Page() {
   if (!project) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4">
-        <p className="text-muted-foreground">Projet introuvable</p>
-        <Button onClick={() => navigate('/')}>Retour aux projets</Button>
+        <p className="text-muted-foreground">{t('editor:projectNotFound')}</p>
+        <Button onClick={() => navigate('/')}>{t('editor:backToProjects')}</Button>
       </div>
     )
   }
@@ -507,18 +516,18 @@ export function EditorV2Page() {
       <AlertDialog open={!!bulkDeleteIds} onOpenChange={(open) => !open && setBulkDeleteIds(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer {bulkDeleteIds?.length} élément(s) ?</AlertDialogTitle>
+            <AlertDialogTitle>{t('editor:bulkDelete.title', { count: bulkDeleteIds?.length ?? 0 })}</AlertDialogTitle>
             <AlertDialogDescription>
-              Cette action est irréversible.
+              {t('editor:bulkDelete.description')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogCancel>{t('common:cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleBulkDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Supprimer
+              {t('common:delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -527,18 +536,18 @@ export function EditorV2Page() {
       <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer l'élément ?</AlertDialogTitle>
+            <AlertDialogTitle>{t('editor:deleteOne.title')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Cette action est irréversible.
+              {t('editor:deleteOne.description')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogCancel>{t('common:cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteCurrent}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Supprimer
+              {t('common:delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -575,7 +584,7 @@ export function EditorV2Page() {
             }}
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
-            {backTo ? backLabel : 'Projet'}
+            {backTo ? backLabel : t('editor:backDefault')}
           </Button>
           <Separator orientation="vertical" className="h-6" />
           <div className="flex flex-col leading-tight">
@@ -594,11 +603,11 @@ export function EditorV2Page() {
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={openExportAll} disabled={articles.length === 0}>
             <Download className="h-4 w-4 mr-2" />
-            Exporter tout
+            {t('editor:header.exportAll')}
           </Button>
           <Button onClick={handleSave} disabled={saving || !hasUnsavedChanges}>
             <Save className="h-4 w-4 mr-2" />
-            {saving ? 'Sauvegarde...' : 'Sauvegarder'}
+            {saving ? t('common:saving') : t('common:save')}
           </Button>
         </div>
       </header>
@@ -635,7 +644,7 @@ export function EditorV2Page() {
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
               <ImageIcon className="h-16 w-16 mb-4" />
-              <p>Aucun élément sélectionné</p>
+              <p>{t('editor:pdfPane.noSelection')}</p>
             </div>
           )}
         </ResizablePanel>
@@ -652,7 +661,7 @@ export function EditorV2Page() {
                     disabled={currentIndex <= 0}
                   >
                     <ChevronLeft className="h-4 w-4 mr-1" />
-                    Précédent
+                    {t('editor:navButtons.previous')}
                   </Button>
                   <Badge variant={currentCompletion === totalFields ? 'success' : 'secondary'}>
                     {currentCompletion}/{totalFields}
@@ -665,7 +674,7 @@ export function EditorV2Page() {
                     }
                     disabled={currentIndex >= articles.length - 1}
                   >
-                    Suivant
+                    {t('editor:navButtons.next')}
                     <ChevronRight className="h-4 w-4 ml-1" />
                   </Button>
                 </div>
@@ -695,7 +704,7 @@ export function EditorV2Page() {
             <TabsContent value="summary" className="flex flex-col flex-1 min-h-0 data-[state=inactive]:hidden m-0">
               <div className="flex flex-col h-full">
                 <div className="p-3 border-b">
-                  <p className="text-sm font-medium">Éléments du projet</p>
+                  <p className="text-sm font-medium">{t('editor:summary.title')}</p>
                 </div>
                 <ScrollArea className="flex-1">
                   <ArticlesTableV2
@@ -716,8 +725,8 @@ export function EditorV2Page() {
               </div>
             </TabsContent>
             <TabsList className="flex-shrink-0 p-7">
-              <TabsTrigger value="editor">Editeur</TabsTrigger>
-              <TabsTrigger value="summary">Sommaire</TabsTrigger>
+              <TabsTrigger value="editor">{t('editor:tabs.editor')}</TabsTrigger>
+              <TabsTrigger value="summary">{t('editor:tabs.summary')}</TabsTrigger>
             </TabsList>
           </Tabs>
         </ResizablePanel>

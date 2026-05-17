@@ -1,0 +1,66 @@
+{
+  "steps": {
+    "provider": "Fournisseur",
+    "apiKey": "Clé API",
+    "privacy": "Confidentialité"
+  },
+  "nav": {
+    "skip": "Plus tard",
+    "back": "Retour",
+    "next": "Suivant"
+  },
+  "provider": {
+    "title": "Bienvenue sur ExtrAct",
+    "subtitle": "Choisissez le fournisseur d'IA que vous préférez utiliser pour la transcription. Vous pourrez toujours changer plus tard dans les Paramètres.",
+    "anthropic": {
+      "title": "Anthropic (Claude)",
+      "tagline": "Précision maximale",
+      "description": "Recommandé pour les documents anciens, l'écriture manuscrite et les mises en page complexes. Légèrement plus cher mais plus fidèle au texte d'origine."
+    },
+    "openai": {
+      "title": "OpenAI (GPT)",
+      "tagline": "Rapide et économique",
+      "description": "Idéal pour les documents imprimés modernes et propres. Plus rapide et un peu moins cher à qualité équivalente."
+    }
+  },
+  "apiKey": {
+    "title": "Configurer votre clé {{provider}}",
+    "subtitle": "Quand vous lancez une transcription, ExtrAct envoie chaque zone que vous avez découpée à l'IA de <bold>{{provider}}</bold>, qui lit l'image et renvoie le texte. La clé ci-dessous identifie votre compte chez eux. Vous payez {{provider}} directement, à la consommation, à hauteur de quelques centimes par document.",
+    "openAnthropicConsole": "Ouvrir la console Anthropic",
+    "openOpenaiConsole": "Ouvrir la plateforme OpenAI",
+    "pasteLabel": "Collez votre clé ci-dessous",
+    "privacyNote": "Votre clé est stockée <bold>uniquement sur votre ordinateur</bold>. ExtrAct ne l'envoie qu'à {{provider}} au moment de transcrire, et ne perçoit aucune commission sur votre consommation.",
+    "anthropicSteps": [
+      "Créez un compte Anthropic (ou connectez-vous si vous en avez déjà un).",
+      "Dans Plans & Billing, ajoutez du crédit. 5 à 10 $ suffisent pour démarrer, vous ne payez que ce que vous consommez.",
+      "Dans API Keys, cliquez sur Create Key, copiez la clé et collez-la ci-dessous."
+    ],
+    "openaiSteps": [
+      "Créez un compte OpenAI (ou connectez-vous si vous en avez déjà un).",
+      "Dans Billing, ajoutez du crédit. 5 à 10 $ suffisent pour démarrer, vous ne payez que ce que vous consommez.",
+      "Dans API keys, cliquez sur Create new secret key, copiez la clé et collez-la ci-dessous."
+    ]
+  },
+  "privacy": {
+    "title": "Aidez à corriger les bugs ?",
+    "subtitle": "ExtrAct peut envoyer automatiquement un rapport quand l'application plante, pour qu'on puisse corriger les bugs qu'on ne verrait pas autrement. Votre choix est respecté à 100 %, et modifiable à tout moment dans les Paramètres.",
+    "includedTitle": "Si vous activez, voici ce qui est envoyé en cas de plantage",
+    "included": [
+      "Le message d'erreur et la pile d'appels (où dans le code ça a planté).",
+      "La version d'ExtrAct et la version de votre système (Windows / macOS).",
+      "Quelques actions effectuées juste avant le crash (clics, navigation) pour aider à reproduire le bug."
+    ],
+    "excludedTitle": "Ne sont jamais inclus dans ces rapports",
+    "excluded": [
+      "Le contenu de vos PDFs, vos textes transcrits, vos champs.",
+      "Votre clé API.",
+      "Votre adresse IP, votre nom d'utilisateur, vos chemins de fichiers."
+    ],
+    "note": "À noter : ExtrAct envoie évidemment vos zones de PDF à OpenAI ou Anthropic quand vous lancez une transcription, c'est le principe de l'app. Cette question concerne uniquement les rapports d'erreur destinés à corriger les bugs, qui sont une chose séparée.",
+    "recipient": "<bold>Destinataire :</bold> Sentry, serveurs en Allemagne (Union européenne, RGPD).",
+    "decline": "Refuser",
+    "declineHint": "Aucun rapport ne sera envoyé.",
+    "accept": "Activer le partage",
+    "acceptHint": "Merci, ça aide vraiment."
+  }
+}

@@ -1,0 +1,125 @@
+{
+  "title": "Help",
+  "topics": {
+    "apiKeys": "API keys",
+    "workflow": "How it works",
+    "models": "AI models & costs",
+    "templates": "Templates"
+  },
+  "apiKeys": {
+    "heading": "Get an API key",
+    "intro": "ExtrAct uses OpenAI's or Anthropic's AI to transcribe your documents. You'll need to create an account with one of these providers and paste your personal key into <bold>Settings &gt; AI</bold>.",
+    "privacyNote": "Your key is stored <bold>only on your computer</bold>. ExtrAct never sends it anywhere except to the provider you picked, at transcription time.",
+    "anthropic": {
+      "title": "Anthropic (Claude)",
+      "openConsole": "Open the console",
+      "steps": [
+        "Click <bold>Open the console</bold> and create an account (or sign in).",
+        "Verify your email then your phone number.",
+        "Under <em>Plans &amp; Billing</em>, add a few dollars of credit.",
+        "Under <em>API Keys</em>, click <em>Create Key</em>.",
+        "Copy the key (it starts with <code>sk-ant-</code>) and paste it into <bold>Settings &gt; AI</bold>."
+      ]
+    },
+    "openai": {
+      "title": "OpenAI (GPT)",
+      "openPlatform": "Open the platform",
+      "steps": [
+        "Click <bold>Open the platform</bold> and create an account (or sign in).",
+        "Verify your phone number.",
+        "Under <em>Billing</em>, add a few dollars of credit.",
+        "Under <em>API keys</em>, click <em>Create new secret key</em>.",
+        "Copy the key (it starts with <code>sk-</code>) and paste it into <bold>Settings &gt; AI</bold>."
+      ],
+      "footnote": "The key is shown only once — copy it before closing the window."
+    }
+  },
+  "workflow": {
+    "heading": "How does it work?",
+    "intro": "ExtrAct turns your PDFs (newspapers, magazines, correspondence…) into structured items via AI. Here are the main steps.",
+    "steps": [
+      {
+        "title": "1. Create a project",
+        "body": "From <em>All projects</em>, click <bold>New project</bold>, give it a name, and choose a default <bold>template</bold> (Press article, Correspondence, or a custom one). A project can hold several PDFs (the <bold>sources</bold>) and several <bold>folders</bold> to organise them."
+      },
+      {
+        "title": "2. Import one or more sources",
+        "body": "In the <em>Sources</em> tab, import your PDFs (or JPG/PNG images, which will be converted). Each source becomes a clickable thumbnail. The gear button lets you rename, download, or replace a source's PDF."
+      },
+      {
+        "title": "3. Extract items",
+        "body": "Click a source to open the <em>Extraction</em> page. Draw a rectangle around each article / letter / ad. Multiple zones can belong to the same item if it spans columns or pages. <bold>Save</bold> keeps your work in progress as a draft; <bold>Generate</bold> produces the PDF for each item and files it in the chosen folder."
+      },
+      {
+        "title": "4. Transcribe in the editor",
+        "body": "Click an item (or tick several then <em>Transcribe</em>) to open the editor. The AI transcription fills the template fields automatically. You can then correct by hand, navigate between items with the arrows, and apply a different template if needed."
+      },
+      {
+        "title": "5. Organise",
+        "body": "In the <em>Items</em> tab, drag and drop articles to reorder them or move them between folders. Select several (checkbox) for bulk actions: move, export, delete. The <em>Incomplete only</em> filter shows just the items whose fields aren't all filled in."
+      },
+      {
+        "title": "6. Export",
+        "body": "Export one, several, or all items as PDF, DOCX, TXT, or PNG. Each exported item is accompanied by its source and original page number. The whole project can also be exported as a ZIP backup."
+      },
+      {
+        "title": "7. Search",
+        "body": "The <em>Search</em> page looks up a word or phrase across every project, all fields combined. Search is accent- and case-insensitive. You can filter by project / folder / template / field, and export the matched results (with the search term highlighted in DOCX and PDF)."
+      }
+    ]
+  },
+  "models": {
+    "heading": "Which model should I pick?",
+    "intro": "ExtrAct supports two AI model families. You can configure both and switch any time from <bold>Settings &gt; AI</bold>.",
+    "anthropic": {
+      "title": "Anthropic — Claude",
+      "intro": "Usually more accurate on old documents, handwriting, and complex layouts.",
+      "items": [
+        "<bold>Haiku 4.5</bold> — fast and cheap, enough for clean text.",
+        "<bold>Sonnet 4.6</bold> — solid quality/price balance, recommended default.",
+        "<bold>Opus 4.7</bold> — the most accurate, for tough documents."
+      ]
+    },
+    "openai": {
+      "title": "OpenAI — GPT",
+      "intro": "Often faster and a bit cheaper at similar quality.",
+      "items": [
+        "<bold>GPT-5.2</bold> — OpenAI's most economical option.",
+        "<bold>GPT-5.4</bold> — good quality/price tradeoff.",
+        "<bold>GPT-5.5</bold> — premium model, for the most demanding cases."
+      ]
+    },
+    "costs": {
+      "title": "How much does it cost?",
+      "body": "Cost depends on the model and document length. Count a few cents for a short item with an economy model, up to ten cents for a long document with a premium one. <bold>Settings &gt; Logs</bold> shows the actual cumulative cost of each of your transcriptions."
+    }
+  },
+  "templatesSection": {
+    "heading": "Templates",
+    "intro": "A <bold>template</bold> defines the structure of the information to extract: which fields to fill, their type, and how to guide the AI.",
+    "defaults": {
+      "title": "Default templates",
+      "items": [
+        "<bold>Press article</bold> — Title, Author, Content.",
+        "<bold>Correspondence</bold> — Date, Sender, Recipient, Content."
+      ],
+      "footnote": "These templates can't be modified, but you can duplicate them from the <em>Templates</em> page."
+    },
+    "custom": {
+      "title": "Create a custom template",
+      "steps": [
+        "Go to <bold>Templates</bold> in the left menu.",
+        "Click <bold>New template</bold> and give it a name.",
+        "Add your fields. Three types are available:",
+        "Optional: add an <em>AI hint</em> to guide the transcription (e.g. <em>\"Keep the document's original spelling\"</em>).",
+        "Save. Your template will appear when creating a project."
+      ],
+      "fieldTypes": [
+        "<bold>Short text</bold> — one line (title, author…).",
+        "<bold>Long text</bold> — multiple plain lines.",
+        "<bold>Rich text</bold> — formatting (bold, italic, paragraphs…)."
+      ],
+      "footnote": "The <bold>Title</bold> field is always present and can't be removed."
+    }
+  }
+}

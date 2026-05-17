@@ -1,0 +1,18 @@
+{
+  "save": "Sauvegarder",
+  "saving": "Sauvegarde…",
+  "cancel": "Annuler",
+  "delete": "Supprimer",
+  "loading": "Chargement…",
+  "back": "Retour",
+  "rename": "Renommer",
+  "move": "Déplacer",
+  "untitled": "Sans titre",
+  "noFolder": "Sans dossier",
+  "selectAll": "Tout sélectionner",
+  "deselect": "Désélectionner",
+  "language": {
+    "fr": "Français",
+    "en": "Anglais"
+  }
+}

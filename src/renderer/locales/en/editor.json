@@ -1,0 +1,100 @@
+{
+  "backDefault": "Project",
+  "backToProjects": "Back to projects",
+  "projectNotFound": "Project not found",
+  "scope": {
+    "element": "Item: {{title}}",
+    "selection": "Selection",
+    "dossier": "Folder: {{name}}"
+  },
+  "header": {
+    "exportAll": "Export all"
+  },
+  "pdfPane": {
+    "noSelection": "No item selected"
+  },
+  "form": {
+    "transcribe": "Transcribe with AI",
+    "transcribing": "Transcribing…",
+    "copyOcr": "Copy OCR",
+    "copyOcrTitle": "Copy the PDF's OCR text to the clipboard",
+    "export": "Export",
+    "templateLabel": "Template:",
+    "templateChange": "Change",
+    "templateCustom": "Custom"
+  },
+  "navButtons": {
+    "previous": "Previous",
+    "next": "Next"
+  },
+  "tabs": {
+    "editor": "Editor",
+    "summary": "Summary"
+  },
+  "summary": {
+    "title": "Project items"
+  },
+  "table": {
+    "columnElement": "Item",
+    "columnFields": "Fields",
+    "selectAllAria": "Select all",
+    "selectRowAria": "Select row",
+    "openMenu": "Open menu",
+    "transcribe": "Transcribe",
+    "delete": "Delete",
+    "empty": "No items.",
+    "draftTitle": "Unsaved changes",
+    "selected_one": "{{count}} selected",
+    "selected_other": "{{count}} selected",
+    "bulkTranscribe": "Transcribe",
+    "bulkExport": "Export",
+    "bulkDelete": "Delete"
+  },
+  "deleteOne": {
+    "title": "Delete this item?",
+    "description": "This action is irreversible."
+  },
+  "bulkDelete": {
+    "title_one": "Delete {{count}} item?",
+    "title_other": "Delete {{count}} items?",
+    "description": "This action is irreversible."
+  },
+  "transcriptionModal": {
+    "title": "Transcription in progress",
+    "descriptionSingle": "The AI is analysing the image and extracting the item's content.<br/>Please wait…",
+    "descriptionBulk_one": "Transcribing one item…",
+    "descriptionBulk_other": "Transcribing {{count}} items…",
+    "progress": "{{current}} / {{total}} done"
+  },
+  "modelModal": {
+    "titleSingle": "Transcribe item",
+    "titleBulk_one": "Transcribe {{count}} item",
+    "titleBulk_other": "Transcribe {{count}} items",
+    "description": "Choose the AI model to use for this transcription.",
+    "defaultModel": "Default model: {{label}}",
+    "modelLabel": "Model",
+    "selectPlaceholder": "Select a model",
+    "missingApiKey": "API key missing",
+    "noKeyConfigured": "No API key configured. Open <strong>Settings &gt; AI</strong> to add one.",
+    "submit": "Transcribe"
+  },
+  "toasts": {
+    "copyOcrNoExtract": "No PDF generated for this item",
+    "copyOcrNoText": "No selectable text in this PDF",
+    "copyOcrSuccess": "PDF text copied",
+    "copyOcrError": "Error while copying text",
+    "transcribeSuccess_one": "1 item transcribed",
+    "transcribeSuccess_other": "{{count}} items transcribed",
+    "transcribeFailed": "Transcription failed: {{error}}",
+    "transcribeMixed": "{{success}} succeeded, {{errors}} failed: {{error}}",
+    "transcribeUnknownError": "Unknown error",
+    "loadError": "Failed to load items",
+    "saveError": "Failed to save",
+    "saved_one": "1 item saved",
+    "saved_other": "{{count}} items saved",
+    "deleted": "Item deleted",
+    "deleteError": "Failed to delete",
+    "templateApplied": "Template applied",
+    "templateApplyError": "Failed to apply the template"
+  }
+}

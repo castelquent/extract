@@ -1,0 +1,50 @@
+{
+  "title": "Templates",
+  "subtitle": "Manage the field templates for your projects",
+  "newTemplate": "New template",
+  "empty": "No templates",
+  "createFirst": "Create your first template",
+  "defaultBadge": "Default",
+  "fieldsCount_one": "{{count}} field",
+  "fieldsCount_other": "{{count}} fields",
+  "deleteDialog": {
+    "title": "Delete this template?",
+    "description": "This action is irreversible. The template \"{{name}}\" will be permanently deleted."
+  },
+  "editor": {
+    "titleView": "View template",
+    "titleEdit": "Edit template",
+    "titleCreate": "New template",
+    "defaultNote": "Default templates can't be modified. You can create a new template based on this one.",
+    "nameLabel": "Template name *",
+    "namePlaceholder": "e.g. Press article, Correspondence…",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "e.g. For newspapers and magazines",
+    "fieldsLabel": "Fields",
+    "addField": "Add a field",
+    "fieldNameLabel": "Field name",
+    "fieldRequiredBadge": "Required",
+    "fieldNamePlaceholder": "e.g. Title, Author…",
+    "fieldTypeLabel": "Type",
+    "fieldTypes": {
+      "text": "Short text",
+      "textarea": "Long text",
+      "richtext": "Rich text"
+    },
+    "fieldHintLabel": "AI hint (optional)",
+    "fieldHintPlaceholder": "e.g. The article's author, when visible",
+    "promptTitle": "Generated AI prompt",
+    "promptCopy": "Copy",
+    "promptReset": "Reset",
+    "close": "Close",
+    "submit": "Save"
+  },
+  "toasts": {
+    "loadError": "Failed to load templates",
+    "saved": "Template saved",
+    "saveError": "Failed to save the template",
+    "deleted": "Template deleted",
+    "deleteDefaultError": "Default templates can't be deleted",
+    "deleteError": "Failed to delete the template"
+  }
+}

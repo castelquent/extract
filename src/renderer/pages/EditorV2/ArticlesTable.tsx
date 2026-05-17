@@ -1,5 +1,6 @@
 // v2 ArticlesTable. ID-keyed (no numeric index). Multi-select + bulk actions.
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   ColumnDef,
   flexRender,
@@ -49,6 +50,7 @@ export function ArticlesTableV2({
   onBulkDelete,
   onBulkExport,
 }: ArticlesTableV2Props) {
+  const { t } = useTranslation(['editor', 'common'])
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
 
   // Each element carries its own schema — completion is filled-fields-in-schema
@@ -70,14 +72,14 @@ export function ArticlesTableV2({
             (table.getIsSomePageRowsSelected() && 'indeterminate')
           }
           onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-          aria-label="Tout sélectionner"
+          aria-label={t('editor:table.selectAllAria')}
         />
       ),
       cell: ({ row }) => (
         <Checkbox
           checked={row.getIsSelected()}
           onCheckedChange={(value) => row.toggleSelected(!!value)}
-          aria-label="Sélectionner la ligne"
+          aria-label={t('editor:table.selectRowAria')}
         />
       ),
       enableSorting: false,
@@ -85,11 +87,11 @@ export function ArticlesTableV2({
     },
     {
       accessorKey: 'title',
-      header: 'Élément',
+      header: t('editor:table.columnElement'),
       cell: ({ row }) => {
         const article = row.original
         const displayName =
-          article.fields?.['Titre'] || article.fields?.['title'] || 'Sans titre'
+          article.fields?.['Titre'] || article.fields?.['title'] || t('common:untitled')
         const hasDraft = draftIds.has(article.id)
         return (
           <button
@@ -100,7 +102,7 @@ export function ArticlesTableV2({
             {hasDraft && (
               <span
                 className="ml-1 text-amber-500"
-                title="Modifications non sauvegardées"
+                title={t('editor:table.draftTitle')}
               >
                 ●
               </span>
@@ -111,7 +113,7 @@ export function ArticlesTableV2({
     },
     {
       id: 'completion',
-      header: 'Champs',
+      header: t('editor:table.columnFields'),
       cell: ({ row }) => {
         const { filled, total } = getCompletion(row.original)
         const complete = total > 0 && filled === total
@@ -130,21 +132,21 @@ export function ArticlesTableV2({
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="h-8 w-8 p-0">
-                <span className="sr-only">Ouvrir le menu</span>
+                <span className="sr-only">{t('editor:table.openMenu')}</span>
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => onTranscribe?.(article.id)}>
                 <Sparkles className="h-4 w-4 mr-2" />
-                Transcrire
+                {t('editor:table.transcribe')}
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => onDelete?.(article.id)}
                 className="text-destructive focus:text-destructive"
               >
                 <Trash2 className="h-4 w-4 mr-2" />
-                Supprimer
+                {t('editor:table.delete')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -201,7 +203,7 @@ export function ArticlesTableV2({
           ) : (
             <TableRow>
               <TableCell colSpan={columns.length} className="h-24 text-center">
-                Aucun élément.
+                {t('editor:table.empty')}
               </TableCell>
             </TableRow>
           )}
@@ -211,19 +213,19 @@ export function ArticlesTableV2({
       {selectedIds.length > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-card border rounded-lg shadow-lg p-2 flex items-center gap-2">
           <span className="text-sm px-3 text-muted-foreground">
-            {selectedIds.length} sélectionné(s)
+            {t('editor:table.selected', { count: selectedIds.length })}
           </span>
           <Button size="sm" variant="outline" onClick={() => onBulkTranscribe?.(selectedIds)}>
             <Sparkles className="h-4 w-4 mr-2" />
-            Transcrire
+            {t('editor:table.bulkTranscribe')}
           </Button>
           <Button size="sm" variant="outline" onClick={() => onBulkExport?.(selectedIds)}>
             <Download className="h-4 w-4 mr-2" />
-            Exporter
+            {t('editor:table.bulkExport')}
           </Button>
           <Button size="sm" variant="destructive" onClick={() => onBulkDelete?.(selectedIds)}>
             <Trash2 className="h-4 w-4 mr-2" />
-            Supprimer
+            {t('editor:table.bulkDelete')}
           </Button>
           <Button size="sm" variant="ghost" onClick={() => table.resetRowSelection()}>
             <X className="h-4 w-4" />

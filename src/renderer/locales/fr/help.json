@@ -1,0 +1,125 @@
+{
+  "title": "Aide",
+  "topics": {
+    "apiKeys": "Clés API",
+    "workflow": "Comment ça marche",
+    "models": "Modèles IA & coûts",
+    "templates": "Modèles"
+  },
+  "apiKeys": {
+    "heading": "Obtenir une clé API",
+    "intro": "ExtrAct utilise l'IA d'OpenAI ou d'Anthropic pour transcrire vos documents. Vous devez créer un compte chez l'un de ces fournisseurs et copier votre clé personnelle dans les <bold>Paramètres &gt; IA</bold>.",
+    "privacyNote": "Votre clé est stockée <bold>uniquement sur votre ordinateur</bold>. ExtrAct ne l'envoie nulle part, sauf au fournisseur que vous avez choisi au moment de transcrire.",
+    "anthropic": {
+      "title": "Anthropic (Claude)",
+      "openConsole": "Ouvrir la console",
+      "steps": [
+        "Cliquez sur <bold>Ouvrir la console</bold> et créez un compte (ou connectez-vous).",
+        "Validez votre adresse email puis votre numéro de téléphone.",
+        "Dans <em>Plans &amp; Billing</em>, ajoutez quelques dollars de crédit.",
+        "Dans <em>API Keys</em>, cliquez sur <em>Create Key</em>.",
+        "Copiez la clé (elle commence par <code>sk-ant-</code>) et collez-la dans <bold>Paramètres &gt; IA</bold>."
+      ]
+    },
+    "openai": {
+      "title": "OpenAI (GPT)",
+      "openPlatform": "Ouvrir la plateforme",
+      "steps": [
+        "Cliquez sur <bold>Ouvrir la plateforme</bold> et créez un compte (ou connectez-vous).",
+        "Validez votre numéro de téléphone.",
+        "Dans <em>Billing</em>, ajoutez quelques dollars de crédit.",
+        "Dans <em>API keys</em>, cliquez sur <em>Create new secret key</em>.",
+        "Copiez la clé (elle commence par <code>sk-</code>) et collez-la dans <bold>Paramètres &gt; IA</bold>."
+      ],
+      "footnote": "La clé n'est affichée qu'une seule fois — copiez-la avant de fermer la fenêtre."
+    }
+  },
+  "workflow": {
+    "heading": "Comment ça marche ?",
+    "intro": "ExtrAct transforme vos PDF (journaux, magazines, correspondance…) en éléments structurés grâce à l'IA. Voici les grandes étapes.",
+    "steps": [
+      {
+        "title": "1. Créer un projet",
+        "body": "Depuis <em>Tous les projets</em>, cliquez sur <bold>Nouveau projet</bold>, donnez-lui un nom et choisissez un <bold>modèle</bold> par défaut (Article de presse, Correspondance, ou un modèle personnalisé). Un projet peut contenir plusieurs PDF (les <bold>sources</bold>) et plusieurs <bold>dossiers</bold> pour les organiser."
+      },
+      {
+        "title": "2. Importer une ou plusieurs sources",
+        "body": "Dans l'onglet <em>Sources</em>, importez vos PDF (ou images JPG/PNG, qui seront converties). Chaque source devient une vignette cliquable. Le bouton engrenage permet de renommer, télécharger ou remplacer le PDF d'une source."
+      },
+      {
+        "title": "3. Extraire les éléments",
+        "body": "Cliquez sur une source pour ouvrir la page <em>Extraction</em>. Dessinez un rectangle autour de chaque article / lettre / annonce. Plusieurs zones peuvent appartenir au même élément s'il s'étale sur plusieurs colonnes ou pages. <bold>Sauvegarder</bold> garde votre avancement en brouillon ; <bold>Générer</bold> produit le PDF de chaque élément et le range dans le dossier choisi."
+      },
+      {
+        "title": "4. Transcrire dans l'éditeur",
+        "body": "Cliquez sur un élément (ou cochez-en plusieurs puis <em>Transcrire</em>) pour ouvrir l'éditeur. La transcription IA remplit automatiquement les champs du modèle. Vous pouvez ensuite corriger à la main, naviguer entre les éléments avec les flèches, et appliquer un autre modèle si besoin."
+      },
+      {
+        "title": "5. Organiser",
+        "body": "Dans l'onglet <em>Éléments</em>, glissez-déposez les articles pour les réordonner ou les déplacer entre dossiers. Sélectionnez-en plusieurs (case à cocher) pour des actions en lot : déplacer, exporter, supprimer. Le filtre <em>Incomplets seulement</em> n'affiche que les éléments dont tous les champs ne sont pas remplis."
+      },
+      {
+        "title": "6. Exporter",
+        "body": "Exportez un, plusieurs ou tous les éléments au format PDF, DOCX, TXT ou PNG. Chaque élément exporté est accompagné de sa source et de son numéro de page d'origine. Le projet entier peut aussi être exporté en ZIP pour sauvegarde."
+      },
+      {
+        "title": "7. Rechercher",
+        "body": "La page <em>Recherche</em> cherche un mot ou une phrase à travers tous vos projets, tous champs confondus. La recherche est insensible aux accents et à la casse. Vous pouvez filtrer par projet / dossier / modèle / champ, et exporter les résultats trouvés (avec mise en surbrillance du terme recherché en DOCX et PDF)."
+      }
+    ]
+  },
+  "models": {
+    "heading": "Quel modèle choisir ?",
+    "intro": "ExtrAct supporte deux familles de modèles IA. Vous pouvez configurer les deux et basculer à tout moment depuis les <bold>Paramètres &gt; IA</bold>.",
+    "anthropic": {
+      "title": "Anthropic — Claude",
+      "intro": "Généralement plus précis sur les documents anciens, l'écriture manuscrite et les mises en page complexes.",
+      "items": [
+        "<bold>Haiku 4.5</bold> — rapide et économique, suffisant pour un texte propre.",
+        "<bold>Sonnet 4.6</bold> — bon équilibre qualité / prix, choix par défaut recommandé.",
+        "<bold>Opus 4.7</bold> — le plus précis, pour les documents difficiles."
+      ]
+    },
+    "openai": {
+      "title": "OpenAI — GPT",
+      "intro": "Souvent plus rapides et un peu moins chers à qualité équivalente.",
+      "items": [
+        "<bold>GPT-5.2</bold> — l'option la plus économique côté OpenAI.",
+        "<bold>GPT-5.4</bold> — bon compromis qualité / prix.",
+        "<bold>GPT-5.5</bold> — modèle premium, pour les cas les plus exigeants."
+      ]
+    },
+    "costs": {
+      "title": "Combien ça coûte ?",
+      "body": "Le coût dépend du modèle et de la longueur du document. Comptez de quelques centimes pour un élément court avec un modèle économique, à une dizaine de centimes pour un long document avec un modèle premium. Les <bold>Paramètres &gt; Logs</bold> affichent le coût réel cumulé de chacune de vos transcriptions."
+    }
+  },
+  "templatesSection": {
+    "heading": "Modèles",
+    "intro": "Un <bold>modèle</bold> définit la structure des informations à extraire : quels champs remplir, leur type, et comment guider l'IA.",
+    "defaults": {
+      "title": "Modèles par défaut",
+      "items": [
+        "<bold>Article de presse</bold> — Titre, Auteur, Contenu.",
+        "<bold>Correspondance</bold> — Date, Expéditeur, Destinataire, Contenu."
+      ],
+      "footnote": "Ces modèles ne sont pas modifiables, mais vous pouvez les dupliquer depuis la page <em>Modèles</em>."
+    },
+    "custom": {
+      "title": "Créer un modèle personnalisé",
+      "steps": [
+        "Allez dans <bold>Modèles</bold> dans le menu de gauche.",
+        "Cliquez sur <bold>Nouveau modèle</bold>, donnez-lui un nom.",
+        "Ajoutez vos champs. Trois types sont disponibles :",
+        "Optionnel : ajoutez une <em>indication IA</em> pour orienter la transcription (par exemple <em>« Conserver l'orthographe d'origine du document »</em>).",
+        "Sauvegardez. Votre modèle apparaîtra au moment de créer un projet."
+      ],
+      "fieldTypes": [
+        "<bold>Texte court</bold> — une seule ligne (titre, auteur…).",
+        "<bold>Texte long</bold> — plusieurs lignes brutes.",
+        "<bold>Texte enrichi</bold> — mise en forme (gras, italique, paragraphes…)."
+      ],
+      "footnote": "Le champ <bold>Titre</bold> est toujours présent et ne peut pas être supprimé."
+    }
+  }
+}

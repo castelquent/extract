@@ -2,6 +2,7 @@
 // sources, dossiers, and (optionally) the full article list inside the project.
 import { create } from 'zustand'
 import { toast } from 'sonner'
+import i18n from '@/lib/i18n'
 import type {
   ArticleMetadata,
   ArticleMoveTarget,
@@ -13,6 +14,9 @@ import type {
   SourceMoveTarget,
   SourceView,
 } from '@shared/types'
+
+const t = (key: string, opts?: Record<string, unknown>): string =>
+  i18n.t(key, opts ?? {}) as string
 
 interface ProjectState {
   project: ProjectView | null
@@ -81,7 +85,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       set({ project, sources, sourceDossiers, dossiers, articles, loading: false })
     } catch (err) {
       console.error(err)
-      toast.error('Erreur lors du chargement du projet')
+      toast.error(t('project:toasts.loadError'))
       set({ error: 'Erreur lors du chargement du projet', loading: false })
     }
   },
@@ -100,17 +104,13 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     try {
       const created = await window.api.v2_sourcesAdd(projectId)
       if (created.length > 0) {
-        toast.success(
-          created.length === 1
-            ? '1 source importée'
-            : `${created.length} sources importées`
-        )
+        toast.success(t('sources:toasts.imported', { count: created.length }))
         await get().refresh()
       }
       return created
     } catch (err) {
       console.error(err)
-      toast.error("Erreur lors de l'import")
+      toast.error(t('sources:toasts.importError'))
       return []
     }
   },
@@ -121,18 +121,16 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     try {
       const result = await window.api.v2_sourcesDelete(projectId, sourceId, force)
       if (result.ok) {
-        toast.success('Source supprimée')
+        toast.success(t('sources:toasts.deleted'))
         await get().refresh()
         return true
       } else if (result.reason === 'has-articles') {
-        toast.error(
-          `Cette source est utilisée par ${result.articlesCount} élément(s). Supprimez-les d'abord.`
-        )
+        toast.error(t('sources:toasts.deleteHasArticles', { count: result.articlesCount }))
       }
       return false
     } catch (err) {
       console.error(err)
-      toast.error('Erreur lors de la suppression')
+      toast.error(t('sources:toasts.deleteError'))
       return false
     }
   },
@@ -148,12 +146,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             src.id === sourceId ? { ...src, name: name.trim() || undefined } : src
           ),
         }))
-        toast.success('Source renommée')
+        toast.success(t('sources:toasts.renamed'))
       }
       return ok
     } catch (err) {
       console.error(err)
-      toast.error('Erreur lors du renommage')
+      toast.error(t('sources:toasts.renameError'))
       return false
     }
   },
@@ -164,13 +162,13 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     try {
       const view = await window.api.v2_sourcesReplacePdf(projectId, sourceId)
       if (view) {
-        toast.success('PDF remplacé')
+        toast.success(t('sources:toasts.pdfReplaced'))
         await get().refresh()
       }
       return view
     } catch (err) {
       console.error(err)
-      toast.error('Erreur lors du remplacement du PDF')
+      toast.error(t('sources:toasts.pdfReplaceError'))
       return null
     }
   },
@@ -189,15 +187,15 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     try {
       const ok = await window.api.v2_sourcesMoveBulk(projectId, sourceIds, target)
       if (!ok) {
-        toast.error('Erreur lors du déplacement')
+        toast.error(t('sources:toasts.moveError'))
         await get().refresh()
       } else {
-        toast.success(`${sourceIds.length} source(s) déplacée(s)`)
+        toast.success(t('sources:toasts.moved', { count: sourceIds.length }))
       }
       return ok
     } catch (err) {
       console.error(err)
-      toast.error('Erreur lors du déplacement')
+      toast.error(t('sources:toasts.moveError'))
       await get().refresh()
       return false
     }
@@ -210,12 +208,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       const view = await window.api.v2_sourceDossiersCreate(projectId, name)
       if (view) {
         set((s) => ({ sourceDossiers: [...s.sourceDossiers, view] }))
-        toast.success('Dossier créé')
+        toast.success(t('sources:toasts.folderCreated'))
       }
       return view
     } catch (err) {
       console.error(err)
-      toast.error('Erreur lors de la création du dossier')
+      toast.error(t('sources:toasts.folderCreateError'))
       return null
     }
   },
@@ -233,12 +231,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
               : d
           ),
         }))
-        toast.success('Dossier renommé')
+        toast.success(t('sources:toasts.folderRenamed'))
       }
       return ok
     } catch (err) {
       console.error(err)
-      toast.error('Erreur lors du renommage')
+      toast.error(t('sources:toasts.folderRenameError'))
       return false
     }
   },
@@ -251,15 +249,15 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       if (ok) {
         toast.success(
           mode === 'orphan-sources'
-            ? 'Dossier supprimé, sources rendues orphelines'
-            : 'Dossier et sources supprimés'
+            ? t('sources:toasts.folderDeletedOrphan')
+            : t('sources:toasts.folderDeletedAll')
         )
         await get().refresh()
       }
       return ok
     } catch (err) {
       console.error(err)
-      toast.error('Erreur lors de la suppression du dossier')
+      toast.error(t('sources:toasts.folderDeleteError'))
       return false
     }
   },
@@ -271,12 +269,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       const dossier = await window.api.v2_dossiersCreate(projectId, name)
       if (dossier) {
         set((s) => ({ dossiers: [...s.dossiers, dossier] }))
-        toast.success('Dossier créé')
+        toast.success(t('articles:toasts.folderCreated'))
       }
       return dossier
     } catch (err) {
       console.error(err)
-      toast.error('Erreur lors de la création du dossier')
+      toast.error(t('articles:toasts.folderCreateError'))
       return null
     }
   },
@@ -292,12 +290,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             d.id === dossierId ? { ...d, name, modifiedAt: new Date().toISOString() } : d
           ),
         }))
-        toast.success('Dossier renommé')
+        toast.success(t('articles:toasts.folderRenamed'))
       }
       return ok
     } catch (err) {
       console.error(err)
-      toast.error('Erreur lors du renommage')
+      toast.error(t('articles:toasts.folderRenameError'))
       return false
     }
   },
@@ -308,13 +306,17 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     try {
       const ok = await window.api.v2_dossiersDelete(projectId, dossierId, mode)
       if (ok) {
-        toast.success(mode === 'orphan-articles' ? 'Dossier supprimé, éléments rendus orphelins' : 'Dossier et éléments supprimés')
+        toast.success(
+          mode === 'orphan-articles'
+            ? t('articles:toasts.folderDeletedOrphan')
+            : t('articles:toasts.folderDeletedAll')
+        )
         await get().refresh()
       }
       return ok
     } catch (err) {
       console.error(err)
-      toast.error('Erreur lors de la suppression du dossier')
+      toast.error(t('articles:toasts.folderDeleteError'))
       return false
     }
   },
@@ -330,7 +332,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       return ok
     } catch (err) {
       console.error(err)
-      toast.error("Erreur lors de la suppression de l'élément")
+      toast.error(t('articles:toasts.deleteError'))
       return false
     }
   },
@@ -344,7 +346,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       return ok
     } catch (err) {
       console.error(err)
-      toast.error('Erreur lors du déplacement')
+      toast.error(t('articles:toasts.moveError'))
       return false
     }
   },
@@ -355,13 +357,13 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     try {
       const ok = await window.api.v2_articlesMoveBulk(projectId, articleIds, target)
       if (ok) {
-        toast.success(`${articleIds.length} élément(s) déplacé(s)`)
+        toast.success(t('articles:toasts.moved', { count: articleIds.length }))
         await get().refresh()
       }
       return ok
     } catch (err) {
       console.error(err)
-      toast.error('Erreur lors du déplacement')
+      toast.error(t('articles:toasts.moveError'))
       return false
     }
   },
@@ -383,13 +385,13 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     try {
       const ok = await window.api.v2_articlesReorder(projectId, dossierId, orderedIds)
       if (!ok) {
-        toast.error('Erreur lors du réordonnancement')
+        toast.error(t('articles:toasts.reorderError'))
         await get().refresh()
       }
       return ok
     } catch (err) {
       console.error(err)
-      toast.error('Erreur lors du réordonnancement')
+      toast.error(t('articles:toasts.reorderError'))
       await get().refresh()
       return false
     }

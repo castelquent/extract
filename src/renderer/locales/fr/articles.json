@@ -1,0 +1,88 @@
+{
+  "sidebarHeader": "Dossiers",
+  "newFolderTitle": "Nouveau dossier",
+  "newFolder": {
+    "title": "Nouveau dossier",
+    "placeholder": "Nom du dossier",
+    "submit": "Créer"
+  },
+  "columns": {
+    "title": "Titre",
+    "source": "Source",
+    "pages": "Pages",
+    "completion": "Remplissage",
+    "modified": "Modifié",
+    "menuLabel": "Colonnes",
+    "menuTitle": "Colonnes affichées"
+  },
+  "header": {
+    "openInEditorTitle": "Ouvrir dans l'éditeur",
+    "noItemsToTranscribeTitle": "Aucun élément à transcrire"
+  },
+  "selectAllAria": "Tout sélectionner dans cette section",
+  "emptyAllProjects": "Aucun élément. Importez une source et extrayez-en des éléments depuis l'onglet Sources.",
+  "emptyFolder": "Aucun élément",
+  "emptyFolderAllComplete": "Tous les éléments sont complétés.",
+  "row": {
+    "open": "Ouvrir",
+    "pageShort": "p{{page}}",
+    "pagesCountShort": "{{count}}p"
+  },
+  "preview": {
+    "more_one": "et {{count}} autre",
+    "more_other": "et {{count}} autres"
+  },
+  "selectionBar": {
+    "selected_one": "{{count}} sélectionné",
+    "selected_other": "{{count}} sélectionnés",
+    "transcribe": "Transcrire",
+    "export": "Exporter",
+    "move": "Déplacer",
+    "delete": "Supprimer"
+  },
+  "deleteFolder": {
+    "title": "Supprimer le dossier ?",
+    "description": "Que faire des éléments contenus dans ce dossier ?",
+    "keepItems": "Garder les éléments",
+    "keepItemsHint": " (ils deviendront orphelins dans le projet)",
+    "deleteContent": "Supprimer aussi les éléments"
+  },
+  "pendingMove": {
+    "title_one": "Déplacer {{count}} élément ?",
+    "title_other": "Déplacer {{count}} éléments ?",
+    "to": "Vers : {{target}}"
+  },
+  "bulkDelete": {
+    "title_one": "Supprimer {{count}} élément ?",
+    "title_other": "Supprimer {{count}} éléments ?",
+    "description": "Cette action est irréversible."
+  },
+  "moveDialog": {
+    "title_one": "Déplacer {{count}} élément",
+    "title_other": "Déplacer {{count}} éléments",
+    "description": "Choisissez la destination dans ce projet ou dans un autre projet.",
+    "tabInProject": "Dans ce projet",
+    "tabOtherProject": "Autre projet",
+    "destFolder": "Dossier de destination",
+    "destProject": "Projet de destination",
+    "destProjectPlaceholder": "Choisir un projet",
+    "noOtherProject": "Aucun autre projet",
+    "destFolderInTarget": "Dossier dans le projet cible",
+    "submit": "Déplacer",
+    "submitting": "Déplacement…"
+  },
+  "toasts": {
+    "folderCreated": "Dossier créé",
+    "folderCreateError": "Erreur lors de la création du dossier",
+    "folderRenamed": "Dossier renommé",
+    "folderRenameError": "Erreur lors du renommage",
+    "folderDeletedOrphan": "Dossier supprimé, éléments rendus orphelins",
+    "folderDeletedAll": "Dossier et éléments supprimés",
+    "folderDeleteError": "Erreur lors de la suppression du dossier",
+    "deleteError": "Erreur lors de la suppression de l'élément",
+    "moveError": "Erreur lors du déplacement",
+    "moved_one": "1 élément déplacé",
+    "moved_other": "{{count}} éléments déplacés",
+    "reorderError": "Erreur lors du réordonnancement"
+  }
+}

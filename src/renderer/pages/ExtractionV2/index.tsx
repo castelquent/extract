@@ -3,6 +3,7 @@
 // dialog asks where the articles go (new dossier / existing / orphan).
 import { useEffect, useRef, useState } from 'react'
 import { useBlocker, useNavigate, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import type { Template, Zone } from '@shared/types'
 import {
   selectHasUnsavedChanges,
@@ -51,6 +52,7 @@ import { UnsavedChangesModal } from '../Editor/UnsavedChangesModal'
 import { GenerateDialog } from './GenerateDialog'
 
 export function ExtractionV2Page() {
+  const { t } = useTranslation(['extractor', 'common'])
   const { projectId, sourceId } = useParams<{ projectId: string; sourceId: string }>()
   const navigate = useNavigate()
   const viewerContainerRef = useRef<HTMLDivElement>(null)
@@ -192,7 +194,7 @@ export function ExtractionV2Page() {
   const source = sources.find((s) => s.id === sourceId) ?? null
   const defaultDossierName = source
     ? source.originalFilename.replace(/\.[^.]+$/, '')
-    : 'Nouveau dossier'
+    : t('extractor:newDossierDefault')
 
   const handleZoneCreated = (zone: Zone) => {
     const activeArticle =
@@ -295,7 +297,7 @@ export function ExtractionV2Page() {
   if (!project) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-muted-foreground">Chargement...</p>
+        <p className="text-muted-foreground">{t('common:loading')}</p>
       </div>
     )
   }
@@ -316,7 +318,7 @@ export function ExtractionV2Page() {
         <div className="flex items-center gap-4">
           <Button variant="outline" size="sm" onClick={() => navigate(-1)}>
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Projet
+            {t('extractor:backToProject')}
           </Button>
           <Separator orientation="vertical" className="h-6" />
           <div>
@@ -358,10 +360,10 @@ export function ExtractionV2Page() {
             variant="outline"
             onClick={saveArticles}
             disabled={!hasUnsavedChanges || exporting}
-            title="Ctrl+S — persiste l'avancement sans générer les PDFs"
+            title={t('extractor:saveTitle')}
           >
             <Save className="h-4 w-4 mr-2" />
-            Sauvegarder
+            {t('common:save')}
           </Button>
 
           <Button
@@ -369,7 +371,7 @@ export function ExtractionV2Page() {
             disabled={articles.length === 0 || exporting}
           >
             <FileImage className="h-4 w-4 mr-2" />
-            {exporting ? 'Génération...' : 'Générer les éléments'}
+            {exporting ? t('extractor:generating') : t('extractor:generate')}
           </Button>
         </div>
       </header>
@@ -415,7 +417,7 @@ export function ExtractionV2Page() {
                 size="icon"
                 className="h-8 w-8"
                 onClick={() => setDrawingMode('rect')}
-                title="Rectangle"
+                title={t('extractor:toolbar.rect')}
               >
                 <Square className="h-4 w-4" />
               </Button>
@@ -424,7 +426,7 @@ export function ExtractionV2Page() {
                 size="icon"
                 className="h-8 w-8"
                 onClick={() => setDrawingMode('polygon')}
-                title="Tracé libre — segments orthogonaux par défaut (Shift = diagonale), Entrée ou clic sur le premier point pour fermer"
+                title={t('extractor:toolbar.polygon')}
               >
                 <Lasso className="h-4 w-4" />
               </Button>
@@ -434,7 +436,7 @@ export function ExtractionV2Page() {
                 size="icon"
                 className="h-8 w-8"
                 onClick={handleSelectEntirePage}
-                title="Sélectionner toute la page"
+                title={t('extractor:toolbar.selectPage')}
               >
                 <Maximize2 className="h-4 w-4" />
               </Button>
@@ -459,9 +461,7 @@ export function ExtractionV2Page() {
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-background/90 backdrop-blur-sm rounded-lg px-4 py-2 shadow-lg border z-10">
               <p className="text-sm text-muted-foreground flex items-center gap-2">
                 <MousePointer2 className="h-4 w-4" />
-                {drawingMode === 'rect'
-                  ? 'Dessinez un rectangle sur le PDF pour créer votre premier élément'
-                  : 'Cliquez pour poser les sommets (Shift pour diagonale) ; Entrée ou clic sur le premier point pour fermer'}
+                {drawingMode === 'rect' ? t('extractor:hint.rect') : t('extractor:hint.polygon')}
               </p>
             </div>
           )}
@@ -472,7 +472,7 @@ export function ExtractionV2Page() {
             <div className="flex items-center justify-between">
               <h2 className="font-semibold flex items-center gap-2">
                 <Layers className="h-4 w-4" />
-                Éléments
+                {t('extractor:sidebar.title')}
               </h2>
               <Badge variant="outline">{articles.length}</Badge>
             </div>
@@ -480,7 +480,7 @@ export function ExtractionV2Page() {
               <>
                 {isArticleLocked(activeArticle) && (
                   <div className="text-xs text-amber-700 dark:text-amber-500 bg-amber-500/10 border border-amber-500/30 rounded px-2 py-1.5">
-                    Élément verrouillé. Dessiner une zone créera un nouvel élément.
+                    {t('extractor:sidebar.lockedWarning')}
                   </div>
                 )}
                 <Button
@@ -491,8 +491,8 @@ export function ExtractionV2Page() {
                 >
                   <X className="h-4 w-4 mr-2" />
                   {isArticleLocked(activeArticle)
-                    ? 'Désélectionner'
-                    : "Terminer l'élément en cours"}
+                    ? t('common:deselect')
+                    : t('extractor:sidebar.endCurrent')}
                 </Button>
               </>
             )}
@@ -506,7 +506,7 @@ export function ExtractionV2Page() {
                     <MousePointer2 className="h-6 w-6 text-muted-foreground" />
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    Sélectionnez des zones sur le PDF pour créer des éléments.
+                    {t('extractor:sidebar.emptyHint')}
                   </p>
                 </div>
               ) : (
@@ -597,7 +597,7 @@ export function ExtractionV2Page() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Déverrouiller cet élément ?</AlertDialogTitle>
+            <AlertDialogTitle>{t('extractor:unlock.title')}</AlertDialogTitle>
             <AlertDialogDescription>
               {(() => {
                 const filledCount = unlockTarget
@@ -606,14 +606,14 @@ export function ExtractionV2Page() {
                     ).length
                   : 0
                 if (filledCount > 0) {
-                  return `Modifier les zones invalide le PDF extrait et la transcription. Les ${filledCount} champ(s) déjà remplis seront supprimés. La modification est appliquée à la prochaine sauvegarde.`
+                  return t('extractor:unlock.description_filled', { count: filledCount })
                 }
-                return "Modifier les zones invalide le PDF extrait. L'élément redeviendra un brouillon jusqu'à la prochaine généreration."
+                return t('extractor:unlock.description_empty')
               })()}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogCancel>{t('common:cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault()
@@ -626,8 +626,8 @@ export function ExtractionV2Page() {
               Object.values(unlockTarget.fields).some(
                 (v) => typeof v === 'string' && v.length > 0
               )
-                ? 'Déverrouiller et vider les champs'
-                : 'Déverrouiller'}
+                ? t('extractor:unlock.submitFilled')
+                : t('extractor:unlock.submitEmpty')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -1,0 +1,101 @@
+{
+  "sidebarHeader": "Folders",
+  "newFolderTitle": "New folder",
+  "newFolderDialog": {
+    "title": "New source folder",
+    "placeholder": "Folder name",
+    "submit": "Create"
+  },
+  "viewGrid": "Grid view",
+  "viewTable": "Table view",
+  "importPdfTitle": "Import a PDF",
+  "importPdf": "Import a PDF",
+  "emptyNoImport": "No sources imported yet",
+  "emptyFolder": "No sources in this folder",
+  "card": {
+    "settingsTitle": "Source settings",
+    "contextOpen": "Open for extraction",
+    "contextSettings": "Settings",
+    "pagesCount_one": "{{count}} page",
+    "pagesCount_other": "{{count}} pages",
+    "itemsCount_one": "{{count}} item",
+    "itemsCount_other": "{{count}} items",
+    "itemsCountShort": "{{count}} it."
+  },
+  "table": {
+    "name": "Name",
+    "pages": "Pages",
+    "items": "Items",
+    "selectAllAria": "Select all"
+  },
+  "preview": {
+    "more_one": "and {{count}} more",
+    "more_other": "and {{count}} more"
+  },
+  "selectionBar": {
+    "selected_one": "{{count}} selected",
+    "selected_other": "{{count}} selected",
+    "move": "Move",
+    "delete": "Delete"
+  },
+  "bulkMove": {
+    "title_one": "Move {{count}} source",
+    "title_other": "Move {{count}} sources",
+    "description": "Choose the destination folder in this project.",
+    "destLabel": "Destination folder",
+    "submit": "Move"
+  },
+  "bulkDelete": {
+    "title_one": "Delete {{count}} source?",
+    "title_other": "Delete {{count}} sources?",
+    "description": "Sources used by items will not be deleted (a message will appear for each). This action is irreversible for the others."
+  },
+  "deleteOne": {
+    "title": "Delete this source?",
+    "descriptionInUse_one": "This source is used by {{count}} item. Delete it first or it will have a missing source.",
+    "descriptionInUse_other": "This source is used by {{count}} items. Delete them first or they will have a missing source.",
+    "descriptionFree": "This action is irreversible. The source PDF will be deleted."
+  },
+  "deleteFolder": {
+    "title": "Delete this folder?",
+    "description": "Its sources will become orphans (but they'll be kept)."
+  },
+  "pendingMove": {
+    "title_one": "Move {{count}} source?",
+    "title_other": "Move {{count}} sources?",
+    "to": "To: {{target}}"
+  },
+  "sourceSettings": {
+    "title": "Source settings",
+    "nameLabel": "Name",
+    "nameHint": "Empty = use the imported filename ({{fallback}}).",
+    "pdfSectionLabel": "Source PDF",
+    "pdfSectionHint": "Replacing the PDF keeps the link with existing items, but their zones may no longer match the new document.",
+    "download": "Download",
+    "replace": "Replace",
+    "submit": "Save"
+  },
+  "toasts": {
+    "imported_one": "1 source imported",
+    "imported_other": "{{count}} sources imported",
+    "importError": "Failed to import",
+    "deleted": "Source deleted",
+    "deleteHasArticles_one": "This source is used by 1 item. Delete it first.",
+    "deleteHasArticles_other": "This source is used by {{count}} items. Delete them first.",
+    "deleteError": "Failed to delete",
+    "renamed": "Source renamed",
+    "renameError": "Failed to rename",
+    "pdfReplaced": "PDF replaced",
+    "pdfReplaceError": "Failed to replace the PDF",
+    "moveError": "Failed to move",
+    "moved_one": "1 source moved",
+    "moved_other": "{{count}} sources moved",
+    "folderCreated": "Folder created",
+    "folderCreateError": "Failed to create the folder",
+    "folderRenamed": "Folder renamed",
+    "folderRenameError": "Failed to rename",
+    "folderDeletedOrphan": "Folder deleted, sources now orphaned",
+    "folderDeletedAll": "Folder and sources deleted",
+    "folderDeleteError": "Failed to delete the folder"
+  }
+}

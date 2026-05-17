@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import type { ProjectView } from '@shared/types'
 import {
   selectHasAnyApiKey,
@@ -30,6 +31,7 @@ import { AlertTriangle, FolderOpen, Home, Plus, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 
 export function ProjectsPage() {
+  const { t } = useTranslation(['projects', 'common'])
   const navigate = useNavigate()
   const {
     projects,
@@ -69,7 +71,7 @@ export function ProjectsPage() {
   const handleRename = async () => {
     if (!renameTarget || !newName.trim()) return
     const ok = await renameProject(renameTarget.id, newName.trim())
-    if (ok) toast.success('Projet renommé')
+    if (ok) toast.success(t('projects:renamed'))
     setRenameTarget(null)
     setNewName('')
   }
@@ -85,7 +87,7 @@ export function ProjectsPage() {
         <div className="mb-4 flex items-center gap-3 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-1.5 text-sm">
           <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-500 shrink-0" />
           <p className="flex-1 text-muted-foreground">
-            Aucune clé API configurée. La transcription IA est désactivée.
+            {t('projects:noApiKeyWarning')}
           </p>
           <Button
             variant="ghost"
@@ -93,7 +95,7 @@ export function ProjectsPage() {
             className="h-7 text-amber-700 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300"
             onClick={openSettings}
           >
-            Configurer
+            {t('projects:configure')}
           </Button>
         </div>
       )}
@@ -102,18 +104,18 @@ export function ProjectsPage() {
         <div className="flex items-center gap-3">
           <Home className="h-8 w-8 text-primary" />
           <div>
-            <h1 className="text-2xl font-bold">Tous les projets</h1>
-            <p className="text-muted-foreground text-sm">Vue d'ensemble de tous vos projets</p>
+            <h1 className="text-2xl font-bold">{t('projects:title')}</h1>
+            <p className="text-muted-foreground text-sm">{t('projects:subtitle')}</p>
           </div>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => importProjectZip()}>
             <Upload className="h-4 w-4 mr-2" />
-            Importer ZIP
+            {t('projects:importZip')}
           </Button>
           <Button onClick={() => setShowCreateModal(true)}>
             <Plus className="h-4 w-4 mr-2" />
-            Nouveau projet
+            {t('projects:newProject')}
           </Button>
         </div>
       </header>
@@ -124,15 +126,15 @@ export function ProjectsPage() {
           project is created/deleted/imported. */}
       {loading && projects.length === 0 ? (
         <div className="flex items-center justify-center h-64">
-          <div className="text-muted-foreground">Chargement...</div>
+          <div className="text-muted-foreground">{t('common:loading')}</div>
         </div>
       ) : filteredProjects.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-64 text-center">
           <FolderOpen className="h-16 w-16 text-muted-foreground/50 mb-4" />
-          <p className="text-muted-foreground mb-4">Aucun projet</p>
+          <p className="text-muted-foreground mb-4">{t('projects:empty')}</p>
           <Button onClick={() => setShowCreateModal(true)}>
             <Plus className="h-4 w-4 mr-2" />
-            Créer votre premier projet
+            {t('projects:createFirst')}
           </Button>
         </div>
       ) : (
@@ -161,13 +163,13 @@ export function ProjectsPage() {
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer le projet ?</AlertDialogTitle>
+            <AlertDialogTitle>{t('projects:deleteDialog.title')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Cette action est irréversible. Le projet "{deleteTarget?.name}" et tous ses fichiers seront supprimés définitivement.
+              {t('projects:deleteDialog.description', { name: deleteTarget?.name ?? '' })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogCancel>{t('common:cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={async (e) => {
                 e.preventDefault()
@@ -177,7 +179,7 @@ export function ProjectsPage() {
               }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Supprimer
+              {t('common:delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -186,20 +188,20 @@ export function ProjectsPage() {
       <Dialog open={!!renameTarget} onOpenChange={(open) => !open && setRenameTarget(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Renommer le projet</DialogTitle>
+            <DialogTitle>{t('projects:renameDialog.title')}</DialogTitle>
           </DialogHeader>
           <Input
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
-            placeholder="Nom du projet"
+            placeholder={t('projects:renameDialog.namePlaceholder')}
             onKeyDown={(e) => e.key === 'Enter' && handleRename()}
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => setRenameTarget(null)}>
-              Annuler
+              {t('common:cancel')}
             </Button>
             <Button onClick={handleRename} disabled={!newName.trim()}>
-              Renommer
+              {t('projects:renameDialog.submit')}
             </Button>
           </DialogFooter>
         </DialogContent>

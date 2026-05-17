@@ -1,0 +1,101 @@
+{
+  "sidebarHeader": "Dossiers",
+  "newFolderTitle": "Nouveau dossier",
+  "newFolderDialog": {
+    "title": "Nouveau dossier de sources",
+    "placeholder": "Nom du dossier",
+    "submit": "Créer"
+  },
+  "viewGrid": "Vue grille",
+  "viewTable": "Vue tableau",
+  "importPdfTitle": "Importer un PDF",
+  "importPdf": "Importer un PDF",
+  "emptyNoImport": "Aucune source importée",
+  "emptyFolder": "Aucune source dans ce dossier",
+  "card": {
+    "settingsTitle": "Paramètres de la source",
+    "contextOpen": "Ouvrir pour extraction",
+    "contextSettings": "Paramètres",
+    "pagesCount_one": "{{count}} page",
+    "pagesCount_other": "{{count}} pages",
+    "itemsCount_one": "{{count}} élément",
+    "itemsCount_other": "{{count}} éléments",
+    "itemsCountShort": "{{count}} él."
+  },
+  "table": {
+    "name": "Nom",
+    "pages": "Pages",
+    "items": "Éléments",
+    "selectAllAria": "Tout sélectionner"
+  },
+  "preview": {
+    "more_one": "et {{count}} autre",
+    "more_other": "et {{count}} autres"
+  },
+  "selectionBar": {
+    "selected_one": "{{count}} sélectionné",
+    "selected_other": "{{count}} sélectionnés",
+    "move": "Déplacer",
+    "delete": "Supprimer"
+  },
+  "bulkMove": {
+    "title_one": "Déplacer {{count}} source",
+    "title_other": "Déplacer {{count}} sources",
+    "description": "Choisissez le dossier de destination dans ce projet.",
+    "destLabel": "Dossier de destination",
+    "submit": "Déplacer"
+  },
+  "bulkDelete": {
+    "title_one": "Supprimer {{count}} source ?",
+    "title_other": "Supprimer {{count}} sources ?",
+    "description": "Les sources utilisées par des éléments ne seront pas supprimées (un message s'affichera pour chacune). Cette action est irréversible pour les autres."
+  },
+  "deleteOne": {
+    "title": "Supprimer cette source ?",
+    "descriptionInUse_one": "Cette source est utilisée par {{count}} élément. Supprimez-le d'abord ou il aura une source manquante.",
+    "descriptionInUse_other": "Cette source est utilisée par {{count}} éléments. Supprimez-les d'abord ou ils auront une source manquante.",
+    "descriptionFree": "Cette action est irréversible. Le PDF source sera supprimé."
+  },
+  "deleteFolder": {
+    "title": "Supprimer ce dossier ?",
+    "description": "Les sources qu'il contient seront rendues orphelines (mais conservées)."
+  },
+  "pendingMove": {
+    "title_one": "Déplacer {{count}} source ?",
+    "title_other": "Déplacer {{count}} sources ?",
+    "to": "Vers : {{target}}"
+  },
+  "sourceSettings": {
+    "title": "Paramètres de la source",
+    "nameLabel": "Nom",
+    "nameHint": "Vide = utilise le nom du fichier importé ({{fallback}}).",
+    "pdfSectionLabel": "PDF source",
+    "pdfSectionHint": "Remplacer le PDF garde le lien avec les éléments existants, mais leurs zones peuvent ne plus correspondre au nouveau document.",
+    "download": "Télécharger",
+    "replace": "Remplacer",
+    "submit": "Enregistrer"
+  },
+  "toasts": {
+    "imported_one": "1 source importée",
+    "imported_other": "{{count}} sources importées",
+    "importError": "Erreur lors de l'import",
+    "deleted": "Source supprimée",
+    "deleteHasArticles_one": "Cette source est utilisée par 1 élément. Supprimez-le d'abord.",
+    "deleteHasArticles_other": "Cette source est utilisée par {{count}} éléments. Supprimez-les d'abord.",
+    "deleteError": "Erreur lors de la suppression",
+    "renamed": "Source renommée",
+    "renameError": "Erreur lors du renommage",
+    "pdfReplaced": "PDF remplacé",
+    "pdfReplaceError": "Erreur lors du remplacement du PDF",
+    "moveError": "Erreur lors du déplacement",
+    "moved_one": "1 source déplacée",
+    "moved_other": "{{count}} sources déplacées",
+    "folderCreated": "Dossier créé",
+    "folderCreateError": "Erreur lors de la création du dossier",
+    "folderRenamed": "Dossier renommé",
+    "folderRenameError": "Erreur lors du renommage",
+    "folderDeletedOrphan": "Dossier supprimé, sources rendues orphelines",
+    "folderDeletedAll": "Dossier et sources supprimés",
+    "folderDeleteError": "Erreur lors de la suppression du dossier"
+  }
+}

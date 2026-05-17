@@ -1,0 +1,29 @@
+{
+  "title_one": "Exporter l'élément",
+  "title_other": "Exporter {{count}} éléments",
+  "format": "Format",
+  "formatOptions": {
+    "pdf": "PDF",
+    "docx": "Word (DOCX)",
+    "txt": "Texte (TXT)",
+    "png": "Image (PNG)"
+  },
+  "output": "Sortie",
+  "outputOptions": {
+    "single": "Un seul fichier",
+    "separated": "Fichiers séparés (ZIP)"
+  },
+  "granularity": "Granularité",
+  "pngOptions": {
+    "perElement": "Un PNG par élément (zones empilées)",
+    "perZone": "Un PNG par zone"
+  },
+  "toggles": {
+    "dossierTitles": "Inclure le nom des dossiers",
+    "highlight": "Surligner « {{term}} »",
+    "showSource": "Afficher la source à la fin",
+    "sourceImages": "Inclure les images de l'élément",
+    "orderPrefix": "Préfixer par l'ordre dans le dossier"
+  },
+  "submit": "Exporter"
+}

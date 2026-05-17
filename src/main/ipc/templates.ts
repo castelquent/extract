@@ -10,9 +10,9 @@ const DEFAULT_TEMPLATES: Template[] = [
     description: 'Journaux, magazines, revues',
     aiContext: 'Ceci est un article de presse à transcrire.',
     fields: [
-      { name: 'Titre', type: 'text', order: 1 },
-      { name: 'Auteur', type: 'text', order: 2 },
-      { name: 'Contenu', type: 'richtext', order: 3 }
+      { key: 'title', name: 'Titre', type: 'text', order: 0 },
+      { key: 'author', name: 'Auteur', type: 'text', order: 1 },
+      { key: 'content', name: 'Contenu', type: 'richtext', order: 2 }
     ],
     isDefault: true,
     createdAt: '2024-01-01T00:00:00Z',
@@ -24,10 +24,10 @@ const DEFAULT_TEMPLATES: Template[] = [
     description: 'Lettres, courriers',
     aiContext: 'Ceci est une lettre ou correspondance à transcrire.',
     fields: [
-      { name: 'Date', type: 'text', order: 1 },
-      { name: 'Expéditeur', type: 'text', order: 2 },
-      { name: 'Destinataire', type: 'text', order: 3 },
-      { name: 'Contenu', type: 'richtext', order: 4 }
+      { key: 'date', name: 'Date', type: 'text', order: 1 },
+      { key: 'sender', name: 'Expéditeur', type: 'text', order: 2 },
+      { key: 'recipient', name: 'Destinataire', type: 'text', order: 3 },
+      { key: 'content', name: 'Contenu', type: 'richtext', order: 4 }
     ],
     isDefault: true,
     createdAt: '2024-01-01T00:00:00Z',

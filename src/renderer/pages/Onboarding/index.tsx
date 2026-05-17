@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation, Trans } from 'react-i18next'
 import { useSettingsStore } from '@/stores'
 import { Button, Input, Label } from '@/components/ui'
 import {
@@ -10,15 +11,19 @@ import {
   Check,
   Zap,
   Brain,
+  Shield,
+  X,
 } from 'lucide-react'
 
 type Provider = 'anthropic' | 'openai'
+type Step = 1 | 2 | 3
 
 export function OnboardingPage() {
+  const { t } = useTranslation('onboarding')
   const navigate = useNavigate()
   const { settings, loadSettings, saveSettings } = useSettingsStore()
 
-  const [step, setStep] = useState<1 | 2>(1)
+  const [step, setStep] = useState<Step>(1)
   const [provider, setProvider] = useState<Provider | null>(null)
   const [keyValue, setKeyValue] = useState('')
   const [saving, setSaving] = useState(false)
@@ -37,11 +42,14 @@ export function OnboardingPage() {
     setKeyValue(existing ?? '')
   }, [step, provider, settings])
 
-  const persist = async (saveKey: boolean) => {
+  // Final persistence. Called only from step 3 (Sentry), which is the one
+  // mandatory question. `telemetry` is the explicit choice the user made.
+  // `saveKey` reflects whether they actually entered (or kept) an API key.
+  const finishOnboarding = async (telemetry: boolean) => {
     if (!settings) return
     setSaving(true)
     const nextAi = { ...settings.ai }
-    if (saveKey && provider) {
+    if (provider) {
       const trimmed = keyValue.trim() || undefined
       if (provider === 'anthropic') nextAi.anthropicApiKey = trimmed
       else nextAi.openaiApiKey = trimmed
@@ -49,7 +57,11 @@ export function OnboardingPage() {
     const next = {
       ...settings,
       ai: nextAi,
-      app: { ...settings.app, onboardingSeen: true },
+      app: {
+        ...settings.app,
+        onboardingSeen: true,
+        telemetryEnabled: telemetry,
+      },
     }
     await saveSettings(next)
     setSaving(false)
@@ -58,22 +70,27 @@ export function OnboardingPage() {
 
   const handleNext = () => {
     if (step === 1 && provider) setStep(2)
+    else if (step === 2) setStep(3)
   }
-  const handleBack = () => setStep(1)
-  const handleSkip = () => persist(false)
-  const handleFinish = () => persist(true)
+  const handleBack = () => {
+    if (step === 2) setStep(1)
+    else if (step === 3) setStep(2)
+  }
+  // "Plus tard" on steps 1 and 2 jumps straight to the Sentry step. The user
+  // cannot exit the onboarding without answering the privacy question.
+  const handleSkipToConsent = () => setStep(3)
 
   return (
-    <div className="h-screen w-screen flex flex-col items-center justify-center bg-background p-8">
-      <div className="w-full max-w-2xl">
-        {/* Step indicator */}
+    <div className="h-screen w-screen flex flex-col items-center justify-center bg-background p-8 overflow-y-auto">
+      <div className="w-full max-w-2xl py-8">
         <div className="flex items-center justify-center gap-2 mb-8">
-          <StepDot index={1} current={step} label="Fournisseur" />
+          <StepDot index={1} current={step} label={t('steps.provider')} />
           <div className="h-px w-12 bg-border" />
-          <StepDot index={2} current={step} label="Clé API" />
+          <StepDot index={2} current={step} label={t('steps.apiKey')} />
+          <div className="h-px w-12 bg-border" />
+          <StepDot index={3} current={step} label={t('steps.privacy')} />
         </div>
 
-        {/* Step content */}
         {step === 1 && (
           <StepChooseProvider selected={provider} onSelect={setProvider} />
         )}
@@ -84,36 +101,51 @@ export function OnboardingPage() {
             onChange={setKeyValue}
           />
         )}
+        {step === 3 && (
+          <StepTelemetryConsent
+            saving={saving}
+            onAccept={() => finishOnboarding(true)}
+            onDecline={() => finishOnboarding(false)}
+          />
+        )}
 
-        {/* Footer */}
-        <div className="mt-8 flex items-center justify-between">
-          <Button variant="ghost" size="sm" onClick={handleSkip} disabled={saving}>
-            Plus tard
-          </Button>
-          <div className="flex items-center gap-2">
-            {step === 2 && (
-              <Button variant="outline" size="sm" onClick={handleBack} disabled={saving}>
-                <ChevronLeft className="h-4 w-4 mr-1" />
-                Retour
+        {step !== 3 && (
+          <div className="mt-8 flex items-center justify-between">
+            <Button variant="ghost" size="sm" onClick={handleSkipToConsent} disabled={saving}>
+              {t('nav.skip')}
+            </Button>
+            <div className="flex items-center gap-2">
+              {step === 2 && (
+                <Button variant="outline" size="sm" onClick={handleBack} disabled={saving}>
+                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  {t('nav.back')}
+                </Button>
+              )}
+              <Button
+                size="sm"
+                onClick={handleNext}
+                disabled={(step === 1 && !provider) || saving}
+              >
+                {t('nav.next')}
               </Button>
-            )}
-            {step === 1 ? (
-              <Button size="sm" onClick={handleNext} disabled={!provider}>
-                Suivant
-              </Button>
-            ) : (
-              <Button size="sm" onClick={handleFinish} disabled={saving}>
-                {saving ? 'Sauvegarde...' : 'Terminer'}
-              </Button>
-            )}
+            </div>
           </div>
-        </div>
+        )}
+
+        {step === 3 && (
+          <div className="mt-6 flex justify-start">
+            <Button variant="outline" size="sm" onClick={handleBack} disabled={saving}>
+              <ChevronLeft className="h-4 w-4 mr-1" />
+              {t('nav.back')}
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   )
 }
 
-function StepDot({ index, current, label }: { index: 1 | 2; current: 1 | 2; label: string }) {
+function StepDot({ index, current, label }: { index: Step; current: Step; label: string }) {
   const done = current > index
   const active = current === index
   return (
@@ -143,14 +175,12 @@ function StepChooseProvider({
   selected: Provider | null
   onSelect: (p: Provider) => void
 }) {
+  const { t } = useTranslation('onboarding')
   return (
     <div className="space-y-6">
       <div className="text-center space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">Bienvenue sur ExtrAct</h1>
-        <p className="text-muted-foreground">
-          Choisissez le fournisseur d'IA que vous préférez utiliser pour la transcription.
-          Vous pourrez toujours changer plus tard dans les Paramètres.
-        </p>
+        <h1 className="text-3xl font-bold tracking-tight">{t('provider.title')}</h1>
+        <p className="text-muted-foreground">{t('provider.subtitle')}</p>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -159,18 +189,18 @@ function StepChooseProvider({
           selected={selected === 'anthropic'}
           onClick={() => onSelect('anthropic')}
           icon={Brain}
-          title="Anthropic (Claude)"
-          tagline="Précision maximale"
-          description="Recommandé pour les documents anciens, l'écriture manuscrite et les mises en page complexes. Légèrement plus cher mais plus fidèle au texte d'origine."
+          title={t('provider.anthropic.title')}
+          tagline={t('provider.anthropic.tagline')}
+          description={t('provider.anthropic.description')}
         />
         <ProviderCard
           provider="openai"
           selected={selected === 'openai'}
           onClick={() => onSelect('openai')}
           icon={Zap}
-          title="OpenAI (GPT)"
-          tagline="Rapide et économique"
-          description="Idéal pour les documents imprimés modernes et propres. Plus rapide et un peu moins cher à qualité équivalente."
+          title={t('provider.openai.title')}
+          tagline={t('provider.openai.tagline')}
+          description={t('provider.openai.description')}
         />
       </div>
     </div>
@@ -229,45 +259,36 @@ function StepConfigureKey({
   keyValue: string
   onChange: (v: string) => void
 }) {
-  const config =
-    provider === 'anthropic'
-      ? {
-          providerName: 'Anthropic',
-          consoleUrl: 'https://console.anthropic.com/settings/keys',
-          consoleLabel: 'Ouvrir la console Anthropic',
-          prefix: 'sk-ant-',
-          steps: [
-            'Créez un compte Anthropic (ou connectez-vous si vous en avez déjà un).',
-            'Dans Plans & Billing, ajoutez du crédit. 5 à 10 $ suffisent pour démarrer — vous ne payez que ce que vous consommez.',
-            'Dans API Keys, cliquez sur Create Key, copiez la clé et collez-la ci-dessous.',
-          ] as const,
-        }
-      : {
-          providerName: 'OpenAI',
-          consoleUrl: 'https://platform.openai.com/api-keys',
-          consoleLabel: 'Ouvrir la plateforme OpenAI',
-          prefix: 'sk-',
-          steps: [
-            'Créez un compte OpenAI (ou connectez-vous si vous en avez déjà un).',
-            'Dans Billing, ajoutez du crédit. 5 à 10 $ suffisent pour démarrer — vous ne payez que ce que vous consommez.',
-            'Dans API keys, cliquez sur Create new secret key, copiez la clé et collez-la ci-dessous.',
-          ] as const,
-        }
+  const { t } = useTranslation('onboarding')
+  const isAnthropic = provider === 'anthropic'
+  const providerName = isAnthropic ? 'Anthropic' : 'OpenAI'
+  const consoleUrl = isAnthropic
+    ? 'https://console.anthropic.com/settings/keys'
+    : 'https://platform.openai.com/api-keys'
+  const consoleLabel = isAnthropic
+    ? t('apiKey.openAnthropicConsole')
+    : t('apiKey.openOpenaiConsole')
+  const prefix = isAnthropic ? 'sk-ant-' : 'sk-'
+  const stepsKey = isAnthropic ? 'apiKey.anthropicSteps' : 'apiKey.openaiSteps'
+  const steps = t(stepsKey, { returnObjects: true }) as string[]
 
   return (
     <div className="space-y-5">
       <div className="text-center space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">Configurer votre clé {config.providerName}</h1>
+        <h1 className="text-3xl font-bold tracking-tight">
+          {t('apiKey.title', { provider: providerName })}
+        </h1>
         <p className="text-muted-foreground text-sm leading-relaxed">
-          Quand vous lancez une transcription, ExtrAct envoie chaque zone que vous avez
-          découpée à l'IA de <strong>{config.providerName}</strong>, qui lit l'image et
-          renvoie le texte. La clé ci-dessous identifie votre compte chez eux. Vous payez {config.providerName} directement,
-          à la consommation, à hauteur de quelques centimes par document.
+          <Trans
+            i18nKey="onboarding:apiKey.subtitle"
+            values={{ provider: providerName }}
+            components={{ bold: <strong /> }}
+          />
         </p>
       </div>
 
       <ol className="space-y-2.5">
-        {config.steps.map((s, i) => (
+        {steps.map((s, i) => (
           <li key={i} className="flex gap-3 text-sm">
             <span className="shrink-0 w-6 h-6 rounded-full bg-muted text-xs flex items-center justify-center font-medium">
               {i + 1}
@@ -280,33 +301,124 @@ function StepConfigureKey({
       <Button
         variant="outline"
         className="w-full"
-        onClick={() => window.api.openExternal(config.consoleUrl)}
+        onClick={() => window.api.openExternal(consoleUrl)}
       >
         <ExternalLink className="h-4 w-4 mr-2" />
-        {config.consoleLabel}
+        {consoleLabel}
       </Button>
 
       <div className="space-y-2">
         <Label htmlFor="api-key" className="flex items-center gap-2 text-sm">
           <KeyRound className="h-3.5 w-3.5" />
-          Collez votre clé ci-dessous
+          {t('apiKey.pasteLabel')}
         </Label>
         <Input
           id="api-key"
           type="password"
           value={keyValue}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={`${config.prefix}...`}
+          placeholder={`${prefix}...`}
         />
       </div>
 
       <div className="flex items-start gap-2 p-3 rounded-md bg-muted/50 border text-xs">
         <Lock className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" />
         <p className="text-muted-foreground">
-          Votre clé est stockée <strong>uniquement sur votre ordinateur</strong>.
-          ExtrAct ne l'envoie qu'à {config.providerName} au moment de transcrire,
-          et ne perçoit aucune commission sur votre consommation.
+          <Trans
+            i18nKey="onboarding:apiKey.privacyNote"
+            values={{ provider: providerName }}
+            components={{ bold: <strong /> }}
+          />
         </p>
+      </div>
+    </div>
+  )
+}
+
+function StepTelemetryConsent({
+  saving,
+  onAccept,
+  onDecline,
+}: {
+  saving: boolean
+  onAccept: () => void
+  onDecline: () => void
+}) {
+  const { t } = useTranslation('onboarding')
+  const included = t('privacy.included', { returnObjects: true }) as string[]
+  const excluded = t('privacy.excluded', { returnObjects: true }) as string[]
+  return (
+    <div className="space-y-5">
+      <div className="text-center space-y-2">
+        <div className="flex justify-center mb-2">
+          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+            <Shield className="h-6 w-6 text-primary" />
+          </div>
+        </div>
+        <h1 className="text-3xl font-bold tracking-tight">{t('privacy.title')}</h1>
+        <p className="text-muted-foreground text-sm leading-relaxed">
+          {t('privacy.subtitle')}
+        </p>
+      </div>
+
+      <div className="rounded-lg border bg-card p-4 space-y-4">
+        <div>
+          <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
+            <Check className="h-4 w-4 text-green-600" />
+            {t('privacy.includedTitle')}
+          </h3>
+          <ul className="space-y-1.5 text-xs text-muted-foreground pl-6 list-disc">
+            {included.map((line, i) => (
+              <li key={i}>{line}</li>
+            ))}
+          </ul>
+        </div>
+
+        <div>
+          <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
+            <X className="h-4 w-4 text-red-600" />
+            {t('privacy.excludedTitle')}
+          </h3>
+          <ul className="space-y-1.5 text-xs text-muted-foreground pl-6 list-disc">
+            {excluded.map((line, i) => (
+              <li key={i}>{line}</li>
+            ))}
+          </ul>
+        </div>
+
+        <p className="text-xs text-muted-foreground italic pt-1 border-t">
+          {t('privacy.note')}
+        </p>
+
+        <p className="text-xs text-muted-foreground pt-1 border-t">
+          <Trans i18nKey="onboarding:privacy.recipient" components={{ bold: <strong /> }} />
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 pt-1">
+        <Button
+          variant="outline"
+          size="lg"
+          onClick={onDecline}
+          disabled={saving}
+          className="h-auto py-3 flex-col gap-0.5"
+        >
+          <span className="font-semibold">{t('privacy.decline')}</span>
+          <span className="text-xs font-normal text-muted-foreground">
+            {t('privacy.declineHint')}
+          </span>
+        </Button>
+        <Button
+          size="lg"
+          onClick={onAccept}
+          disabled={saving}
+          className="h-auto py-3 flex-col gap-0.5"
+        >
+          <span className="font-semibold">{t('privacy.accept')}</span>
+          <span className="text-xs font-normal opacity-90">
+            {t('privacy.acceptHint')}
+          </span>
+        </Button>
       </div>
     </div>
   )

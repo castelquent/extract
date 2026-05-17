@@ -3,6 +3,7 @@
 // selected article, and a draft buffer for unsaved changes per article.
 import { create } from 'zustand'
 import { toast } from 'sonner'
+import i18n from '@/lib/i18n'
 import type {
   AISettings,
   ArticleMetadata,
@@ -10,6 +11,9 @@ import type {
   TemplateField,
   TranscriptionResult,
 } from '@shared/types'
+
+const t = (key: string, opts?: Record<string, unknown>): string =>
+  i18n.t(key, opts ?? {}) as string
 
 interface EditorState {
   projectId: string | null
@@ -69,8 +73,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       })
     } catch (err) {
       console.error(err)
-      toast.error('Erreur lors du chargement des éléments')
-      set({ loading: false, error: 'Erreur lors du chargement des articles' })
+      toast.error(t('editor:toasts.loadError'))
+      set({ loading: false, error: t('editor:toasts.loadError') })
     }
   },
 
@@ -112,7 +116,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return ok
     } catch (err) {
       console.error(err)
-      toast.error('Erreur lors de la sauvegarde')
+      toast.error(t('editor:toasts.saveError'))
       return false
     }
   },
@@ -125,7 +129,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const ok = await get().saveArticle(id)
       if (!ok) allOk = false
     }
-    if (allOk) toast.success(`${ids.length} élément(s) sauvegardé(s)`)
+    if (allOk) toast.success(t('editor:toasts.saved', { count: ids.length }))
     return allOk
   },
 
@@ -142,12 +146,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             s.currentArticleId === articleId ? remaining[0]?.id ?? null : s.currentArticleId
           return { articles: remaining, drafts, currentArticleId: newCurrent }
         })
-        toast.success('Élément supprimé')
+        toast.success(t('editor:toasts.deleted'))
       }
       return ok
     } catch (err) {
       console.error(err)
-      toast.error('Erreur lors de la suppression')
+      toast.error(t('editor:toasts.deleteError'))
       return false
     }
   },
@@ -214,11 +218,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         const { [articleId]: _, ...rest } = s.drafts
         return { drafts: rest }
       })
-      toast.success('Modèle appliqué')
+      toast.success(t('editor:toasts.templateApplied'))
       return true
     } catch (err) {
       console.error(err)
-      toast.error("Erreur lors de l'application du modèle")
+      toast.error(t('editor:toasts.templateApplyError'))
       return false
     }
   },
