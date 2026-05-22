@@ -192,15 +192,9 @@
   margin-bottom: 0.5em;
 }
 
-/* Crepe: constrain to parent width. Crepe doesn't cap by default and wide
-   content (long tables, images) makes it overflow the shadcn panel. */
-.milkdown-theme-frame {
-  max-width: 100%;
-  width: 100%;
-}
-.milkdown .ProseMirror {
-  padding: 0px 0 0px 80px;
-}
+/* MDXEditor declares its toolbar as `position: sticky; top: 0` in its own
+   CSS; ArticleForm uses native overflow scroll (not Radix ScrollArea) so the
+   sticky resolves correctly. Nothing extra needed here. */
 
 .rpv-core__inner-page {
     background-color: transparent !important;

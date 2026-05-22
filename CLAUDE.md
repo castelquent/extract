@@ -11,7 +11,7 @@ Application desktop pour **numériser et structurer des documents** depuis des P
 3. **Extraire** : dessiner des zones sur le PDF → grouper en éléments → choisir un modèle par élément.
 4. **Sauvegarder** (Ctrl+S) : persiste l'avancement en brouillons (sans PDF). Reprise possible plus tard.
 5. **Générer** : produit l'`extract.pdf` par élément, déplace les orphelins vers un dossier choisi.
-6. **Transcrire** (IA OpenAI / Anthropic / Mistral) ou **remplir à la main** dans l'éditeur (Milkdown / Crepe, markdown WYSIWYG).
+6. **Transcrire** (IA OpenAI / Anthropic / Mistral) ou **remplir à la main** dans l'éditeur (MDXEditor, markdown WYSIWYG).
 7. **Exporter** : PDF, DOCX, TXT, ZIP du projet entier.
 
 ---
@@ -67,7 +67,7 @@ Filesystem-as-truth. Tout sur disque, pas de DB.
 
 **Statut binaire** : `'draft'` (PDF en attente — soit jamais généré, soit zones modifiées depuis) vs `'ready'` (PDF à jour). Le "remplissage" est computed depuis `fields` + `schema`, jamais stocké.
 
-**Architecture markdown** : depuis la pivot Quill→Milkdown, le `FieldType` est `'text' | 'textarea' | 'markdown'`. Les valeurs markdown ne vivent PAS dans `metadata.json` :
+**Architecture markdown** : depuis la pivot Quill→Milkdown→MDXEditor, le `FieldType` est `'text' | 'textarea' | 'markdown'`. Les valeurs markdown ne vivent PAS dans `metadata.json` :
 - Le `content` (toujours présent, transcription brute) → `content.md`
 - Chaque sub-field markdown du template → `{slug-du-nom}.md`
 - Les readers/writers de `src/main/ipc/_fs.ts` (`readArticleMetadata`, `writeArticleMetadata`) splittent automatiquement à la lecture/écriture, le renderer voit un objet unifié.
@@ -108,7 +108,7 @@ src/renderer/
 │   └── templateMerge.ts        # asString, stripMarkdown (alias stripHtml back-compat), wrapAsMarkdown, sameSchema, computeMerge
 ├── components/
 │   ├── ApplyTemplateDialog.tsx # Modèle picker + merge preview (partagé Editor + Extraction)
-│   ├── MilkdownEditor.tsx      # Wrapper Crepe (WYSIWYG markdown). value/onChange en markdown string. Remount sur changement de modifiedAt (transcribe/re-extract).
+│   ├── RichEditor.tsx          # Wrapper MDXEditor (markdown-natif WYSIWYG, top toolbar avec block-switcher). value/onChange en markdown string. Remount sur changement de modifiedAt (transcribe/re-extract).
 │   ├── layout/                 # AppLayout, NavigationDrawer, SettingsModal, HelpModal
 │   └── ui/                     # shadcn/ui
 ├── pages/
@@ -238,7 +238,7 @@ Le cleanup du `useEffect` d'ExtractionV2 ne reset PAS `extractionStore` (sinon l
 | React Router 6 (HashRouter) | Nav |
 | @react-pdf-viewer | Rendu PDF dans l'éditeur |
 | pdfjs-dist | Rendu PDF dans l'extraction |
-| @milkdown/crepe + @milkdown/* | Markdown WYSIWYG (block-based, GFM via préset) |
+| @mdxeditor/editor | Markdown WYSIWYG (Lexical + MDAST, markdown-natif, top toolbar avec block-switcher) |
 | @dnd-kit | Drag-drop (zones, templates) |
 | react-rnd | Zones draggables sur PDF |
 | PyMuPDF (via python-portable) | Extraction zones → PDF, thumbnails |

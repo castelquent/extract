@@ -6,12 +6,11 @@ import {
   Button,
   Input,
   Label,
-  ScrollArea,
   Separator,
   Textarea,
 } from '@/components/ui'
 import { Copy, Download, FileStack, RotateCcw, Sparkles } from 'lucide-react'
-import { MilkdownEditor } from '@/components/MilkdownEditor'
+import { RichEditor } from '@/components/RichEditor'
 
 interface ArticleFormProps {
   fields: Record<string, string> | undefined
@@ -91,7 +90,7 @@ function DynamicField({ field, label, value, onChange, onReextract, reextracting
               </Button>
             )}
           </div>
-          <MilkdownEditor value={value} onChange={onChange} />
+          <RichEditor value={value} onChange={onChange} />
         </div>
       )
     default:
@@ -121,8 +120,7 @@ export function ArticleForm({
   const sortedFields = [...schema].sort((a, b) => a.order - b.order)
 
   return (
-    <ScrollArea className="flex-1">
-      <div className="p-4 space-y-4">
+    <div className="p-4 space-y-4">
         <div className="flex gap-2">
           <Button
             onClick={onTranscribe}
@@ -190,14 +188,12 @@ export function ArticleForm({
           })}
 
           {/* Mandatory transcription body. Lives in content.md on disk and is
-              the LLM-cleaned markdown produced at transcription time. Edited
-              in Milkdown WYSIWYG. */}
+              the LLM-cleaned markdown produced at transcription time. */}
           <div className="space-y-2">
             <Label>{t('form.contentLabel')}</Label>
-            <MilkdownEditor value={content} onChange={onContentChange} />
+            <RichEditor value={content} onChange={onContentChange} />
           </div>
         </div>
       </div>
-    </ScrollArea>
   )
 }
