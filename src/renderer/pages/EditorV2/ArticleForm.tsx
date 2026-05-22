@@ -1,8 +1,5 @@
 // v2 ArticleForm. Renders fields from the article's snapshotted schema.
-import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import ReactQuill from 'react-quill'
-import 'react-quill/dist/quill.snow.css'
 import type { Template, TemplateField } from '@shared/types'
 import { resolveFieldLabel } from '@shared/fieldLabel'
 import {
@@ -13,29 +10,28 @@ import {
   Separator,
   Textarea,
 } from '@/components/ui'
-import { Copy, Download, FileStack, Sparkles } from 'lucide-react'
+import { Copy, Download, FileStack, RotateCcw, Sparkles } from 'lucide-react'
+import { MilkdownEditor } from '@/components/MilkdownEditor'
 
 interface ArticleFormProps {
   fields: Record<string, string> | undefined
+  // Mandatory raw transcription content (markdown). Lives separate from
+  // `fields` so its presence does not depend on the template schema.
+  content: string
   schema: TemplateField[]
   templates: Template[]
   templateId?: string
   currentTemplateName?: string
   transcribing: boolean
   copyingOcr?: boolean
+  reextractingField?: string | null
   onUpdate: (fieldName: string, value: string) => void
+  onContentChange: (value: string) => void
   onTranscribe: () => void
+  onReextractField?: (fieldName: string) => void
   onCopyOcr?: () => void
   onExport: () => void
   onApplyTemplate?: () => void
-}
-
-const quillModules = {
-  toolbar: [
-    ['bold', 'italic', 'underline'],
-    [{ list: 'ordered' }, { list: 'bullet' }],
-    ['clean'],
-  ],
 }
 
 interface DynamicFieldProps {
@@ -43,60 +39,13 @@ interface DynamicFieldProps {
   label: string
   value: string
   onChange: (value: string) => void
+  // Optional re-extract handler. When set, markdown fields show a "Réextraire"
+  // button that asks the AI to repopulate the field from content.md.
+  onReextract?: () => void
+  reextracting?: boolean
 }
 
-function RichTextField({ field, label, value, onChange }: DynamicFieldProps) {
-  void field
-  const [localValue, setLocalValue] = useState(value)
-  const prevValueRef = useRef(value)
-  const isUpdatingRef = useRef(false)
-  const isStabilizingRef = useRef(true)
-
-  useEffect(() => {
-    if (value !== prevValueRef.current && !isUpdatingRef.current) {
-      isStabilizingRef.current = true
-      prevValueRef.current = value
-      setLocalValue(value)
-      setTimeout(() => {
-        isStabilizingRef.current = false
-      }, 100)
-    }
-  }, [value])
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      isStabilizingRef.current = false
-    }, 100)
-    return () => clearTimeout(timer)
-  }, [])
-
-  const handleChange = (newValue: string) => {
-    if (isStabilizingRef.current) return
-    if (newValue === prevValueRef.current) return
-    isUpdatingRef.current = true
-    setLocalValue(newValue)
-    prevValueRef.current = newValue
-    onChange(newValue)
-    setTimeout(() => {
-      isUpdatingRef.current = false
-    }, 0)
-  }
-
-  return (
-    <div className="space-y-2">
-      <Label>{label}</Label>
-      <ReactQuill
-        theme="snow"
-        value={localValue}
-        onChange={handleChange}
-        placeholder={label}
-        modules={quillModules}
-      />
-    </div>
-  )
-}
-
-function DynamicField({ field, label, value, onChange }: DynamicFieldProps) {
+function DynamicField({ field, label, value, onChange, onReextract, reextracting }: DynamicFieldProps) {
   switch (field.type) {
     case 'text':
       return (
@@ -123,8 +72,28 @@ function DynamicField({ field, label, value, onChange }: DynamicFieldProps) {
           />
         </div>
       )
-    case 'richtext':
-      return <RichTextField field={field} label={label} value={value} onChange={onChange} />
+    case 'markdown':
+      return (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label>{label}</Label>
+            {onReextract && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-7 text-xs px-2"
+                onClick={onReextract}
+                disabled={reextracting}
+              >
+                <RotateCcw className={`h-3 w-3 mr-1 ${reextracting ? 'animate-spin' : ''}`} />
+                Réextraire
+              </Button>
+            )}
+          </div>
+          <MilkdownEditor value={value} onChange={onChange} />
+        </div>
+      )
     default:
       return null
   }
@@ -132,14 +101,18 @@ function DynamicField({ field, label, value, onChange }: DynamicFieldProps) {
 
 export function ArticleForm({
   fields,
+  content,
   schema,
   templates,
   templateId,
   currentTemplateName,
   transcribing,
   copyingOcr,
+  reextractingField,
   onUpdate,
+  onContentChange,
   onTranscribe,
+  onReextractField,
   onCopyOcr,
   onExport,
   onApplyTemplate,
@@ -206,9 +179,23 @@ export function ArticleForm({
                 label={label}
                 value={fields?.[field.name] ?? ''}
                 onChange={(value) => onUpdate(field.name, value)}
+                onReextract={
+                  field.type === 'markdown' && onReextractField
+                    ? () => onReextractField(field.name)
+                    : undefined
+                }
+                reextracting={reextractingField === field.name}
               />
             )
           })}
+
+          {/* Mandatory transcription body. Lives in content.md on disk and is
+              the LLM-cleaned markdown produced at transcription time. Edited
+              in Milkdown WYSIWYG. */}
+          <div className="space-y-2">
+            <Label>{t('form.contentLabel')}</Label>
+            <MilkdownEditor value={content} onChange={onContentChange} />
+          </div>
         </div>
       </div>
     </ScrollArea>

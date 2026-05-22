@@ -34,6 +34,7 @@ import {
   getSourcePdfPath,
   newId,
   readArticleMetadata,
+  writeArticleMetadata,
   writeJson,
 } from '../_fs'
 import { generateArticleExtract } from './_python'
@@ -128,6 +129,7 @@ export function setupV2ArticleHandlers(): void {
         zones: payload.zones,
         pages: payload.pages,
         fields: payload.fields ?? {},
+        content: '',
         status: 'draft',
         schema: payload.schema,
         aiContext: payload.aiContext,
@@ -135,7 +137,7 @@ export function setupV2ArticleHandlers(): void {
         createdAt: now,
         modifiedAt: now,
       }
-      writeJson(getArticleMetadataPath(projectId, payload.dossierId, id), metadata)
+      writeArticleMetadata(projectId, payload.dossierId, id, metadata)
       patchArticle(projectId, id, metadata)
 
       // Skip PDF generation when the caller is just persisting in-progress
@@ -151,7 +153,7 @@ export function setupV2ArticleHandlers(): void {
         const ok = await generateArticleExtract(sourcePdf, payload.zones, outputPdf)
         if (ok) {
           const ready: ArticleMetadata = { ...metadata, status: 'ready', modifiedAt: new Date().toISOString() }
-          writeJson(getArticleMetadataPath(projectId, payload.dossierId, id), ready)
+          writeArticleMetadata(projectId, payload.dossierId, id, ready)
           patchArticle(projectId, id, ready)
           touchProject(projectId)
           return ready
@@ -186,7 +188,7 @@ export function setupV2ArticleHandlers(): void {
         dossierId: current.dossierId,
         modifiedAt: new Date().toISOString(),
       }
-      const ok = writeJson(getArticleMetadataPath(projectId, dossierId, articleId), updated)
+      const ok = writeArticleMetadata(projectId, dossierId, articleId, updated)
       if (ok) {
         patchArticle(projectId, articleId, updated)
         touchProject(projectId)
@@ -319,7 +321,7 @@ export function setupV2ArticleHandlers(): void {
           status: 'ready',
           modifiedAt: new Date().toISOString(),
         }
-        writeJson(getArticleMetadataPath(projectId, dossierId, articleId), updated)
+        writeArticleMetadata(projectId, dossierId, articleId, updated)
         patchArticle(projectId, articleId, updated)
         touchProject(projectId)
       }
@@ -390,7 +392,7 @@ async function moveOneArticle(
     order: nextOrderInDossier(destProjectId, destDossierId),
     modifiedAt: new Date().toISOString(),
   }
-  writeJson(getArticleMetadataPath(destProjectId, destDossierId, articleId), updated)
+  writeArticleMetadata(destProjectId, destDossierId, articleId, updated)
   patchArticle(destProjectId, articleId, updated)
 
   touchProject(projectId)

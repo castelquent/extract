@@ -23,6 +23,7 @@ export {
   useEditorStore,
   selectCurrentArticle as selectV2CurrentArticle,
   selectCurrentFields as selectV2CurrentFields,
+  selectCurrentContent as selectV2CurrentContent,
   selectHasUnsavedChanges as selectV2HasUnsavedChanges,
   selectArticleHasDraft,
 } from './editorStore'

@@ -12,7 +12,10 @@
     "description": "Please wait while the update is downloading…"
   },
   "general": {
-    "language": "Language"
+    "language": "Language",
+    "theme": "Theme",
+    "themeLight": "Light",
+    "themeDark": "Dark"
   },
   "ai": {
     "title": "Artificial Intelligence",
@@ -22,7 +25,9 @@
     "anthropicKey": "Anthropic API key",
     "anthropicKeyHint": "Required to use Claude models",
     "openaiKey": "OpenAI API key",
-    "openaiKeyHint": "Required to use GPT models"
+    "openaiKeyHint": "Required to use GPT models",
+    "mistralKey": "Mistral API key",
+    "mistralKeyHint": "Required to use Mistral OCR (billed per page, hosted in the EU)"
   },
   "logs": {
     "title": "Transcription logs",

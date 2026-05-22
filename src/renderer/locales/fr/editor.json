@@ -21,7 +21,9 @@
     "export": "Exporter",
     "templateLabel": "Modèle :",
     "templateChange": "Changer",
-    "templateCustom": "Personnalisé"
+    "templateCustom": "Personnalisé",
+    "contentLabel": "Contenu",
+    "contentPlaceholder": "Transcription brute du document en markdown. Édite librement, le contenu est la source de vérité de l'élément."
   },
   "navButtons": {
     "previous": "Précédent",

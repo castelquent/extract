@@ -118,5 +118,5 @@ export const selectAISettings = (state: SettingsState) => state.settings?.ai || 
 export const selectAppSettings = (state: SettingsState) => state.settings?.app || null
 export const selectHasAnyApiKey = (state: SettingsState) => {
   const ai = state.settings?.ai
-  return !!(ai?.anthropicApiKey?.trim() || ai?.openaiApiKey?.trim())
+  return !!(ai?.anthropicApiKey?.trim() || ai?.openaiApiKey?.trim() || ai?.mistralApiKey?.trim())
 }

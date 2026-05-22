@@ -54,6 +54,7 @@ export function ModelSelectionModal({
   const isBatch = articleCount > 1
   const openaiModels = AI_MODELS.filter((m) => m.provider === 'openai')
   const anthropicModels = AI_MODELS.filter((m) => m.provider === 'anthropic')
+  const mistralModels = AI_MODELS.filter((m) => m.provider === 'mistral')
 
   // Le modèle sélectionné est-il utilisable (clé API présente) ?
   const selectedHasKey = selectedOption !== null && availableProviders.has(selectedOption.provider)
@@ -110,6 +111,20 @@ export function ModelSelectionModal({
                     disabled={!availableProviders.has('openai')}
                   >
                     {model.label.replace(/^OpenAI:\s*/, '')}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+              <SelectGroup>
+                <SelectLabel>
+                  Mistral{!availableProviders.has('mistral') && ` — ${t('editor:modelModal.missingApiKey')}`}
+                </SelectLabel>
+                {mistralModels.map((model) => (
+                  <SelectItem
+                    key={model.value}
+                    value={model.value}
+                    disabled={!availableProviders.has('mistral')}
+                  >
+                    {model.label.replace(/^Mistral:\s*/, '')}
                   </SelectItem>
                 ))}
               </SelectGroup>

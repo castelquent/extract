@@ -127,6 +127,8 @@ const api: ElectronAPI & {
 
   // Transcription v2 — prompt built from article schema server-side
   v2_transcribe: (projectId, articleId, settings) => ipcRenderer.invoke('v2:transcription:transcribe', projectId, articleId, settings),
+  v2_transcribeReextractField: (projectId, articleId, fieldName, settings) =>
+    ipcRenderer.invoke('v2:transcription:reextractField', projectId, articleId, fieldName, settings),
 
   // Export v2
   v2_exportArticlesPdf: (projectId, articleIds, options) => ipcRenderer.invoke('v2:export:articlesPdf', projectId, articleIds, options),

@@ -13,6 +13,7 @@ import type {
 import { isFieldFilled } from '@shared/fieldValue'
 import {
   selectV2CurrentArticle,
+  selectV2CurrentContent,
   selectV2CurrentFields,
   selectV2HasUnsavedChanges,
   useEditorStore,
@@ -100,9 +101,11 @@ export function EditorV2Page() {
     setCurrent,
     reset,
     updateField,
+    updateContent,
     saveAll,
     deleteArticle,
     transcribeArticle,
+    reextractField,
     applyTemplate,
   } = useEditorStore()
 
@@ -111,6 +114,7 @@ export function EditorV2Page() {
 
   const currentArticle = useEditorStore(selectV2CurrentArticle)
   const currentFields = useEditorStore(selectV2CurrentFields)
+  const currentContent = useEditorStore(selectV2CurrentContent)
   const hasUnsavedChanges = useEditorStore(selectV2HasUnsavedChanges)
 
   const [project, setProject] = useState<ProjectView | null>(null)
@@ -124,6 +128,23 @@ export function EditorV2Page() {
   const [activeTab, setActiveTab] = useState('editor')
   const [currentPdfSrc, setCurrentPdfSrc] = useState<string | null>(null)
   const [copyingOcr, setCopyingOcr] = useState(false)
+  const [reextractingField, setReextractingField] = useState<string | null>(null)
+
+  const handleReextractField = async (fieldName: string) => {
+    if (!currentArticleId) return
+    setReextractingField(fieldName)
+    try {
+      const settings = await window.api.getSettings()
+      const result = await reextractField(currentArticleId, fieldName, settings.ai)
+      if (!result.success) {
+        toast.error(result.error ?? 'Échec de la ré-extraction')
+      } else {
+        toast.success('Champ ré-extrait')
+      }
+    } finally {
+      setReextractingField(null)
+    }
+  }
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   const [bulkDeleteIds, setBulkDeleteIds] = useState<string[] | null>(null)
@@ -312,7 +333,9 @@ export function EditorV2Page() {
         lastError = result.error || t('editor:toasts.transcribeUnknownError')
       }
       if (ids.length > 1) setBulkTranscribeProgress({ current: i + 1, total: ids.length })
-      if (i < ids.length - 1) await new Promise((r) => setTimeout(r, 500))
+      // 1s pacing between elements to stay under provider RPS caps. Mistral
+      // paid tier caps small chat at 1.67 RPS, so 1s/element keeps us safe.
+      if (i < ids.length - 1) await new Promise((r) => setTimeout(r, 1000))
     }
 
     setBulkTranscribeProgress(null)
@@ -683,18 +706,29 @@ export function EditorV2Page() {
               </div>
               <div className="flex-1 overflow-y-auto min-h-0">
                 <ArticleForm
-                  key={currentArticleId ?? 'none'}
+                  // Keying on modifiedAt forces ArticleForm to remount when
+                  // an external mutation lands (transcribe, re-extract,
+                  // applyTemplate). Milkdown is uncontrolled so it only
+                  // reads its value at init — without this, the editor
+                  // stays stale until the user navigates away and back.
+                  key={`${currentArticleId ?? 'none'}-${currentArticle?.modifiedAt ?? ''}`}
                   fields={currentFields}
+                  content={currentContent}
                   schema={currentSchema}
                   templates={templates}
                   templateId={currentArticle?.templateId}
                   currentTemplateName={currentTemplateName}
                   transcribing={transcribing}
                   copyingOcr={copyingOcr}
+                  reextractingField={reextractingField}
                   onUpdate={(fieldName, value) =>
                     currentArticleId && updateField(currentArticleId, fieldName, value)
                   }
+                  onContentChange={(value) =>
+                    currentArticleId && updateContent(currentArticleId, value)
+                  }
                   onTranscribe={() => currentArticleId && requestTranscribe([currentArticleId])}
+                  onReextractField={handleReextractField}
                   onCopyOcr={handleCopyOcr}
                   onExport={openExportSingle}
                   onApplyTemplate={

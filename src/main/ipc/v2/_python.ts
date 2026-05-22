@@ -217,6 +217,20 @@ export const renderPdfsBatch = async (
   }
 }
 
+// Strip the text layer from a PDF while preserving images + vector graphics.
+// Used to coax Mistral OCR into running pure vision OCR instead of leaning on
+// the publisher's text layer (which often carries a wrong multi-column
+// reading order that Mistral inherits).
+export const stripPdfTextLayer = async (
+  pdfIn: string,
+  pdfOut: string
+): Promise<boolean> => {
+  if (!existsSync(pdfIn)) return false
+  const scriptPath = join(getScriptsPath(), 'strip_pdf_text.py')
+  const code = await runPython([scriptPath, pdfIn, pdfOut])
+  return code === 0 && existsSync(pdfOut)
+}
+
 // Extract the text layer from a PDF (used for OCR-free quick read).
 export const extractPdfText = async (pdfPath: string): Promise<string | null> => {
   if (!existsSync(pdfPath)) return null

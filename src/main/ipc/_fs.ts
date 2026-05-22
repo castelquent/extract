@@ -19,7 +19,7 @@
 // never in folder names — so Windows path limits and special characters never bite.
 
 import { app } from 'electron'
-import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, statSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, statSync, unlinkSync } from 'fs'
 import { join } from 'path'
 import { ulid } from 'ulid'
 import type {
@@ -28,6 +28,7 @@ import type {
   ProjectMetadataV2,
   SourceDossierMetadata,
   SourceMetadata,
+  TemplateField,
 } from '@shared/types'
 
 // ---- ID generation ----
@@ -106,6 +107,73 @@ export const getArticleExtractPdfPath = (
   articleId: string
 ): string => join(getArticleDir(projectId, dossierId, articleId), 'extract.pdf')
 
+// Mandatory raw transcription content (markdown). Always at content.md.
+export const getArticleContentMdPath = (
+  projectId: string,
+  dossierId: string | null,
+  articleId: string
+): string => join(getArticleDir(projectId, dossierId, articleId), 'content.md')
+
+// Debug-only sidecar: raw OCR markdown as returned by Mistral OCR (before
+// the chat cleanup step). Lets us diff content.md against the original to
+// see what the LLM dropped / hallucinated. Temporary — remove once the
+// cleanup pipeline is trustworthy.
+export const getArticleOcrOriginalMdPath = (
+  projectId: string,
+  dossierId: string | null,
+  articleId: string
+): string => join(getArticleDir(projectId, dossierId, articleId), 'ocr_original.md')
+
+// Debug-only sidecar: the raw `pages[].tables[]` array as returned by Mistral
+// OCR when `table_format` is enabled. Dumped as JSON so we can inspect what
+// Mistral actually emitted (ids, content) when a placeholder doesn't get
+// substituted in content.md.
+export const getArticleOcrTablesJsonPath = (
+  projectId: string,
+  dossierId: string | null,
+  articleId: string
+): string => join(getArticleDir(projectId, dossierId, articleId), 'ocr_tables.json')
+
+// Per-article folder for extracted images / embedded media (Mistral OCR
+// returns inline images as base64; we decode them into individual files
+// here). Referenced from content.md via the custom `extract-asset://` URL
+// scheme so the markdown stays portable across project moves and ZIP
+// export/import.
+export const getArticleAssetsDir = (
+  projectId: string,
+  dossierId: string | null,
+  articleId: string
+): string => join(getArticleDir(projectId, dossierId, articleId), 'assets')
+
+export const getArticleAssetPath = (
+  projectId: string,
+  dossierId: string | null,
+  articleId: string,
+  filename: string
+): string => join(getArticleAssetsDir(projectId, dossierId, articleId), filename)
+
+// Slugify a field name into a safe filesystem name. We avoid normalising
+// accents away (keeps "Étapes" readable as "etapes") but strip everything
+// that's not a-z 0-9 dash. Snapshotted schema names are stable per article,
+// so collisions across templates aren't a concern.
+const slugFieldName = (name: string): string =>
+  name
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64) || 'field'
+
+// One .md file per markdown sub-field, filename derived from the field name.
+export const getArticleMdFieldPath = (
+  projectId: string,
+  dossierId: string | null,
+  articleId: string,
+  fieldName: string
+): string =>
+  join(getArticleDir(projectId, dossierId, articleId), `${slugFieldName(fieldName)}.md`)
+
 // ============================================================
 // Small filesystem utilities
 // ============================================================
@@ -130,6 +198,37 @@ export const writeJson = (path: string, data: unknown): boolean => {
     return true
   } catch {
     return false
+  }
+}
+
+// Read a .md file (or any text file) returning empty string when missing.
+// We intentionally do NOT return null on missing files: an article without a
+// content.md yet (e.g. just-saved draft pre-transcription) has empty content,
+// not "unknown".
+export const readMdFile = (path: string): string => {
+  try {
+    if (!existsSync(path)) return ''
+    return readFileSync(path, 'utf-8')
+  } catch {
+    return ''
+  }
+}
+
+export const writeMdFile = (path: string, content: string): boolean => {
+  try {
+    ensureDir(join(path, '..'))
+    writeFileSync(path, content ?? '', 'utf-8')
+    return true
+  } catch {
+    return false
+  }
+}
+
+export const deleteFileIfExists = (path: string): void => {
+  try {
+    if (existsSync(path)) unlinkSync(path)
+  } catch {
+    // ignore
   }
 }
 
@@ -192,12 +291,67 @@ export const readSourceDossierMetadata = (
 ): SourceDossierMetadata | null =>
   readJson<SourceDossierMetadata>(getSourceDossierMetadataPath(projectId, sourceDossierId))
 
+// Hydrates an article: reads metadata.json, then loads content.md into
+// `content` and each markdown sub-field into `fields[fieldName]`. The
+// returned object is the runtime shape the renderer expects.
 export const readArticleMetadata = (
   projectId: string,
   dossierId: string | null,
   articleId: string
-): ArticleMetadata | null =>
-  readJson<ArticleMetadata>(getArticleMetadataPath(projectId, dossierId, articleId))
+): ArticleMetadata | null => {
+  const meta = readJson<ArticleMetadata>(getArticleMetadataPath(projectId, dossierId, articleId))
+  if (!meta) return null
+  // Migration safety: older articles on disk won't have `content` yet.
+  if (typeof meta.content !== 'string') meta.content = ''
+  // Always read content.md (empty string if not present yet).
+  meta.content = readMdFile(getArticleContentMdPath(projectId, dossierId, articleId))
+  // Hydrate markdown sub-fields by name from per-field .md files.
+  const fields: Record<string, string> = { ...(meta.fields ?? {}) }
+  for (const field of meta.schema ?? []) {
+    if (field.type === 'markdown') {
+      fields[field.name] = readMdFile(
+        getArticleMdFieldPath(projectId, dossierId, articleId, field.name)
+      )
+    }
+  }
+  meta.fields = fields
+  return meta
+}
+
+// Persist an article: splits fields by type. text/textarea + structural data
+// go to metadata.json; markdown sub-fields go to their own .md files; the
+// always-present `content` goes to content.md.
+export const writeArticleMetadata = (
+  projectId: string,
+  dossierId: string | null,
+  articleId: string,
+  article: ArticleMetadata
+): boolean => {
+  const schema: TemplateField[] = article.schema ?? []
+  const mdNames = new Set(schema.filter((f) => f.type === 'markdown').map((f) => f.name))
+  const textFields: Record<string, string> = {}
+  const mdFields: Record<string, string> = {}
+  for (const [name, value] of Object.entries(article.fields ?? {})) {
+    if (mdNames.has(name)) mdFields[name] = value
+    else textFields[name] = value
+  }
+  // The on-disk metadata.json contains text/textarea values only and no
+  // `content` (which lives in content.md).
+  const onDisk = { ...article, fields: textFields }
+  delete (onDisk as Partial<ArticleMetadata>).content
+  const okJson = writeJson(getArticleMetadataPath(projectId, dossierId, articleId), onDisk)
+  const okContent = writeMdFile(
+    getArticleContentMdPath(projectId, dossierId, articleId),
+    article.content ?? ''
+  )
+  let okFields = true
+  for (const [name, value] of Object.entries(mdFields)) {
+    if (!writeMdFile(getArticleMdFieldPath(projectId, dossierId, articleId, name), value)) {
+      okFields = false
+    }
+  }
+  return okJson && okContent && okFields
+}
 
 // ============================================================
 // Folder size helper (used by project info / export size hints)

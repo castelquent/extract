@@ -136,7 +136,7 @@ const orderedFilledEntries = (
     if (!isFieldFilled(field, raw)) continue
     const str = typeof raw === 'string' ? raw : String(raw ?? '')
     const plain =
-      field.type === 'richtext'
+      field.type === 'markdown'
         ? convert(str, { wordwrap: false, preserveNewlines: true })
         : str
     out.push({ field, plain })
@@ -232,7 +232,7 @@ const orderedFilledEntriesHtml = (
     const raw = article.fields?.[field.name]
     if (!isFieldFilled(field, raw)) continue
     const str = typeof raw === 'string' ? raw : String(raw ?? '')
-    const html = field.type === 'richtext' ? str : escapeHtml(str)
+    const html = field.type === 'markdown' ? str : escapeHtml(str)
     out.push({ field, html: highlightInHtml(html, needle) })
   }
   return out
@@ -264,7 +264,7 @@ const articleSectionHtml = (article: ArticleMetadata, opts: ArticleHtmlOpts): st
   const fieldBlocks: string[] = []
   entries.forEach(({ field, html }, i) => {
     if (i === 0) {
-      const headerInner = field.type === 'richtext' ? html.replace(/<[^>]+>/g, ' ').trim() : html
+      const headerInner = field.type === 'markdown' ? html.replace(/<[^>]+>/g, ' ').trim() : html
       titleHtml = `<h1 class="article-title">${headerInner}</h1><hr class="title-rule"/>`
     } else {
       fieldBlocks.push(

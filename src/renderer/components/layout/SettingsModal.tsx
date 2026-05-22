@@ -19,7 +19,7 @@ import {
   DialogContent,
   ScrollArea,
 } from '@/components/ui'
-import { Save, RefreshCw, Bot, Download, Receipt, Globe, Shield } from 'lucide-react'
+import { Save, RefreshCw, Bot, Download, Receipt, Globe, Shield, Moon, Sun } from 'lucide-react'
 import type { TranscriptionLog } from '@shared/types'
 import { AI_MODELS, calculateCost, formatCost, getAvailableProviders } from '@/lib/aiModels'
 
@@ -35,6 +35,8 @@ export function SettingsModal() {
     updateProgress,
     updateError,
     setUpdateStatus: setGlobalUpdateStatus,
+    theme,
+    setTheme,
   } = useUIStore()
   const { settings, loading, saving, loadSettings, saveSettings, updateAI, updateApp } = useSettingsStore()
 
@@ -105,7 +107,7 @@ export function SettingsModal() {
     const model = AI_MODELS.find(m => m.value === modelValue)
     if (model) {
       updateAI('model', modelValue)
-      updateAI('provider', model.provider as 'openai' | 'anthropic')
+      updateAI('provider', model.provider)
     }
   }
 
@@ -168,23 +170,48 @@ export function SettingsModal() {
                   <div className="space-y-6">
                     <div>
                       <h3 className="text-lg font-medium mb-4">{t('settings:nav.general')}</h3>
-                      <div className="space-y-2 max-w-sm">
-                        <Label>{t('settings:general.language')}</Label>
-                        <Select
-                          value={settings.app.language ?? 'fr'}
-                          onValueChange={(v) => updateApp('language', v as SupportedLanguage)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {SUPPORTED_LANGUAGES.map((lng) => (
-                              <SelectItem key={lng} value={lng}>
-                                {t(`common:language.${lng}`)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                      <div className="space-y-4 max-w-sm">
+                        <div className="space-y-2">
+                          <Label>{t('settings:general.language')}</Label>
+                          <Select
+                            value={settings.app.language ?? 'fr'}
+                            onValueChange={(v) => updateApp('language', v as SupportedLanguage)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {SUPPORTED_LANGUAGES.map((lng) => (
+                                <SelectItem key={lng} value={lng}>
+                                  {t(`common:language.${lng}`)}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>{t('settings:general.theme')}</Label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <Button
+                              type="button"
+                              variant={theme === 'light' ? 'default' : 'outline'}
+                              onClick={() => setTheme('light')}
+                              className="justify-start"
+                            >
+                              <Sun className="h-4 w-4 mr-2" />
+                              {t('settings:general.themeLight')}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant={theme === 'dark' ? 'default' : 'outline'}
+                              onClick={() => setTheme('dark')}
+                              className="justify-start"
+                            >
+                              <Moon className="h-4 w-4 mr-2" />
+                              {t('settings:general.themeDark')}
+                            </Button>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -206,10 +233,10 @@ export function SettingsModal() {
                               <SelectValue placeholder={t('settings:ai.selectModel')} />
                             </SelectTrigger>
                             <SelectContent>
-                              {(['anthropic', 'openai'] as const).map(provider => {
+                              {(['anthropic', 'openai', 'mistral'] as const).map(provider => {
                                 const available = getAvailableProviders(settings.ai).has(provider)
                                 const models = AI_MODELS.filter(m => m.provider === provider)
-                                const label = provider === 'anthropic' ? 'Anthropic' : 'OpenAI'
+                                const label = provider === 'anthropic' ? 'Anthropic' : provider === 'openai' ? 'OpenAI' : 'Mistral'
                                 return (
                                   <SelectGroup key={provider}>
                                     <SelectLabel>
@@ -217,7 +244,7 @@ export function SettingsModal() {
                                     </SelectLabel>
                                     {models.map(model => (
                                       <SelectItem key={model.value} value={model.value} disabled={!available}>
-                                        {model.label.replace(/^(Anthropic|OpenAI):\s*/, '')}
+                                        {model.label.replace(/^(Anthropic|OpenAI|Mistral):\s*/, '')}
                                       </SelectItem>
                                     ))}
                                   </SelectGroup>
@@ -252,6 +279,19 @@ export function SettingsModal() {
                           />
                           <p className="text-xs text-muted-foreground">
                             {t('settings:ai.openaiKeyHint')}
+                          </p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>{t('settings:ai.mistralKey')}</Label>
+                          <Input
+                            type="password"
+                            value={settings.ai.mistralApiKey || ''}
+                            onChange={(e) => updateAI('mistralApiKey', e.target.value)}
+                            placeholder="..."
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            {t('settings:ai.mistralKeyHint')}
                           </p>
                         </div>
                       </div>

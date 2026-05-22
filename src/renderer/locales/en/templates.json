@@ -31,7 +31,7 @@
     "fieldTypes": {
       "text": "Short text",
       "textarea": "Long text",
-      "richtext": "Rich text"
+      "markdown": "Markdown"
     },
     "fieldHintLabel": "AI hint (optional)",
     "fieldHintPlaceholder": "e.g. The article's author, when visible",

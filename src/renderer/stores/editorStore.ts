@@ -24,6 +24,10 @@ interface EditorState {
   // Per-article field drafts (unsaved buffer). Articles not in this map have
   // no pending changes.
   drafts: Record<string, Record<string, string>>
+  // Per-article content (markdown) drafts. Tracked separately from `drafts`
+  // because content lives in its own file (content.md) and changes
+  // independently.
+  contentDrafts: Record<string, string>
   error: string | null
 
   // Lifecycle
@@ -33,6 +37,7 @@ interface EditorState {
 
   // Mutations
   updateField: (articleId: string, fieldName: string, value: string) => void
+  updateContent: (articleId: string, value: string) => void
   saveArticle: (articleId: string) => Promise<boolean>
   saveAll: () => Promise<boolean>
   deleteArticle: (articleId: string) => Promise<boolean>
@@ -40,6 +45,11 @@ interface EditorState {
     articleId: string,
     settings: AISettings
   ) => Promise<TranscriptionResult>
+  reextractField: (
+    articleId: string,
+    fieldName: string,
+    settings: AISettings
+  ) => Promise<{ success: boolean; value?: string; error?: string }>
   applyTemplate: (
     articleId: string,
     newSchema: TemplateField[],
@@ -56,6 +66,7 @@ const initialState = {
   currentArticleId: null as string | null,
   loading: false,
   drafts: {} as Record<string, Record<string, string>>,
+  contentDrafts: {} as Record<string, string>,
   error: null as string | null,
 }
 
@@ -70,6 +81,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         articles,
         currentArticleId: articles[0]?.id ?? null,
         drafts: {},
+        contentDrafts: {},
         loading: false,
       })
     } catch (err) {
@@ -93,22 +105,41 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     })
   },
 
+  updateContent: (articleId, value) => {
+    set((s) => {
+      const article = s.articles.find((a) => a.id === articleId)
+      if (!article) return s
+      return { contentDrafts: { ...s.contentDrafts, [articleId]: value } }
+    })
+  },
+
   saveArticle: async (articleId) => {
-    const { projectId, drafts } = get()
+    const { projectId, drafts, contentDrafts } = get()
     if (!projectId) return false
     const draft = drafts[articleId]
-    if (!draft) return true // nothing to save
+    const contentDraft = contentDrafts[articleId]
+    if (!draft && contentDraft === undefined) return true // nothing to save
 
     try {
-      const ok = await window.api.v2_articlesUpdate(projectId, articleId, { fields: draft })
+      const patch: { fields?: Record<string, string>; content?: string } = {}
+      if (draft) patch.fields = draft
+      if (contentDraft !== undefined) patch.content = contentDraft
+      const ok = await window.api.v2_articlesUpdate(projectId, articleId, patch)
       if (ok) {
         set((s) => {
-          const { [articleId]: _, ...rest } = s.drafts
+          const { [articleId]: _droppedFields, ...remainingDrafts } = s.drafts
+          const { [articleId]: _droppedContent, ...remainingContentDrafts } = s.contentDrafts
           return {
-            drafts: rest,
+            drafts: remainingDrafts,
+            contentDrafts: remainingContentDrafts,
             articles: s.articles.map((a) =>
               a.id === articleId
-                ? { ...a, fields: draft, modifiedAt: new Date().toISOString() }
+                ? {
+                    ...a,
+                    fields: draft ?? a.fields,
+                    content: contentDraft ?? a.content,
+                    modifiedAt: new Date().toISOString(),
+                  }
                 : a
             ),
           }
@@ -123,7 +154,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   saveAll: async () => {
-    const ids = Object.keys(get().drafts)
+    const state = get()
+    const ids = Array.from(new Set([
+      ...Object.keys(state.drafts),
+      ...Object.keys(state.contentDrafts),
+    ]))
     if (ids.length === 0) return true
     let allOk = true
     for (const id of ids) {
@@ -142,10 +177,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (ok) {
         set((s) => {
           const remaining = s.articles.filter((a) => a.id !== articleId)
-          const { [articleId]: _, ...drafts } = s.drafts
+          const { [articleId]: _droppedFields, ...drafts } = s.drafts
+          const { [articleId]: _droppedContent, ...contentDrafts } = s.contentDrafts
           const newCurrent =
             s.currentArticleId === articleId ? remaining[0]?.id ?? null : s.currentArticleId
-          return { articles: remaining, drafts, currentArticleId: newCurrent }
+          return { articles: remaining, drafts, contentDrafts, currentArticleId: newCurrent }
         })
         toast.success(t('editor:toasts.deleted'))
       }
@@ -164,26 +200,69 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
     try {
       const result = await window.api.v2_transcribe(projectId, articleId, settings)
-      if (result.success && result.data?.fields) {
-        const fields = result.data.fields
+      if (result.success && result.data) {
+        const fields = result.data.fields ?? {}
+        const newContent = result.data.content
         set((s) => ({
           articles: s.articles.map((a) =>
             a.id === articleId
               ? {
                   ...a,
                   fields: { ...a.fields, ...fields },
+                  content: newContent ?? a.content,
                   modifiedAt: new Date().toISOString(),
                 }
               : a
           ),
-          // Drop any stale draft for this article — server has the truth now.
+          // Drop any stale drafts for this article: server is now authoritative.
           drafts: Object.fromEntries(Object.entries(s.drafts).filter(([k]) => k !== articleId)),
+          contentDrafts: Object.fromEntries(
+            Object.entries(s.contentDrafts).filter(([k]) => k !== articleId)
+          ),
         }))
       }
       return result
     } catch (err: any) {
       console.error(err)
       return { success: false, error: err?.message ?? 'Erreur lors de la transcription' }
+    }
+  },
+
+  reextractField: async (articleId, fieldName, settings) => {
+    const projectId = get().projectId
+    if (!projectId) return { success: false, error: 'Aucun projet chargé' }
+    try {
+      const result = await window.api.v2_transcribeReextractField(
+        projectId,
+        articleId,
+        fieldName,
+        settings
+      )
+      if (result.success && result.value !== undefined) {
+        const newValue = result.value
+        set((s) => ({
+          articles: s.articles.map((a) =>
+            a.id === articleId
+              ? {
+                  ...a,
+                  fields: { ...a.fields, [fieldName]: newValue },
+                  modifiedAt: new Date().toISOString(),
+                }
+              : a
+          ),
+          // Clear any draft for this specific field so the freshly extracted
+          // value shows up in the UI without being shadowed by stale edits.
+          drafts: Object.fromEntries(
+            Object.entries(s.drafts).map(([aid, d]) =>
+              aid === articleId ? [aid, { ...d, [fieldName]: newValue }] : [aid, d]
+            )
+          ),
+        }))
+      }
+      return result
+    } catch (err: any) {
+      console.error(err)
+      return { success: false, error: err?.message ?? 'Erreur lors de la ré-extraction' }
     }
   },
 
@@ -242,8 +321,15 @@ export const selectCurrentFields = (s: EditorState): Record<string, string> => {
   return s.articles.find((a) => a.id === s.currentArticleId)?.fields ?? {}
 }
 
+export const selectCurrentContent = (s: EditorState): string => {
+  if (!s.currentArticleId) return ''
+  const draft = s.contentDrafts[s.currentArticleId]
+  if (draft !== undefined) return draft
+  return s.articles.find((a) => a.id === s.currentArticleId)?.content ?? ''
+}
+
 export const selectHasUnsavedChanges = (s: EditorState): boolean =>
-  Object.keys(s.drafts).length > 0
+  Object.keys(s.drafts).length > 0 || Object.keys(s.contentDrafts).length > 0
 
 export const selectArticleHasDraft = (articleId: string) => (s: EditorState): boolean =>
-  s.drafts[articleId] !== undefined
+  s.drafts[articleId] !== undefined || s.contentDrafts[articleId] !== undefined

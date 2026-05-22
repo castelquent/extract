@@ -12,7 +12,10 @@
     "description": "Veuillez patienter pendant le téléchargement…"
   },
   "general": {
-    "language": "Langue"
+    "language": "Langue",
+    "theme": "Thème",
+    "themeLight": "Clair",
+    "themeDark": "Sombre"
   },
   "ai": {
     "title": "Intelligence Artificielle",
@@ -22,7 +25,9 @@
     "anthropicKey": "Clé API Anthropic",
     "anthropicKeyHint": "Requis pour utiliser les modèles Claude",
     "openaiKey": "Clé API OpenAI",
-    "openaiKeyHint": "Requis pour utiliser les modèles GPT"
+    "openaiKeyHint": "Requis pour utiliser les modèles GPT",
+    "mistralKey": "Clé API Mistral",
+    "mistralKeyHint": "Requis pour utiliser Mistral OCR (facturé à la page, hébergé en UE)"
   },
   "logs": {
     "title": "Logs de transcription",

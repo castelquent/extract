@@ -336,12 +336,20 @@ export function SearchPage() {
               return articles.map<IndexedArticle>((article) => {
                 // Precompute (plain, folded) per field once. The filter loop
                 // below only does indexOf on these, no per-keystroke
-                // stripHtml/fold work.
+                // stripMarkdown/fold work.
                 const searchable: IndexedField[] = []
                 for (const [fieldName, raw] of Object.entries(article.fields ?? {})) {
                   const plain = stripHtml(asString(raw))
                   if (!plain) continue
                   searchable.push({ fieldName, plain, folded: fold(plain) })
+                }
+                // content.md is also searchable. Indexed under the synthetic
+                // field name "Contenu" so result highlighting can find it.
+                if (article.content) {
+                  const plain = stripHtml(asString(article.content))
+                  if (plain) {
+                    searchable.push({ fieldName: 'Contenu', plain, folded: fold(plain) })
+                  }
                 }
                 return { project, article, searchable }
               })
@@ -544,7 +552,7 @@ export function SearchPage() {
   return (
     <div className="min-h-screen p-8 flex flex-col">
       <header className="flex items-center gap-3 mb-6">
-        <SearchIcon className="h-8 w-8 text-primary" />
+        <SearchIcon className="h-8 w-8 text-foreground" />
         <div>
           <h1 className="text-2xl font-bold">{t('title')}</h1>
           <p className="text-muted-foreground text-sm">

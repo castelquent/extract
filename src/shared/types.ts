@@ -1,5 +1,5 @@
 // Template types
-export type FieldType = 'text' | 'textarea' | 'richtext'
+export type FieldType = 'text' | 'textarea' | 'markdown'
 
 export interface TemplateField {
   name: string
@@ -184,7 +184,16 @@ export interface ArticleMetadata {
   order?: number
   zones: Zone[]
   pages: number[]
+  // text/textarea field values keyed by field name. Markdown field values
+  // live as .md files on disk (one per field), NOT in this record. At the
+  // IPC boundary, IPC readers hydrate markdown values into this map so the
+  // renderer can treat all fields uniformly; on write the IPC layer splits
+  // them back into separate .md files.
   fields: Record<string, string>
+  // Mandatory raw transcription content (markdown). Always present, lives in
+  // content.md on disk. Empty string until transcribed. Source of truth for
+  // the article body; structured fields above are derived/extracted from it.
+  content: string
   status: ArticleStatus
   schema: TemplateField[]
   aiContext?: string
@@ -279,7 +288,7 @@ export interface ArticleMoveTarget {
 // ============================================================
 // AI / Settings
 // ============================================================
-export type AIProvider = 'openai' | 'anthropic'
+export type AIProvider = 'openai' | 'anthropic' | 'mistral'
 
 export interface AISettings {
   provider: AIProvider
@@ -288,12 +297,18 @@ export interface AISettings {
   prompt: string
   anthropicApiKey?: string
   openaiApiKey?: string
+  mistralApiKey?: string
 }
 
 export interface TranscriptionResult {
   success: boolean
   data?: {
     fields: Record<string, string>
+    // Raw transcription content (markdown). Populated by all providers and
+    // persisted to content.md by the IPC handler. For 1-step providers
+    // (Claude / GPT / Mistral OCR direct) this is built from the extracted
+    // body; for the Mistral 2-step pipeline this is the OCR markdown verbatim.
+    content?: string
   }
   error?: string
   rawContent?: string
@@ -306,6 +321,9 @@ export interface TranscriptionLog {
   provider: string
   inputTokens: number
   outputTokens: number
+  // Optional: number of pages billed (used by per-page priced providers like
+  // Mistral OCR). When set, cost is computed from `pages` instead of tokens.
+  pages?: number
   success: boolean
   error?: string
 }
@@ -435,7 +453,7 @@ export interface ElectronAPI {
   v2_articlesUpdate: (
     projectId: string,
     articleId: string,
-    patch: Partial<Pick<ArticleMetadata, 'fields' | 'zones' | 'pages' | 'status' | 'sourceId' | 'dossierId' | 'schema' | 'aiContext' | 'templateId'>>
+    patch: Partial<Pick<ArticleMetadata, 'fields' | 'content' | 'zones' | 'pages' | 'status' | 'sourceId' | 'dossierId' | 'schema' | 'aiContext' | 'templateId'>>
   ) => Promise<boolean>
   v2_articlesDelete: (projectId: string, articleId: string) => Promise<boolean>
   v2_articlesMove: (projectId: string, articleId: string, target: ArticleMoveTarget) => Promise<boolean>
@@ -454,6 +472,16 @@ export interface ElectronAPI {
 
   // Transcription — prompt is built server-side from article.schema + article.aiContext
   v2_transcribe: (projectId: string, articleId: string, settings: AISettings) => Promise<TranscriptionResult>
+  // Re-extract a single markdown sub-field from the article's current
+  // content.md. Cheaper than a full re-transcription: no OCR step, just one
+  // chat call that produces the value for the named field. Returns the new
+  // value (already persisted) on success.
+  v2_transcribeReextractField: (
+    projectId: string,
+    articleId: string,
+    fieldName: string,
+    settings: AISettings
+  ) => Promise<{ success: boolean; value?: string; error?: string }>
 
   // Export
   v2_exportArticlesPdf: (

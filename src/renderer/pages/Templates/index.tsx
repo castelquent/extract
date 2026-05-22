@@ -54,7 +54,7 @@ import {
 } from '@/components/ui'
 import { Plus, FileStack, Pencil, Trash2, GripVertical, X, ChevronDown, RotateCcw, Copy } from 'lucide-react'
 
-const FIELD_TYPE_KEYS: FieldType[] = ['text', 'textarea', 'richtext']
+const FIELD_TYPE_KEYS: FieldType[] = ['text', 'textarea', 'markdown']
 
 // Generate the AI prompt previewed in the template editor. Stays in sync
 // with the backend builder in main/ipc/v2/transcription.ts — both read the
@@ -118,7 +118,6 @@ function createEmptyTemplate(): Template {
     aiContext: '',
     fields: [
       createTitreField(),
-      { name: 'Contenu', type: 'richtext', order: 1 },
     ],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -524,7 +523,7 @@ export function TemplatesPage() {
       {/* Header */}
       <header className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-3">
-          <FileStack className="h-8 w-8 text-primary" />
+          <FileStack className="h-8 w-8 text-foreground" />
           <div>
             <h1 className="text-2xl font-bold">{t('templates:title')}</h1>
             <p className="text-muted-foreground text-sm">{t('templates:subtitle')}</p>

@@ -1,18 +1,21 @@
 // Shared logic for applying a model to an existing article — preserves field
-// values by name, coerces between richtext / text when types change, reports
+// values by name, coerces between markdown / text when types change, reports
 // which values would be lost.
 import type { TemplateField } from '@shared/types'
-import { asString, stripHtml } from '@shared/fieldValue'
+import { asString, stripMarkdown } from '@shared/fieldValue'
 
 // Re-exported so existing imports from '@/lib/templateMerge' keep working.
-export { asString, stripHtml }
+// `stripHtml` is kept as an alias on the shared helper for the same reason.
+export { asString, stripMarkdown }
+export { stripHtml } from '@shared/fieldValue'
 
-// Wrap plain text in <p> for graceful text → richtext conversion.
-export const wrapAsHtml = (text: unknown): string => {
-  const str = asString(text)
-  if (!str) return ''
-  return `<p>${str}</p>`
-}
+// Promote plain text to a markdown paragraph during text → markdown coercion.
+// No wrapping is needed (markdown treats plain text as a paragraph), so this
+// is effectively identity; kept as a named helper for symmetry with the old
+// wrapAsHtml API and to keep call sites readable.
+export const wrapAsMarkdown = (text: unknown): string => asString(text)
+// Back-compat alias.
+export const wrapAsHtml = wrapAsMarkdown
 
 // Schema equality by field-by-field comparison (name + type + order). Used
 // to identify which Template (if any) currently matches an article's snapshot.
@@ -55,13 +58,13 @@ export const computeMerge = (
       continue
     }
     // Type changed: coerce.
-    if (oldField.type === 'richtext' && (field.type === 'text' || field.type === 'textarea')) {
-      mergedFields[field.name] = stripHtml(existingValue)
+    if (oldField.type === 'markdown' && (field.type === 'text' || field.type === 'textarea')) {
+      mergedFields[field.name] = stripMarkdown(existingValue)
     } else if (
       (oldField.type === 'text' || oldField.type === 'textarea') &&
-      field.type === 'richtext'
+      field.type === 'markdown'
     ) {
-      mergedFields[field.name] = wrapAsHtml(existingValue)
+      mergedFields[field.name] = wrapAsMarkdown(existingValue)
     } else {
       mergedFields[field.name] = existingValue
     }

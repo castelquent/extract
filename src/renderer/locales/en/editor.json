@@ -21,7 +21,9 @@
     "export": "Export",
     "templateLabel": "Template:",
     "templateChange": "Change",
-    "templateCustom": "Custom"
+    "templateCustom": "Custom",
+    "contentLabel": "Content",
+    "contentPlaceholder": "Raw transcription of the document in markdown. Edit freely; this is the source of truth for the element."
   },
   "navButtons": {
     "previous": "Previous",

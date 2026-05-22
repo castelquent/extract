@@ -1,11 +1,23 @@
 import * as Sentry from '@sentry/electron/main'
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, net, protocol, shell } from 'electron'
 import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
+import { pathToFileURL } from 'url'
 import { autoUpdater } from 'electron-updater'
 import { setupIpcHandlers } from './ipc'
 import { setupFsWatchers, teardownFsWatchers } from './watchers'
-import { buildIndex } from './ipc/v2/_index'
+import { buildIndex, idx } from './ipc/v2/_index'
+import { getArticleAssetPath } from './ipc/_fs'
+
+// Register the `extract-asset://` scheme as privileged BEFORE app.ready so
+// it behaves like http (URL parsing, fetch API, secure context). The actual
+// handler is wired below inside app.whenReady. This lets content.md store
+// portable references like `extract-asset://{articleId}/{filename}` that
+// resolve to the article's assets/ folder on disk regardless of where the
+// project lives or whether the article has been moved.
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'extract-asset', privileges: { standard: true, supportFetchAPI: true, secure: true, stream: true } },
+])
 
 // Read the telemetry consent flag synchronously from disk before initialising
 // Sentry. The settings file is the single source of truth; the renderer's
@@ -110,6 +122,44 @@ app.whenReady().then(() => {
   // project on a typical corpus). Watcher updates the cache incrementally
   // afterwards.
   buildIndex()
+
+  // Wire the `extract-asset://` handler. URL shape:
+  //   extract-asset://{articleId}/{filename}
+  // We look up the article in the in-memory index to find its on-disk
+  // location (project + dossier), then serve the requested file from its
+  // assets/ folder. Returning a 404 Response on miss keeps Milkdown's
+  // <img> tags from throwing.
+  protocol.handle('extract-asset', async (request) => {
+    try {
+      // URL shape: extract-asset://a/{articleId}/{filename}
+      // "a" is a bidon hostname; URLs lowercase hostnames by RFC 3986 so
+      // case-sensitive ULIDs must live in the path. We split off the
+      // leading "/" then take everything before the last "/" as the
+      // articleId (allows future nesting if we ever need it).
+      const url = new URL(request.url)
+      const segments = url.pathname.replace(/^\//, '').split('/').map((s) => decodeURIComponent(s))
+      const articleId = segments[0] ?? ''
+      const filename = segments.slice(1).join('/')
+      console.log(`[extract-asset] request: articleId=${articleId} filename=${filename}`)
+      if (!articleId || !filename) {
+        return new Response('Bad asset URL', { status: 400 })
+      }
+      const entry = idx.getArticle(articleId)
+      if (!entry) {
+        console.warn(`[extract-asset] 404: article ${articleId} not in index`)
+        return new Response(`Article ${articleId} not found`, { status: 404 })
+      }
+      const filePath = getArticleAssetPath(entry.projectId, entry.meta.dossierId, articleId, filename)
+      if (!existsSync(filePath)) {
+        console.warn(`[extract-asset] 404: file does not exist at ${filePath}`)
+        return new Response(`Asset ${filename} not found`, { status: 404 })
+      }
+      return net.fetch(pathToFileURL(filePath).toString())
+    } catch (err) {
+      console.error('[extract-asset] handler error:', err)
+      return new Response('Asset handler error', { status: 500 })
+    }
+  })
 
   createWindow()
 
