@@ -102,7 +102,7 @@ export function ProjectsPage() {
 
       <header className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-3">
-          <Home className="h-8 w-8 text-primary" />
+          <Home className="h-8 w-8 text-foreground" />
           <div>
             <h1 className="text-2xl font-bold">{t('projects:title')}</h1>
             <p className="text-muted-foreground text-sm">{t('projects:subtitle')}</p>
