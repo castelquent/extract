@@ -3,8 +3,6 @@
   "backToProjects": "Retour aux projets",
   "projectNotFound": "Projet introuvable",
   "scope": {
-    "element": "Élément : {{title}}",
-    "selection": "Sélection",
     "dossier": "Dossier : {{name}}"
   },
   "header": {
@@ -30,11 +28,11 @@
     "next": "Suivant"
   },
   "tabs": {
-    "editor": "Éditeur",
-    "summary": "Sommaire"
+    "editor": "Élement",
+    "summary": "Dossier"
   },
   "summary": {
-    "title": "Éléments du projet"
+    "title": "Éléments du dossier"
   },
   "table": {
     "columnElement": "Élément",

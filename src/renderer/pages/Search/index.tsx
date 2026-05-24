@@ -500,10 +500,19 @@ export function SearchPage() {
 
   const handleOpenResult = (hit: MatchHit) => {
     const searchUrl = `/search?q=${encodeURIComponent(query)}`
-    const dest =
-      hit.kind === 'article'
-        ? `/editor/${hit.project.id}?article=${hit.article.id}`
-        : `/editor/${hit.project.id}?dossier=${hit.dossier.id}`
+    // Editor scope is always a dossier (or the orphans bucket) now — we
+    // never open a single article in isolation. Article hits route to the
+    // article's dossier and use `?article=` to focus it inside the loaded
+    // sommaire.
+    let dest: string
+    if (hit.kind === 'article') {
+      const dId = hit.article.dossierId
+      dest = dId
+        ? `/editor/${hit.project.id}?dossier=${dId}&article=${hit.article.id}`
+        : `/editor/${hit.project.id}?orphans=1&article=${hit.article.id}`
+    } else {
+      dest = `/editor/${hit.project.id}?dossier=${hit.dossier.id}`
+    }
     navigate(dest, { state: { from: searchUrl, fromLabel: t('backLabel') } })
   }
 

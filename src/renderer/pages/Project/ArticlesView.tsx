@@ -93,9 +93,12 @@ const ORPHANS_KEY = '__orphans__'
 
 const completionBadge = (article: ArticleMetadata): React.ReactNode => {
   const schema = article.schema ?? []
-  const total = schema.length
-  const filled = schema.filter((f) => isFieldFilled(f, article.fields?.[f.name])).length
-  if (total === 0) return null
+  // The mandatory `content` (transcription body) counts as an extra slot
+  // alongside the schema fields, mirroring the editor's per-article counter.
+  const total = schema.length + 1
+  const filled =
+    schema.filter((f) => isFieldFilled(f, article.fields?.[f.name])).length +
+    ((article.content ?? '').trim() ? 1 : 0)
   const done = filled === total
   return (
     <Badge variant={done ? 'success' : 'secondary'} className="tabular-nums">
@@ -145,8 +148,9 @@ const compareArticles = (a: ArticleMetadata, b: ArticleMetadata): number => {
 
 const isArticleComplete = (article: ArticleMetadata): boolean => {
   const schema = article.schema ?? []
-  if (schema.length === 0) return false
-  return schema.every((f) => isFieldFilled(f, article.fields?.[f.name]))
+  const contentFilled = (article.content ?? '').trim().length > 0
+  const allSchemaFilled = schema.every((f) => isFieldFilled(f, article.fields?.[f.name]))
+  return allSchemaFilled && contentFilled
 }
 
 // ---------- Article row (sortable) ----------
@@ -376,7 +380,7 @@ function DossierSidebarItem({
           className={`flex items-center gap-2 px-3 py-1.5 text-sm ${isEditing ? '' : 'cursor-pointer'} ${isActive ? 'bg-muted font-medium' : 'hover:bg-muted/40'} ${showDrop ? 'bg-primary/10 outline outline-2 outline-primary/60 -outline-offset-1' : ''}`}
           title={dossier.name}
         >
-          <Folder className="h-3.5 w-3.5 shrink-0 fill-muted-foreground/60 text-muted-foreground/60" />
+          <Folder className="h-3.5 w-3.5 shrink-0 fill-primary text-muted-foreground/60" />
           {isEditing ? (
             <Input
               value={inlineRenameName}
@@ -810,7 +814,13 @@ export function ArticlesView({
   }
 
   const handleOpenArticle = (id: string) => {
-    navigate(`/editor/${projectId}?only=${id}`)
+    // Editor scope is always a dossier (or the orphans bucket) — we don't
+    // open a single article in isolation anymore. Route via the article's
+    // dossier and focus it inside the sommaire with `?article=`.
+    const article = useProjectStore.getState().articles.find((a) => a.id === id)
+    const dossierId = article?.dossierId
+    const scopeQs = dossierId ? `dossier=${dossierId}` : 'orphans=1'
+    navigate(`/editor/${projectId}?${scopeQs}&article=${id}`)
   }
 
   const handleDeleteArticle = (id: string) => {
@@ -1063,17 +1073,6 @@ export function ArticlesView({
               {t('articles:selectionBar.selected', { count: selectedCount })}
             </span>
             <div className="h-5 w-px bg-border" />
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 rounded-full px-3"
-              onClick={() =>
-                navigate(`/editor/${projectId}?ids=${Array.from(selectedIds).join(',')}`)
-              }
-            >
-              <FileText className="h-4 w-4 mr-1.5" />
-              {t('articles:selectionBar.transcribe')}
-            </Button>
             <Button
               variant="ghost"
               size="sm"

@@ -100,7 +100,13 @@ export interface ProjectView extends ProjectMetadataV2 {
   dossiersCount: number
   articlesToExtract: number  // status === 'draft' (PDF pending)
   articlesTotal: number       // status === 'ready' (real elements)
-  articlesFilled: number      // status === 'ready' AND every schema field has a value
+  articlesFilled: number      // status === 'ready' AND every schema field + content has a value
+  // Field-level fill rate across ready articles (counts content.md as a
+  // slot alongside the schema fields, same as the per-article counter in
+  // the editor). Lets the project card show a granular % instead of the
+  // all-or-nothing articlesFilled/articlesTotal ratio.
+  fieldsTotal: number
+  fieldsFilled: number
 }
 
 // --- Source (a PDF imported into a project) ---
@@ -213,8 +219,6 @@ export interface ArticleMetadata {
 export interface ArticleScope {
   dossierId?: string | null   // null = orphans only; undefined = any
   sourceId?: string
-  articleId?: string          // when set: list returns at most this single article
-  articleIds?: string[]       // when set: list returns only articles whose id is in this set
   status?: ArticleStatus
   includeDrafts?: boolean
 }
@@ -469,6 +473,12 @@ export interface ElectronAPI {
   ) => Promise<boolean>
   v2_articlesGetExtractData: (projectId: string, articleId: string) => Promise<string | null>
   v2_articlesRegenerateExtract: (projectId: string, articleId: string) => Promise<boolean>
+  v2_articlesCaptureFromPdfRegion: (
+    projectId: string,
+    articleId: string,
+    page: number,
+    rect: { x1: number; y1: number; x2: number; y2: number }
+  ) => Promise<string | null>
 
   // Transcription — prompt is built server-side from article.schema + article.aiContext
   v2_transcribe: (projectId: string, articleId: string, settings: AISettings) => Promise<TranscriptionResult>

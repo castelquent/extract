@@ -19,6 +19,7 @@ import {
   Button,
   Card,
   CardContent,
+  Input,
   Select,
   SelectContent,
   SelectItem,
@@ -41,6 +42,12 @@ interface ArticleItemProps {
   // Triggers the merge dialog from the parent — used for persisted-with-fields
   // elements where a model change must preserve / coerce field values.
   onChangeModelRequest?: () => void
+  // Optional callback for the inline title input shown below the model
+  // selector. When provided AND the element isn't locked, the user can pre-
+  // type a title at extraction time so the article isn't a faceless "Sans
+  // titre" in the project list before transcription. The value is
+  // overwritten by AI transcription on purpose (see feedback in chat).
+  onTitleChange?: (value: string) => void
   // When true, the element is persisted with filled fields. Zone edits + delete
   // are gated behind onUnlockRequest (confirms wiping fields).
   locked?: boolean
@@ -59,6 +66,7 @@ export function ArticleItem({
   templates,
   onTemplateChange,
   onChangeModelRequest,
+  onTitleChange,
   locked,
   onUnlockRequest,
   children,
@@ -197,6 +205,20 @@ export function ArticleItem({
                 </SelectContent>
               </Select>
             ) : null}
+          </div>
+        )}
+
+        {/* Optional title pre-fill: lets the user identify the element in the
+            project list before transcription. Not shown when locked (the
+            editor handles title edits at that point). */}
+        {!locked && onTitleChange && (
+          <div className="mt-2 ml-8" onClick={(e) => e.stopPropagation()}>
+            <Input
+              value={article.fields?.['Titre'] ?? ''}
+              onChange={(e) => onTitleChange(e.target.value)}
+              placeholder={t('article.titlePlaceholder')}
+              className="h-7 text-xs"
+            />
           </div>
         )}
 

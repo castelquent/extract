@@ -124,6 +124,8 @@ const api: ElectronAPI & {
     ipcRenderer.invoke('v2:articles:reorder', projectId, dossierId, orderedIds),
   v2_articlesGetExtractData: (projectId, articleId) => ipcRenderer.invoke('v2:articles:getExtractData', projectId, articleId),
   v2_articlesRegenerateExtract: (projectId, articleId) => ipcRenderer.invoke('v2:articles:regenerateExtract', projectId, articleId),
+  v2_articlesCaptureFromPdfRegion: (projectId, articleId, page, rect) =>
+    ipcRenderer.invoke('v2:articles:captureFromPdfRegion', projectId, articleId, page, rect),
 
   // Transcription v2 — prompt built from article schema server-side
   v2_transcribe: (projectId, articleId, settings) => ipcRenderer.invoke('v2:transcription:transcribe', projectId, articleId, settings),

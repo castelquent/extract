@@ -36,7 +36,8 @@
     "templateButton": "Modèle : {{name}}",
     "templateButtonTitle": "Le modèle s'applique avec préservation des champs",
     "templatePlaceholder": "Modèle",
-    "templateCustom": "Personnalisé"
+    "templateCustom": "Personnalisé",
+    "titlePlaceholder": "Titre (optionnel)"
   },
   "zoneMenu": {
     "lockedHint": "Élément verrouillé — déverrouillez-le pour modifier",

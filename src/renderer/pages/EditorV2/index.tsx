@@ -1,6 +1,6 @@
 // v2 Editor page. Operates on string article IDs and reads from the v2
 // filesystem-as-truth hierarchy.
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useBlocker, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -30,6 +30,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   Badge,
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
   Button,
   ResizableHandle,
   ResizablePanel,
@@ -59,6 +65,8 @@ import '@react-pdf-viewer/default-layout/lib/styles/index.css'
 import { ArticleForm } from './ArticleForm'
 import { ArticlesTableV2 } from './ArticlesTable'
 import { ApplyTemplateDialog } from '@/components/ApplyTemplateDialog'
+import { CapturePdfModal } from '@/components/CapturePdfModal'
+import type { RichEditorHandle } from '@/components/RichEditor'
 
 // Returns true when the two schema arrays match field-by-field by name/type/order.
 const sameSchema = (a: TemplateField[], b: TemplateField[]): boolean => {
@@ -120,7 +128,10 @@ export function EditorV2Page() {
   const [project, setProject] = useState<ProjectView | null>(null)
   const [loading, setLoading] = useState(true)
   const [applyTemplateOpen, setApplyTemplateOpen] = useState(false)
-  const [scopeLabel, setScopeLabel] = useState<string | null>(null)
+  // Name of the active dossier (or "Sans dossier" when scoped to orphans,
+  // null when the editor was opened on the whole project). Drives the
+  // middle segment of the breadcrumb in the header.
+  const [dossierName, setDossierName] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [transcribing, setTranscribing] = useState(false)
   const [bulkTranscribeProgress, setBulkTranscribeProgress] =
@@ -159,6 +170,37 @@ export function EditorV2Page() {
   const [exportModalOpen, setExportModalOpen] = useState(false)
   const [exportIds, setExportIds] = useState<string[]>([])
 
+  // PDF image-capture modal: the toolbar Image button in the content editor
+  // opens this; on confirm we crop the extract.pdf via PyMuPDF, save the
+  // JPEG under the article's assets/ folder, and insert the markdown link
+  // at the cursor through the content editor's imperative handle.
+  const [captureModalOpen, setCaptureModalOpen] = useState(false)
+  // Track which page is currently visible in the @react-pdf-viewer panel
+  // (1-based) so the capture modal opens on the same page instead of
+  // forcing the user back to page 1.
+  const [currentPdfPage, setCurrentPdfPage] = useState(1)
+  const contentEditorRef = useRef<RichEditorHandle>(null)
+
+  const handleCaptureConfirm = async (
+    page: number,
+    rect: { x1: number; y1: number; x2: number; y2: number }
+  ) => {
+    if (!projectId || !currentArticleId) return
+    const filename = await window.api.v2_articlesCaptureFromPdfRegion(
+      projectId,
+      currentArticleId,
+      page,
+      rect
+    )
+    if (!filename) {
+      toast.error('Échec de la capture')
+      return
+    }
+    const md = `![](extract-asset://a/${currentArticleId}/${filename})\n\n`
+    contentEditorRef.current?.prependMarkdown(md)
+    toast.success('Image capturée')
+  }
+
   const toolbarPluginInstance = toolbarPlugin()
   const { Toolbar } = toolbarPluginInstance
   const pageLayout = {
@@ -183,31 +225,24 @@ export function EditorV2Page() {
   }, [hasUnsavedChanges, setHasUnsavedChanges])
 
   // Initial load. Reads optional scope from query params:
-  //   ?only=ID         → scope to a single article (no sidebar siblings)
-  //   ?ids=ID1,ID2,... → scope to an arbitrary selection of articles
   //   ?dossier=ID      → scope to that dossier
   //   ?orphans=1       → scope to orphan elements (dossierId: null)
   //   (neither)        → entire project
+  // `?article=ID` is an additional deep-link applied after the scope loads
+  // to focus a specific article inside the sommaire.
   const dossierIdParam = searchParams.get('dossier')
   const orphansParam = searchParams.get('orphans') === '1'
-  const onlyArticleParam = searchParams.get('only')
-  const idsParam = searchParams.get('ids')
 
   useEffect(() => {
     if (!projectId) return
     let cancelled = false
     const init = async () => {
       setLoading(true)
-      const idList = idsParam ? idsParam.split(',').filter(Boolean) : null
-      const scope = onlyArticleParam
-        ? { articleId: onlyArticleParam }
-        : idList && idList.length > 0
-          ? { articleIds: idList }
-          : dossierIdParam
-            ? { dossierId: dossierIdParam }
-            : orphansParam
-              ? { dossierId: null }
-              : undefined
+      const scope = dossierIdParam
+        ? { dossierId: dossierIdParam }
+        : orphansParam
+          ? { dossierId: null }
+          : undefined
       const [proj, , , dossier] = await Promise.all([
         window.api.v2_projectsGet(projectId),
         loadScope(projectId, scope),
@@ -217,21 +252,16 @@ export function EditorV2Page() {
       if (cancelled) return
       setProject(proj)
 
-      if (onlyArticleParam) {
-        const a = useEditorStore.getState().articles[0]
-        const title = a ? (a.fields['Titre'] ?? a.fields['title'] ?? '').trim() : ''
-        setScopeLabel(t('editor:scope.element', { title: title || t('common:untitled') }))
-      } else if (idList && idList.length > 0) {
-        setScopeLabel(t('editor:scope.selection'))
-      } else if (dossierIdParam && dossier) {
-        setScopeLabel(t('editor:scope.dossier', { name: dossier.name }))
+      if (dossierIdParam && dossier) {
+        setDossierName(dossier.name)
       } else if (orphansParam) {
-        setScopeLabel(t('common:noFolder'))
+        setDossierName(t('common:noFolder'))
       } else {
-        setScopeLabel(null)
+        setDossierName(null)
       }
 
-      // Deep-link from search: open the requested article and strip the param.
+      // Deep-link from search or article-row click: focus the requested
+      // article and strip the param so refreshes don't keep re-focusing it.
       const requested = searchParams.get('article')
       if (requested) {
         const matches = useEditorStore.getState().articles.find((a) => a.id === requested)
@@ -248,7 +278,7 @@ export function EditorV2Page() {
       reset()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, dossierIdParam, orphansParam, onlyArticleParam, idsParam])
+  }, [projectId, dossierIdParam, orphansParam])
 
   // Load extract.pdf when current article changes
   useEffect(() => {
@@ -287,6 +317,9 @@ export function EditorV2Page() {
         return
       }
       if (!currentArticleId) return
+      // While the PDF capture modal is open, leave arrow keys to it (page
+      // navigation inside the modal) instead of jumping to another article.
+      if (captureModalOpen) return
       const idx = articles.findIndex((a) => a.id === currentArticleId)
       if (e.key === 'ArrowLeft' && idx > 0) setCurrent(articles[idx - 1].id)
       if (e.key === 'ArrowRight' && idx < articles.length - 1) setCurrent(articles[idx + 1].id)
@@ -294,7 +327,7 @@ export function EditorV2Page() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [articles, currentArticleId])
+  }, [articles, currentArticleId, captureModalOpen])
 
   const applyModelOverride = (ai: AISettings, modelOverride?: string): AISettings => {
     if (!modelOverride) return ai
@@ -462,10 +495,13 @@ export function EditorV2Page() {
   }
 
   // Per-article completion: each element has its own snapshot schema.
+  // The mandatory `content` (transcription body) is always counted as an
+  // extra slot since it isn't part of `schema` (it lives in content.md).
   const currentSchema: TemplateField[] = currentArticle?.schema ?? []
-  const totalFields = currentSchema.length
+  const totalFields = currentSchema.length + 1
   const currentCompletion = currentArticle
-    ? currentSchema.filter((f) => isFieldFilled(f, currentArticle.fields?.[f.name])).length
+    ? currentSchema.filter((f) => isFieldFilled(f, currentArticle.fields?.[f.name])).length +
+      ((currentArticle.content ?? '').trim() ? 1 : 0)
     : 0
 
   // Find which template (if any) matches the current article. Prefer the
@@ -537,6 +573,14 @@ export function EditorV2Page() {
           onConfirm={handleApplyTemplate}
         />
       )}
+
+      <CapturePdfModal
+        open={captureModalOpen}
+        onOpenChange={setCaptureModalOpen}
+        pdfDataUrl={currentPdfSrc}
+        initialPage={currentPdfPage}
+        onConfirm={handleCaptureConfirm}
+      />
 
       <AlertDialog open={!!bulkDeleteIds} onOpenChange={(open) => !open && setBulkDeleteIds(null)}>
         <AlertDialogContent>
@@ -612,12 +656,48 @@ export function EditorV2Page() {
             {backTo ? backLabel : t('editor:backDefault')}
           </Button>
           <Separator orientation="vertical" className="h-6" />
-          <div className="flex flex-col leading-tight">
-            <h1 className="text-lg font-semibold">{project.name}</h1>
-            {scopeLabel && (
-              <span className="text-xs text-muted-foreground">{scopeLabel}</span>
-            )}
-          </div>
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbLink
+                  asChild
+                  className="cursor-pointer"
+                >
+                  <span onClick={() => navigate(`/project/${project.id}`)}>{project.name}</span>
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              {dossierName && (
+                <>
+                  <BreadcrumbSeparator />
+                  <BreadcrumbItem>
+                    <BreadcrumbLink
+                      asChild
+                      className="cursor-pointer"
+                    >
+                      <span
+                        onClick={() => {
+                          const key = dossierIdParam ?? '__orphans__'
+                          navigate(`/project/${project.id}?dossier=${key}`)
+                        }}
+                      >
+                        {dossierName}
+                      </span>
+                    </BreadcrumbLink>
+                  </BreadcrumbItem>
+                </>
+              )}
+              {currentArticle && (
+                <>
+                  <BreadcrumbSeparator />
+                  <BreadcrumbItem>
+                    <BreadcrumbPage className="font-medium">
+                      {(currentArticle.fields?.['Titre'] ?? currentArticle.fields?.['title'] ?? '').trim() || t('common:untitled')}
+                    </BreadcrumbPage>
+                  </BreadcrumbItem>
+                </>
+              )}
+            </BreadcrumbList>
+          </Breadcrumb>
           {articles.length > 1 && (
             <Badge variant="secondary" className="tabular-nums">
               {currentIndex >= 0 ? currentIndex + 1 : 0} / {articles.length}
@@ -663,6 +743,7 @@ export function EditorV2Page() {
                   plugins={[toolbarPluginInstance]}
                   pageLayout={pageLayout}
                   defaultScale={SpecialZoomLevel.PageWidth}
+                  onPageChange={(e) => setCurrentPdfPage(e.currentPage + 1)}
                 />
               </div>
             </div>
@@ -708,10 +789,12 @@ export function EditorV2Page() {
                 <ArticleForm
                   // Keying on modifiedAt forces ArticleForm to remount when
                   // an external mutation lands (transcribe, re-extract,
-                  // applyTemplate). Milkdown is uncontrolled so it only
+                  // applyTemplate). MDXEditor is uncontrolled so it only
                   // reads its value at init — without this, the editor
                   // stays stale until the user navigates away and back.
                   key={`${currentArticleId ?? 'none'}-${currentArticle?.modifiedAt ?? ''}`}
+                  contentEditorRef={contentEditorRef}
+                  onCaptureImage={() => setCaptureModalOpen(true)}
                   fields={currentFields}
                   content={currentContent}
                   schema={currentSchema}

@@ -36,7 +36,8 @@
     "templateButton": "Template: {{name}}",
     "templateButtonTitle": "The template is applied while preserving the fields",
     "templatePlaceholder": "Template",
-    "templateCustom": "Custom"
+    "templateCustom": "Custom",
+    "titlePlaceholder": "Title (optional)"
   },
   "zoneMenu": {
     "lockedHint": "Item locked — unlock it to modify",

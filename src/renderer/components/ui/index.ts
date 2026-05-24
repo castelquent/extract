@@ -151,3 +151,12 @@ export {
   CollapsibleTrigger,
   CollapsibleContent,
 } from './collapsible'
+export {
+  Breadcrumb,
+  BreadcrumbList,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+  BreadcrumbEllipsis,
+} from './breadcrumb'

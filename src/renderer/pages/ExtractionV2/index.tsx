@@ -192,9 +192,13 @@ export function ExtractionV2Page() {
   }, [hasUnsavedChanges, setHasUnsavedChanges])
 
   const source = sources.find((s) => s.id === sourceId) ?? null
-  const defaultDossierName = source
-    ? source.originalFilename.replace(/\.[^.]+$/, '')
-    : t('extractor:newDossierDefault')
+  // Prefer the user-renamed source name; fall back to the original PDF
+  // filename without its extension. Used both for the header label and as
+  // the default dossier name in the Generate dialog.
+  const sourceDisplayName = source
+    ? (source.name?.trim() || source.originalFilename.replace(/\.[^.]+$/, ''))
+    : ''
+  const defaultDossierName = sourceDisplayName || t('extractor:newDossierDefault')
 
   const handleZoneCreated = (zone: Zone) => {
     const activeArticle =
@@ -263,6 +267,15 @@ export function ExtractionV2Page() {
   // as orphan 'new' at Save time, so they also need a dossier choice on Generate.
   const unsavedNewCount = articles.filter((a) => !a.persistedId).length
 
+  // After generation, land the user on the project page filtered to the
+  // dossier where the articles ended up (or "Sans dossier" for orphans).
+  // `false` from generateArticles signals failure → stay put.
+  const navigateBackToDossier = (dossierKey: string | null | false) => {
+    if (dossierKey === false || !projectId) return
+    const key = dossierKey ?? '__orphans__'
+    navigate(`/project/${projectId}?dossier=${key}`)
+  }
+
   const handleGenerateClick = async () => {
     if (!projectId || !sourceId) return
     // If there are unsaved new articles OR orphan-new persisted, ask dossier.
@@ -271,8 +284,8 @@ export function ExtractionV2Page() {
       return
     }
     // Otherwise just regen (modifications on existing dossiered articles).
-    const ok = await generateArticles({ kind: 'no-dossier' })
-    if (ok) navigate(-1)
+    const result = await generateArticles({ kind: 'no-dossier' })
+    navigateBackToDossier(result)
   }
 
   const handleConfirmGenerate = async (target: {
@@ -290,8 +303,8 @@ export function ExtractionV2Page() {
         : target.choice === 'existing-dossier' && target.existingDossierId
           ? ({ kind: 'existing-dossier', dossierId: target.existingDossierId } as const)
           : ({ kind: 'no-dossier' } as const)
-    const ok = await generateArticles(generateTarget)
-    if (ok) navigate(-1)
+    const result = await generateArticles(generateTarget)
+    navigateBackToDossier(result)
   }
 
   if (!project) {
@@ -324,7 +337,7 @@ export function ExtractionV2Page() {
           <div>
             <h1 className="text-base font-semibold leading-tight">{project.name}</h1>
             {source && (
-              <p className="text-xs text-muted-foreground">{source.originalFilename}</p>
+              <p className="text-xs text-muted-foreground">{sourceDisplayName}</p>
             )}
           </div>
         </div>
@@ -529,6 +542,11 @@ export function ExtractionV2Page() {
                       templates={templates}
                       onTemplateChange={(template) => handleTemplateChange(article.id, template)}
                       onChangeModelRequest={() => setChangeModelTarget(article)}
+                      onTitleChange={(value) =>
+                        updateArticle(article.id, {
+                          fields: { ...article.fields, Titre: value },
+                        })
+                      }
                       locked={isArticleLocked(article)}
                       onUnlockRequest={() => setUnlockTarget(article)}
                     >

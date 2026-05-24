@@ -46,7 +46,11 @@ export function GenerateDialog({
   onConfirm,
 }: GenerateDialogProps) {
   const { t } = useTranslation(['extractor', 'common'])
-  const [choice, setChoice] = useState<Choice>('new-dossier')
+  const hasDossiers = dossiers.length > 0
+  // Default to "existing-dossier" when the project already has dossiers
+  // (most common case after the first extraction). Fall back to "new-dossier"
+  // for the very first generation in a project.
+  const [choice, setChoice] = useState<Choice>(hasDossiers ? 'existing-dossier' : 'new-dossier')
   const [newDossierName, setNewDossierName] = useState('')
   const [existingDossierId, setExistingDossierId] = useState<string>('')
   const [submitting, setSubmitting] = useState(false)
@@ -54,10 +58,16 @@ export function GenerateDialog({
   useEffect(() => {
     if (open) {
       setNewDossierName(defaultDossierName)
-      setChoice(dossiers.length > 0 ? 'new-dossier' : 'new-dossier')
-      setExistingDossierId(dossiers[0]?.id ?? '')
+      setChoice(hasDossiers ? 'existing-dossier' : 'new-dossier')
+      // Smart pre-select: if a dossier's name matches the source name
+      // (case + whitespace insensitive), it's almost certainly where the
+      // user wants the new articles to land.
+      const norm = (s: string) => s.trim().toLowerCase()
+      const target = norm(defaultDossierName)
+      const matched = dossiers.find((d) => norm(d.name) === target)
+      setExistingDossierId(matched?.id ?? dossiers[0]?.id ?? '')
     }
-  }, [open, defaultDossierName, dossiers])
+  }, [open, defaultDossierName, dossiers, hasDossiers])
 
   const canConfirm =
     choice === 'no-dossier' ||
@@ -86,6 +96,36 @@ export function GenerateDialog({
         </DialogHeader>
 
         <div className="space-y-3 py-2">
+          {hasDossiers && (
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="radio"
+                checked={choice === 'existing-dossier'}
+                onChange={() => setChoice('existing-dossier')}
+                className="mt-1"
+              />
+              <div className="flex-1 space-y-2">
+                <span className="text-sm font-medium">{t('extractor:generateDialog.existingDossier')}</span>
+                <Select
+                  value={existingDossierId}
+                  onValueChange={setExistingDossierId}
+                  disabled={choice !== 'existing-dossier'}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={t('extractor:generateDialog.existingDossierPlaceholder')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {dossiers.map((d) => (
+                      <SelectItem key={d.id} value={d.id}>
+                        {d.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </label>
+          )}
+
           <label className="flex items-start gap-2 cursor-pointer">
             <input
               type="radio"
@@ -101,35 +141,6 @@ export function GenerateDialog({
                 disabled={choice !== 'new-dossier'}
                 placeholder={t('extractor:generateDialog.newDossierPlaceholder')}
               />
-            </div>
-          </label>
-
-          <label className={`flex items-start gap-2 cursor-pointer ${dossiers.length === 0 ? 'opacity-50' : ''}`}>
-            <input
-              type="radio"
-              checked={choice === 'existing-dossier'}
-              onChange={() => setChoice('existing-dossier')}
-              disabled={dossiers.length === 0}
-              className="mt-1"
-            />
-            <div className="flex-1 space-y-2">
-              <span className="text-sm font-medium">{t('extractor:generateDialog.existingDossier')}</span>
-              <Select
-                value={existingDossierId}
-                onValueChange={setExistingDossierId}
-                disabled={choice !== 'existing-dossier' || dossiers.length === 0}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={t('extractor:generateDialog.existingDossierPlaceholder')} />
-                </SelectTrigger>
-                <SelectContent>
-                  {dossiers.map((d) => (
-                    <SelectItem key={d.id} value={d.id}>
-                      {d.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
           </label>
 

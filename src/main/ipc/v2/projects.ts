@@ -32,7 +32,9 @@ const buildProjectView = (projectId: string): ProjectView | null => {
 
   let articlesToExtract = 0  // status === 'draft' (PDF pending)
   let articlesTotal = 0       // status === 'ready'
-  let articlesFilled = 0      // status === 'ready' AND every schema field has a value
+  let articlesFilled = 0      // status === 'ready' AND every schema field + content has a value
+  let fieldsTotal = 0
+  let fieldsFilled = 0
 
   for (const am of idx.listArticlesInProject(projectId, { includeDrafts: true })) {
     if (am.status === 'draft') {
@@ -42,9 +44,21 @@ const buildProjectView = (projectId: string): ProjectView | null => {
     articlesTotal += 1
     const schema = am.schema ?? []
     const fields = am.fields ?? {}
-    if (schema.length > 0 && schema.every((f) => isFieldFilled(f, fields[f.name]))) {
+    // The mandatory `content` (transcription body) counts as an extra slot
+    // alongside the schema fields. An article is "filled" only when every
+    // schema field has a value AND content.md is non-empty. This mirrors
+    // the per-article counter shown in the editor.
+    const schemaFilledCount = schema.filter((f) => isFieldFilled(f, fields[f.name])).length
+    const allSchemaFilled = schemaFilledCount === schema.length
+    const contentFilled = (am.content ?? '').trim().length > 0
+    if (allSchemaFilled && contentFilled) {
       articlesFilled += 1
     }
+    // Field-level totals also include content as a slot, so a 1-text-field
+    // template ends up with 2 slots per article (the text field + content)
+    // and the card / project-page % matches the editor's per-article badge.
+    fieldsTotal += schema.length + 1
+    fieldsFilled += schemaFilledCount + (contentFilled ? 1 : 0)
   }
 
   return {
@@ -55,6 +69,8 @@ const buildProjectView = (projectId: string): ProjectView | null => {
     articlesToExtract,
     articlesTotal,
     articlesFilled,
+    fieldsTotal,
+    fieldsFilled,
   }
 }
 

@@ -27,6 +27,7 @@ import type {
 } from '@shared/types'
 import {
   ensureDir,
+  getArticleAssetsDir,
   getArticleDir,
   getArticleExtractPdfPath,
   getArticleMetadataPath,
@@ -37,7 +38,7 @@ import {
   writeArticleMetadata,
   writeJson,
 } from '../_fs'
-import { generateArticleExtract } from './_python'
+import { cropPdfRegion, generateArticleExtract } from './_python'
 import { touchProject } from './projects'
 import { idx, patchArticle, removeArticleFromIndex } from './_index'
 
@@ -301,6 +302,30 @@ export function setupV2ArticleHandlers(): void {
       } catch {
         return null
       }
+    }
+  )
+
+  ipcMain.handle(
+    'v2:articles:captureFromPdfRegion',
+    async (
+      _,
+      projectId: string,
+      articleId: string,
+      page: number,
+      rect: { x1: number; y1: number; x2: number; y2: number }
+    ): Promise<string | null> => {
+      const dossierId = locateArticle(projectId, articleId)
+      if (dossierId === undefined) return null
+      const pdfPath = getArticleExtractPdfPath(projectId, dossierId, articleId)
+      if (!existsSync(pdfPath)) return null
+      const assetsDir = getArticleAssetsDir(projectId, dossierId, articleId)
+      ensureDir(assetsDir)
+      const filename = `cap-${newId().toLowerCase()}.jpeg`
+      const outputPath = join(assetsDir, filename)
+      const ok = await cropPdfRegion(pdfPath, outputPath, page, rect)
+      if (!ok) return null
+      touchProject(projectId)
+      return filename
     }
   )
 

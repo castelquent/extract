@@ -350,7 +350,59 @@ export const writeArticleMetadata = (
       okFields = false
     }
   }
+  // Garbage-collect orphan assets: any file in assets/ that isn't
+  // referenced from content.md or one of the markdown sub-fields gets
+  // unlinked. Save is the explicit commit point and the user accepts that
+  // "you delete the link, you lose the file" semantics.
+  pruneOrphanAssets(projectId, dossierId, articleId, article.content ?? '', mdFields)
   return okJson && okContent && okFields
+}
+
+// Walk the markdown body + every markdown sub-field of an article, collect
+// the filenames referenced via the extract-asset:// scheme, then unlink any
+// file in assets/ that isn't in that set. Silent on errors (best-effort).
+const ASSET_REF_RE_CACHE = new Map<string, RegExp>()
+const assetRefRegexFor = (articleId: string): RegExp => {
+  let re = ASSET_REF_RE_CACHE.get(articleId)
+  if (!re) {
+    // Match `extract-asset://a/{articleId}/{filename}`; filename stops at
+    // whitespace, closing paren (markdown image), or quote (HTML attr).
+    re = new RegExp(`extract-asset:\\/\\/a\\/${articleId}\\/([^\\s)"']+)`, 'g')
+    ASSET_REF_RE_CACHE.set(articleId, re)
+  }
+  re.lastIndex = 0
+  return re
+}
+
+const pruneOrphanAssets = (
+  projectId: string,
+  dossierId: string | null,
+  articleId: string,
+  contentMd: string,
+  mdFields: Record<string, string>
+): void => {
+  const assetsDir = getArticleAssetsDir(projectId, dossierId, articleId)
+  if (!existsSync(assetsDir)) return
+  const referenced = new Set<string>()
+  const re = assetRefRegexFor(articleId)
+  const collect = (md: string): void => {
+    re.lastIndex = 0
+    let m: RegExpExecArray | null
+    while ((m = re.exec(md)) !== null) {
+      referenced.add(decodeURIComponent(m[1]))
+    }
+  }
+  collect(contentMd)
+  for (const value of Object.values(mdFields)) collect(value)
+  try {
+    for (const entry of readdirSync(assetsDir, { withFileTypes: true })) {
+      if (!entry.isFile()) continue
+      if (referenced.has(entry.name)) continue
+      try { unlinkSync(join(assetsDir, entry.name)) } catch {}
+    }
+  } catch {
+    // ignore — best-effort cleanup, never let it fail a save
+  }
 }
 
 // ============================================================

@@ -10,7 +10,8 @@ import {
   Textarea,
 } from '@/components/ui'
 import { Copy, Download, FileStack, RotateCcw, Sparkles } from 'lucide-react'
-import { RichEditor } from '@/components/RichEditor'
+import { RichEditor, type RichEditorHandle } from '@/components/RichEditor'
+import type { Ref } from 'react'
 
 interface ArticleFormProps {
   fields: Record<string, string> | undefined
@@ -31,6 +32,14 @@ interface ArticleFormProps {
   onCopyOcr?: () => void
   onExport: () => void
   onApplyTemplate?: () => void
+  // Exposes the content editor's imperative handle (insertMarkdown) so the
+  // parent can append captured-image markdown links at the cursor without
+  // forcing a remount.
+  contentEditorRef?: Ref<RichEditorHandle>
+  // When set, the content editor's toolbar Image button calls this instead
+  // of opening the default file-picker (used to launch the PDF capture
+  // modal).
+  onCaptureImage?: () => void
 }
 
 interface DynamicFieldProps {
@@ -115,6 +124,8 @@ export function ArticleForm({
   onCopyOcr,
   onExport,
   onApplyTemplate,
+  contentEditorRef,
+  onCaptureImage,
 }: ArticleFormProps) {
   const { t } = useTranslation('editor')
   const sortedFields = [...schema].sort((a, b) => a.order - b.order)
@@ -191,7 +202,12 @@ export function ArticleForm({
               the LLM-cleaned markdown produced at transcription time. */}
           <div className="space-y-2">
             <Label>{t('form.contentLabel')}</Label>
-            <RichEditor value={content} onChange={onContentChange} />
+            <RichEditor
+              ref={contentEditorRef}
+              value={content}
+              onChange={onContentChange}
+              onImageClick={onCaptureImage}
+            />
           </div>
         </div>
       </div>

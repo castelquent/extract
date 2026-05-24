@@ -6,6 +6,14 @@ import { sentryVitePlugin } from '@sentry/vite-plugin'
 import { resolve } from 'path'
 import { readFileSync } from 'fs'
 
+// Force Electron to run as a real Electron process when vite-plugin-electron
+// spawns it. Some agent / IDE shells set ELECTRON_RUN_AS_NODE=1 globally to
+// avoid stray GUI windows; that flag makes `require('electron')` in our main
+// bundle return the binary path string instead of the API, and the process
+// crashes with `Cannot read properties of undefined (reading 'app')`. We
+// clear it only for the vite process; the user's shell env is untouched.
+delete process.env.ELECTRON_RUN_AS_NODE
+
 // Read package version once so the Sentry release name matches the value
 // passed to Sentry.init at runtime (`extract@${app.getVersion()}`).
 const pkg = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf-8'))

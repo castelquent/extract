@@ -234,3 +234,28 @@
     @apply bg-sidebar border-r border-sidebar-border;
   }
 }
+
+
+.mdxeditor h2{
+   margin-bottom: 16px;
+  font-size: 1.5em;
+}
+.mdxeditor h1{
+   margin-bottom: 16px;
+  font-size: 1.75em;
+}
+.mdxeditor p{
+  margin-bottom: 1em;
+}
+.mdxeditor hr{
+  margin-bottom: 1em;
+}
+.mdxeditor ol li[value]::marker {
+  content: attr(value) ". ";
+}
+.mdxeditor-toolbar{
+  top:0.5em
+}
+.mdxeditor ol, .mdxeditor ul {
+  padding-left: 1.5em;
+}

@@ -3,8 +3,6 @@
   "backToProjects": "Back to projects",
   "projectNotFound": "Project not found",
   "scope": {
-    "element": "Item: {{title}}",
-    "selection": "Selection",
     "dossier": "Folder: {{name}}"
   },
   "header": {
@@ -30,11 +28,11 @@
     "next": "Next"
   },
   "tabs": {
-    "editor": "Editor",
-    "summary": "Summary"
+    "editor": "Element",
+    "summary": "Folder"
   },
   "summary": {
-    "title": "Project items"
+    "title": "Folder items"
   },
   "table": {
     "columnElement": "Item",

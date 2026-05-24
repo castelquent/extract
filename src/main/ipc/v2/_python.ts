@@ -89,6 +89,32 @@ export const generateThumbnail = async (
   return code === 0 && existsSync(outputPath)
 }
 
+// Crop a normalized rectangle from a single PDF page to a JPEG. Used by
+// the in-editor image capture feature: the user draws a rect on the
+// article's extract.pdf inside a modal, we render that region to an
+// asset under the article's assets/ folder so the markdown can reference
+// it via extract-asset://.
+export const cropPdfRegion = async (
+  pdfPath: string,
+  outputPath: string,
+  page: number,
+  rect: { x1: number; y1: number; x2: number; y2: number },
+  dpi = 200
+): Promise<boolean> => {
+  const configPath = join(
+    app.getPath('temp'),
+    `crop-${Date.now()}-${Math.random().toString(36).slice(2)}.json`
+  )
+  writeFileSync(
+    configPath,
+    JSON.stringify({ pdfPath, outputPath, page, rect, dpi })
+  )
+  const scriptPath = join(getScriptsPath(), 'crop_pdf_region.py')
+  const code = await runPython([scriptPath, configPath])
+  try { unlinkSync(configPath) } catch {}
+  return code === 0 && existsSync(outputPath)
+}
+
 // Convert an image (jpg/png) to a PDF.
 export const convertImageToPdf = async (imagePath: string, outputPath: string): Promise<boolean> => {
   const configPath = join(app.getPath('temp'), `img2pdf-${Date.now()}-${Math.random().toString(36).slice(2)}.json`)

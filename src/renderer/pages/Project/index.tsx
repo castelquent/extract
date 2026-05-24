@@ -160,15 +160,17 @@ export function ProjectDetailPage() {
     }
   }
 
-  // Overall fill rate across ready articles' schemas — drafts have no
-  // transcription yet so we exclude them.
+  // Overall fill rate across ready articles' schemas (counting content.md
+  // as an extra slot per article, same as the editor / project-card).
   let fieldsFilled = 0
   let fieldsTotal = 0
   for (const a of articles) {
     if (a.status !== 'ready') continue
     const schema = a.schema ?? []
-    fieldsTotal += schema.length
-    fieldsFilled += schema.filter((f) => isFieldFilled(f, a.fields?.[f.name])).length
+    fieldsTotal += schema.length + 1
+    fieldsFilled +=
+      schema.filter((f) => isFieldFilled(f, a.fields?.[f.name])).length +
+      ((a.content ?? '').trim() ? 1 : 0)
   }
   const fillPct = fieldsTotal > 0 ? Math.round((fieldsFilled / fieldsTotal) * 100) : 0
 

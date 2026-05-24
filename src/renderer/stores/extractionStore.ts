@@ -111,7 +111,12 @@ interface ExtractionState {
   // move orphans to a chosen dossier and run extract PDF generation.
   // Takes an intent (not a dossierId), so the dossier is created lazily
   // — only if at least one orphan article needs a home.
-  generateArticles: (target: GenerateTarget) => Promise<boolean>
+  // Returns the dossier key the generated articles ended up in:
+  //   string → dossier ID (existing or newly-created)
+  //   null   → orphans bucket
+  //   false  → generation failed
+  // Lets the page navigate the user back to that dossier in the project view.
+  generateArticles: (target: GenerateTarget) => Promise<string | null | false>
 
   // State
   setExporting: (exporting: boolean) => void
@@ -544,7 +549,13 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
       if (generatedCount > 0) {
         toast.success(t('extractor:toasts.generated', { count: generatedCount }))
       }
-      return true
+      // Resolve the dossier the articles ended up in for back-navigation.
+      // If we moved orphans into a dossier (new or existing), that's the
+      // answer. Otherwise fall back to the first generated article's own
+      // dossier — typically all articles in a single generation share one.
+      if (dossierIdForOrphans !== null) return dossierIdForOrphans
+      const firstReady = next.find((a) => a.persistedStatus === 'ready')
+      return firstReady ? (firstReady.persistedDossierId ?? null) : null
     } catch (err) {
       console.error(err)
       toast.error(t('extractor:toasts.generateError'))
